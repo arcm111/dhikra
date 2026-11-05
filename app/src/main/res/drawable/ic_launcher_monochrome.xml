@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Single-colour version of the mark for Android 13+ themed app icons. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M60,36c-11,0 -20,9 -20,20s9,20 20,20c6,0 11.4,-2.7 15.1,-6.9C71.6,74.4 65.8,79 58.7,79c-11,0 -20,-9 -20,-20s9,-20 20,-20c1.6,0 3.2,0.2 4.7,0.7C63.3,37.5 63.2,37.2 60,36z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M77,42l2.6,6.4l6.4,2.6l-6.4,2.6L77,60l-2.6,-6.4L68,51l6.4,-2.6z" />
+</vector>

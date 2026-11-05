@@ -1,0 +1,175 @@
+<resources>
+    <string name="app_name">Dhikra</string>
+
+    <!-- Item types -->
+    <string name="type_task">مهمة</string>
+    <string name="type_heading">عنوان</string>
+    <string name="type_dua">دعاء</string>
+    <string name="type_dhikr">ذكر</string>
+    <string name="type_quran">قرآن</string>
+    <string name="type_hadith">حديث</string>
+
+    <!-- Home -->
+    <string name="action_edit">تعديل البرنامج</string>
+    <string name="action_more">المزيد</string>
+    <string name="action_share">مشاركة البرنامج</string>
+    <string name="action_export">تصدير إلى ملف</string>
+    <string name="action_import">استيراد من ملف</string>
+    <string name="action_text_size">حجم الخط</string>
+    <string name="action_reset_today">تصفير تقدّم اليوم</string>
+    <string name="action_restore_default">استعادة البرنامج الافتراضي</string>
+    <string name="play">بدء القراءة</string>
+    <string name="pause">إيقاف القراءة</string>
+    <string name="reader_hint">اضغط على البطاقة عند إتمام كل قراءة</string>
+    <string name="reader_waiting">اضغط للعدّ</string>
+    <string name="counter_description">العدد %1$s من %2$s. اضغط للعدّ، واضغط مطولاً للتصفير</string>
+    <string name="counter_reset">تصفير</string>
+    <string name="counter_screen_hint">اضغط في أي مكان من الشاشة للعدّ</string>
+    <string name="counter_complete_hint">اكتمل العدد، تقبّل الله منك</string>
+    <string name="counter_of">من %1$s</string>
+    <string name="counter_done">اكتمل العدد</string>
+    <string name="counter_continue">متابعة</string>
+    <string name="counter_undo">تراجع خطوة</string>
+    <string name="counter_reset_confirm">اضغط مجدداً للتأكيد</string>
+    <string name="expand_counter">تكبير العداد</string>
+    <string name="mark_done">تمّ</string>
+    <string name="undo_done">تراجع</string>
+    <string name="note_label">ملاحظة</string>
+    <string name="times_count">×%1$s</string>
+    <string name="steps_done">أُنجز %1$s من %2$s</string>
+    <string name="step_label">الخطوة %1$s</string>
+    <string name="step_state_done">مكتملة</string>
+    <string name="step_state_current">الخطوة الحالية</string>
+    <string name="expand">عرض</string>
+    <string name="collapse">طيّ</string>
+    <string name="group_label">مجموعة</string>
+    <string name="group_progress">%1$s من %2$s</string>
+    <string name="group_complete_all">إتمام الكل</string>
+    <string name="section_complete">تقبّل الله منك</string>
+    <string name="section_complete_message">أتممت جميع خطوات «%1$s»</string>
+    <string name="next_section">التالي: %1$s</string>
+    <string name="empty_program">لا توجد أقسام بعد</string>
+    <string name="empty_program_hint">ابدأ بإضافة أقسام برنامجك اليومي وأورادها</string>
+    <string name="empty_section">لا توجد عناصر في هذا القسم</string>
+
+    <string name="day_sections">أقسام اليوم</string>
+    <string name="now">الآن</string>
+
+    <!-- Settings -->
+    <string name="settings">الإعدادات</string>
+    <string name="settings_display">العرض</string>
+    <string name="settings_data">البيانات</string>
+
+    <!-- Library -->
+    <string name="library">المكتبة</string>
+    <string name="library_hint">نصوص المكتبة ومجموعاتها هي ما تُبنى منه خطوات برنامجك اليومي</string>
+    <string name="library_tab_singles">مفردة</string>
+    <string name="library_tab_groups">مجموعات</string>
+    <string name="collection_counts">النصوص: %1$s • المجموعات: %2$s</string>
+    <string name="groups_empty">لا توجد مجموعات بعد. اجمع عدة نصوص من هذه المكتبة في مجموعة تُقرأ متتابعة.</string>
+    <string name="group_texts_count">النصوص: %1$s</string>
+    <string name="group_count">مجموعة · %1$s</string>
+    <string name="add_group">إضافة مجموعة</string>
+    <string name="new_group">مجموعة جديدة</string>
+    <string name="edit_group">تعديل المجموعة</string>
+    <string name="group_title">عنوان المجموعة</string>
+    <string name="group_title_error">أدخل عنوان المجموعة</string>
+    <string name="group_items">نصوص المجموعة</string>
+    <string name="group_items_error">أضف نصاً واحداً على الأقل من القائمة أدناه</string>
+    <string name="group_add_items">أضف من المكتبة</string>
+    <string name="group_all_added">أُضيفت كل نصوص هذه المكتبة إلى المجموعة</string>
+    <string name="add_to_group">إضافة إلى المجموعة</string>
+    <string name="remove_from_group">إزالة من المجموعة</string>
+    <string name="delete_group_message">حذف المجموعة «%1$s»؟ تبقى نصوصها في المكتبة.</string>
+    <string name="delete_group_used_message">حذف المجموعة «%1$s»؟ تبقى نصوصها في المكتبة، وتُحذف المجموعة من برنامجك (العدد: %2$s).</string>
+    <string name="delete_entry_groups_note">وسيُحذف من المجموعات التي تضمّه (العدد: %1$s).</string>
+    <string name="collection_quran">القرآن الكريم</string>
+    <string name="collection_hadith">الأحاديث</string>
+    <string name="collection_dua">الأدعية</string>
+    <string name="collection_dhikr">الأذكار</string>
+    <string name="collection_count">العدد: %1$s</string>
+    <string name="collection_empty">لا توجد نصوص بعد. أضف أول نص لتتمكن من إضافته إلى برنامجك.</string>
+    <string name="search">بحث</string>
+    <string name="no_results">لا توجد نتائج</string>
+    <string name="add_entry">إضافة نص</string>
+    <string name="new_entry">نص جديد</string>
+    <string name="edit_entry">تعديل النص</string>
+    <string name="entry_title">العنوان</string>
+    <string name="entry_description">الوصف (اختياري)</string>
+    <string name="entry_description_hint">المصدر، المرجع، الفضل…</string>
+    <string name="entry_text">النص</string>
+    <string name="entry_title_error">أدخل العنوان</string>
+    <string name="entry_text_error">أدخل النص</string>
+    <string name="delete_entry_message">حذف «%1$s» من المكتبة؟</string>
+    <string name="delete_entry_used_message">حذف «%1$s» من المكتبة؟ سيُحذف أيضاً من برنامجك (العدد: %2$s).</string>
+    <string name="entry_in_program">في البرنامج</string>
+    <string name="pick_entry">اختر من المكتبة</string>
+    <string name="pick_entry_error">اختر نصاً من المكتبة</string>
+    <string name="pick_group">اختر مجموعة من المكتبة</string>
+    <string name="pick_group_error">اختر مجموعة من المكتبة</string>
+    <string name="step_single">نص مفرد</string>
+    <string name="step_group">مجموعة نصوص</string>
+
+    <!-- Dialogs -->
+    <string name="cancel">إلغاء</string>
+    <string name="confirm">تأكيد</string>
+    <string name="save">حفظ</string>
+    <string name="delete">حذف</string>
+    <string name="close">إغلاق</string>
+    <string name="import_title">استيراد برنامج</string>
+    <string name="import_message">سيتم استبدال برنامجك الحالي بـ «%1$s» (%2$s أقسام، %3$s عناصر). هل تريد المتابعة؟</string>
+    <string name="import_confirm">استيراد</string>
+    <string name="import_done">تم استيراد البرنامج</string>
+    <string name="import_failed">تعذّرت قراءة الملف. تأكد أنه ملف برنامج صالح.</string>
+    <string name="export_done">تم تصدير البرنامج</string>
+    <string name="export_failed">تعذّر تصدير الملف</string>
+    <string name="share_failed">تعذّرت مشاركة البرنامج</string>
+    <string name="restore_message">سيتم استبدال برنامجك الحالي بالبرنامج الافتراضي، وتُضاف نصوصه إلى المكتبة.</string>
+    <string name="reset_today_message">سيتم تصفير عدادات اليوم في جميع الأقسام.</string>
+    <string name="text_size_sample">سُبْحَانَ اللَّهِ وَبِحَمْدِهِ</string>
+
+    <!-- Editor -->
+    <string name="editor_title">تعديل البرنامج</string>
+    <string name="back">رجوع</string>
+    <string name="program_name">اسم البرنامج</string>
+    <string name="default_program_name">برنامجي اليومي</string>
+    <string name="add_section">إضافة قسم</string>
+    <string name="add_item">إضافة عنصر</string>
+    <string name="new_section">قسم جديد</string>
+    <string name="edit_section">تعديل القسم</string>
+    <string name="section_title">عنوان القسم</string>
+    <string name="section_icon">الأيقونة</string>
+    <string name="section_reminder">تذكير يومي عند بدء القسم</string>
+    <string name="section_note">ملاحظة (اختياري)</string>
+    <string name="pick_time">اختر وقت التذكير</string>
+    <string name="exact_alarm_hint">اسمح بالمنبهات الدقيقة ليصلك التذكير في وقته تماماً</string>
+    <string name="allow">سماح</string>
+    <string name="move_up">تحريك للأعلى</string>
+    <string name="move_down">تحريك للأسفل</string>
+    <string name="duplicate">تكرار</string>
+    <string name="delete_section_message">حذف «%1$s» وجميع عناصره؟</string>
+    <string name="delete_item_message">حذف هذا العنصر؟</string>
+    <string name="new_item">عنصر جديد</string>
+    <string name="edit_item">تعديل العنصر</string>
+    <string name="item_type">النوع</string>
+    <string name="item_title">العنوان (اختياري)</string>
+    <string name="item_title_heading">العنوان</string>
+    <string name="item_text_task">ما الذي ينبغي فعله؟</string>
+    <string name="item_text_heading">وصف (اختياري)</string>
+    <string name="item_opening">الاستفتاح (اختياري)</string>
+    <string name="opening_basmala">البسملة</string>
+    <string name="opening_istiadha">الاستعاذة</string>
+    <string name="item_count">عدد التكرار</string>
+    <string name="item_note">ملاحظة / فضل (اختياري)</string>
+    <string name="item_empty_error">أدخل النص أو العنوان</string>
+    <string name="section_empty_error">أدخل عنوان القسم</string>
+    <string name="untitled">بدون عنوان</string>
+    <string name="decrease">إنقاص</string>
+    <string name="increase">زيادة</string>
+    <string name="no_reminder">بدون تذكير</string>
+
+    <!-- Reminders -->
+    <string name="reminder_channel">تذكير الأوراد</string>
+    <string name="reminder_channel_desc">تنبيه عند بدء وقت كل قسم من البرنامج اليومي</string>
+    <string name="reminder_text">حان وقت وردك • %1$s عناصر</string>
+</resources>
