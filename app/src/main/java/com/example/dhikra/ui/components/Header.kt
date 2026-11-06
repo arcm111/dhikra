@@ -39,7 +39,7 @@ import com.example.dhikra.ui.theme.LocalDhikraPalette
 private val HeaderShape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
 
 /**
- * The branded header shared by every screen: an emerald gradient with a faint geometric star
+ * The branded header shared by every screen: a dark green gradient with a faint geometric star
  * lattice, drawn edge-to-edge behind the status bar and lifted above the page by a soft shadow,
  * so the app bar and the tabs read as their own layer, independent of the scrolling content.
  */
@@ -65,7 +65,7 @@ fun DhikraHeader(
 }
 
 /**
- * A pill-shaped tab inside [DhikraHeader]: outlined on the emerald gradient, filled once
+ * A pill-shaped tab inside [DhikraHeader]: outlined on the dark green gradient, filled once
  * [selected]. Place it in a `selectableGroup()` row.
  */
 @Composable

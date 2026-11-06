@@ -61,6 +61,16 @@ object ArabicText {
 
     fun isAyahMarker(token: String): Boolean = token.firstOrNull() == END_OF_AYAH
 
+    /** Sign written before the first word of each quarter of hizb. */
+    const val RUB_EL_HIZB = '۞'
+
+    /**
+     * Whether [token] is a Quranic sign the mushaf text writes as a word of its own: a pause mark
+     * (ۖ ۗ ۚ ۛ...), the sajdah sign ۩ or the rub el hizb ۞. Signs are not read aloud.
+     */
+    fun isQuranicSign(token: String): Boolean =
+        token.isNotEmpty() && token[0] != END_OF_AYAH && token.all { it in 'ۖ'..'ۭ' }
+
     private val trailingCount =
         Regex("""\(\s*(?:([0-9٠-٩۰-۹]+)\s*(?:مرة|مره|مرات|مرّات)?|(مرة واحدة|مره واحده))\s*\)\s*[.،]?\s*$""")
 

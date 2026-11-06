@@ -15,6 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,8 +48,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
@@ -58,6 +61,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -77,6 +81,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -98,8 +103,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -108,17 +112,18 @@ import androidx.compose.ui.unit.dp
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.ItemType
+import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.ui.UiState
-import com.example.dhikra.ui.components.CounterScreen
 import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.DhikraLogo
 import com.example.dhikra.ui.components.FinishNode
+import com.example.dhikra.ui.components.HeaderTab
 import com.example.dhikra.ui.components.HeadingNode
 import com.example.dhikra.ui.components.HeadingNodeSize
-import com.example.dhikra.ui.components.HeaderTab
 import com.example.dhikra.ui.components.LibraryIcon
+import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.StepNode
 import com.example.dhikra.ui.components.StepNodeSize
 import com.example.dhikra.ui.components.StepState
@@ -131,16 +136,16 @@ import com.example.dhikra.ui.formatTimeArabic
 import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.example.dhikra.ui.theme.Orange
 import kotlin.math.absoluteValue
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.time.Duration.Companion.milliseconds
 
 /** Everything the home screen can ask for. */
 class HomeActions(
     val onSelectSection: (String) -> Unit,
+    val onSelectProgram: (String) -> Unit,
+    val onCreateProgram: () -> Unit,
     val onEdit: () -> Unit,
     val onOpenLibrary: () -> Unit,
     val onOpenSettings: () -> Unit,
@@ -151,6 +156,7 @@ class HomeActions(
     val onRepetitionRead: (ProgramItem, Long) -> Unit,
     val onSetComplete: (ProgramItem, Boolean) -> Unit,
     val onResetItem: (ProgramItem) -> Unit,
+    val onOpenPrayerTimes: () -> Unit = {},
 )
 
 private const val KEY_SUMMARY = "summary"
@@ -161,7 +167,8 @@ private const val KEY_COMPLETE = "complete"
 /**
  * Task-then-step home: the branded header holds the program's tasks (sections) as tabs, plus a
  * sheet listing the whole day; each page shows the task's summary and its steps on a vertical
- * timeline. Cards are folded; only the focused one is open.
+ * timeline. Tapping a step opens the full-screen reader at it, which goes through the steps of the
+ * task with a swipe up.
  */
 @Composable
 fun HomeScreen(
@@ -169,14 +176,43 @@ fun HomeScreen(
     actions: HomeActions,
     snackbarHostState: SnackbarHostState,
 ) {
+    // Another program is another set of tasks: its pages, tabs and scroll positions start afresh.
+    key(state.program.id) { ProgramHome(state, actions, snackbarHostState) }
+}
+
+@Composable
+private fun ProgramHome(
+    state: UiState,
+    actions: HomeActions,
+    snackbarHostState: SnackbarHostState,
+) {
     val sections = state.schedule.sections
     val selectedIndex = sections.indexOfFirst { it.id == state.selectedSectionId }.coerceAtLeast(0)
     val tabsState = rememberLazyListState()
-    var playingItemId by rememberSaveable { mutableStateOf<String?>(null) }
-    // Item whose counter is currently expanded to full screen (null = dismissed).
-    var counterItemId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Step the full-screen reader was opened from (null = reader closed).
+    var readerStartId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The step the reader was closed on: the list scrolls to it so the user finds their place.
+    var revealStepId by remember { mutableStateOf<String?>(null) }
     var showDay by rememberSaveable { mutableStateOf(false) }
-    KeepScreenOn(playingItemId != null || counterItemId != null)
+    // The reader is opened at this step once the pager has settled on its task.
+    var pendingStartId by remember { mutableStateOf<String?>(null) }
+    val readerSection = readerStartId?.let { id -> sectionOf(sections, id) }
+    KeepScreenOn(readerSection != null)
+
+    // The task of the current time of day, and the step to start it from (its first unfinished
+    // one); null once that task is finished, which hides the start button.
+    val nowSection = sections.firstOrNull { it.id == state.nowSectionId }
+    val nowStepId = nowSection?.items?.firstOrNull { it.type.isTrackable && !state.isComplete(it) }?.id
+    val startNow: () -> Unit = start@{
+        val section = nowSection ?: return@start
+        val step = nowStepId ?: return@start
+        if (section.id == state.selectedSectionId) {
+            readerStartId = step
+        } else {
+            pendingStartId = step
+            actions.onSelectSection(section.id)
+        }
+    }
 
     LaunchedEffect(selectedIndex, sections.size) {
         if (sections.isEmpty()) return@LaunchedEffect
@@ -191,7 +227,6 @@ fun HomeScreen(
         Scaffold(
             topBar = {
                 HomeHeader(
-                    title = state.program.name.ifBlank { stringResource(R.string.default_program_name) },
                     sections = sections,
                     selectedIndex = selectedIndex,
                     state = state,
@@ -199,6 +234,15 @@ fun HomeScreen(
                     actions = actions,
                     onShowDay = { showDay = true },
                 )
+            },
+            floatingActionButton = {
+                if (nowSection != null && nowStepId != null) {
+                    StartNowButton(
+                        section = nowSection,
+                        started = state.completedIn(nowSection) > 0,
+                        onClick = startNow,
+                    )
+                }
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background,
@@ -214,10 +258,18 @@ fun HomeScreen(
                 if (pagerState.currentPage != selectedIndex) pagerState.animateScrollToPage(selectedIndex)
             }
             LaunchedEffect(pagerState) {
+                // The first page is not a change: a reader restored after rotation must stay open.
+                var initial = true
                 snapshotFlow { pagerState.settledPage }.collect { page ->
                     currentSections.getOrNull(page)?.let { actions.onSelectSection(it.id) }
-                    playingItemId = null
-                    counterItemId = null
+                    if (initial) initial = false else readerStartId = null
+                    // Started from the button: open the reader once its task is on screen.
+                    val start = pendingStartId
+                    val shown = currentSections.getOrNull(page)
+                    if (start != null && shown != null && sectionOf(listOf(shown), start) != null) {
+                        pendingStartId = null
+                        readerStartId = start
+                    }
                 }
             }
 
@@ -239,10 +291,11 @@ fun HomeScreen(
                     nextSection = nextUnfinishedSection(sections, page, state),
                     state = state,
                     bottomInset = padding.calculateBottomPadding(),
-                    playingItemId = playingItemId,
-                    onPlayingChange = { playingItemId = it },
                     actions = actions,
-                    onOpenCounter = { itemId -> counterItemId = itemId },
+                    onOpenReader = { stepId -> readerStartId = stepId },
+                    revealStepId = revealStepId?.takeIf { id -> sections[page].items.any { it.id == id } },
+                    onRevealed = { revealStepId = null },
+                    fabShown = nowStepId != null,
                     modifier = Modifier.graphicsLayer {
                         // Pages ease back and fade a little while swiping between tasks.
                         val offset = pagerState.getOffsetDistanceInPages(page).absoluteValue.coerceIn(0f, 1f)
@@ -255,9 +308,9 @@ fun HomeScreen(
             }
         }
 
-        // Full-screen counter: grows out of the schedule and shrinks back into it.
+        // Full-screen reader: grows out of the schedule and shrinks back into it.
         AnimatedContent(
-            targetState = counterItemId,
+            targetState = readerStartId?.takeIf { readerSection != null },
             transitionSpec = {
                 val transform = if (targetState != null) {
                     (fadeIn(tween(220)) + scaleIn(tween(320, easing = EmphasizedDecelerate), initialScale = 0.9f))
@@ -270,26 +323,19 @@ fun HomeScreen(
                 transform using SizeTransform(clip = false) { _, _ -> snap() }
             },
             modifier = Modifier.fillMaxSize(),
-            label = "counterOverlay",
-        ) { itemId ->
-            val item = itemId?.let { id -> findItem(sections, id) }
-            if (item != null) {
-                CounterScreen(
-                    title = item.title.ifBlank { stringResource(item.type.label) },
-                    text = item.text,
-                    opening = item.opening,
-                    done = state.doneCount(item),
-                    target = item.target,
-                    quran = item.type == ItemType.QURAN,
-                    onCount = { actions.onIncrement(item) },
-                    onUndo = { actions.onDecrement(item) },
-                    onReset = { actions.onResetItem(item) },
-                    onClose = {
-                        counterItemId = null
-                        playingItemId = null
+            label = "readerOverlay",
+        ) { stepId ->
+            val section = stepId?.let { id -> sectionOf(sections, id) }
+            if (stepId != null && section != null) {
+                StepReader(
+                    section = section,
+                    startId = stepId,
+                    state = state,
+                    actions = actions,
+                    onClose = { lastStepId ->
+                        readerStartId = null
+                        revealStepId = lastStepId
                     },
-                    playing = playingItemId == item.id,
-                    onRepetitionRead = { actions.onRepetitionRead(item, it) },
                 )
             }
         }
@@ -307,12 +353,26 @@ fun HomeScreen(
     }
 }
 
-/** The step, or the text of a group step, with this [id]. */
-private fun findItem(sections: List<ProgramSection>, id: String): ProgramItem? =
-    sections.asSequence()
-        .flatMap { it.items.asSequence() }
-        .flatMap { sequenceOf(it) + it.members }
-        .firstOrNull { it.id == id }
+/** Starts (or resumes) the task of the current time of day in the full-screen reader. */
+@Composable
+private fun StartNowButton(section: ProgramSection, started: Boolean, onClick: () -> Unit) {
+    val label = stringResource(if (started) R.string.continue_now_section else R.string.start_now_section, section.title)
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+        text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        containerColor = MaterialTheme.colorScheme.secondary,
+        contentColor = MaterialTheme.colorScheme.onSecondary,
+        shape = CircleShape,
+        modifier = Modifier.widthIn(max = 300.dp),
+    )
+}
+
+/** The task holding the step (or the text of a group step) with this [id]. */
+private fun sectionOf(sections: List<ProgramSection>, id: String): ProgramSection? =
+    sections.firstOrNull { section ->
+        section.items.any { step -> step.id == id || step.members.any { it.id == id } }
+    }
 
 /** The next task after [page] that still has unfinished steps (wrapping around), if any. */
 private fun nextUnfinishedSection(sections: List<ProgramSection>, page: Int, state: UiState): ProgramSection? {
@@ -325,7 +385,6 @@ private fun nextUnfinishedSection(sections: List<ProgramSection>, page: Int, sta
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeHeader(
-    title: String,
     sections: List<ProgramSection>,
     selectedIndex: Int,
     state: UiState,
@@ -336,11 +395,11 @@ private fun HomeHeader(
     DhikraHeader(bottomPadding = if (sections.isEmpty()) 4.dp else 14.dp) {
         TopAppBar(
             title = {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                ProgramSwitcher(
+                    programs = state.programs,
+                    active = state.program,
+                    onSelect = actions.onSelectProgram,
+                    onCreate = actions.onCreateProgram,
                 )
             },
             actions = {
@@ -348,9 +407,6 @@ private fun HomeHeader(
                     IconButton(onClick = onShowDay) {
                         Icon(Icons.AutoMirrored.Outlined.List, stringResource(R.string.day_sections))
                     }
-                }
-                IconButton(onClick = actions.onEdit) {
-                    Icon(Icons.Outlined.Edit, stringResource(R.string.action_edit))
                 }
                 OverflowMenu(actions)
             },
@@ -379,6 +435,65 @@ private fun HomeHeader(
     }
 }
 
+/**
+ * The program's name in the app bar: it drops down the user's programs, to switch to another one,
+ * and the action that adds a new program.
+ */
+@Composable
+private fun ProgramSwitcher(
+    programs: List<Program>,
+    active: Program,
+    onSelect: (String) -> Unit,
+    onCreate: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val defaultName = stringResource(R.string.default_program_name)
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(onClickLabel = stringResource(R.string.programs)) { open = true }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = active.name.ifBlank { defaultName },
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            programs.forEach { program ->
+                val current = program.id == active.id
+                DropdownMenuItem(
+                    text = { Text(program.name.ifBlank { defaultName }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = {
+                        if (current) Icon(Icons.Filled.Check, contentDescription = null)
+                        else Spacer(Modifier.size(24.dp))
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(program.id)
+                    },
+                    modifier = Modifier.semantics { selected = current },
+                )
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.new_program)) },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onCreate()
+                },
+            )
+        }
+    }
+}
+
 private fun UiState.fractionOf(section: ProgramSection): Float {
     val total = section.trackableItems.size
     return if (total == 0) 0f else completedIn(section).toFloat() / total
@@ -399,6 +514,8 @@ private fun OverflowMenu(actions: HomeActions) {
                     leadingIcon = icon,
                     onClick = { open = false; onClick() },
                 )
+            entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, actions.onEdit)
+            entry(R.string.prayer_times, { Icon(PrayerIcon, null) }, actions.onOpenPrayerTimes)
             entry(R.string.library, { Icon(LibraryIcon, null) }, actions.onOpenLibrary)
             entry(R.string.settings, { Icon(Icons.Outlined.Settings, null) }, actions.onOpenSettings)
             HorizontalDivider()
@@ -417,15 +534,14 @@ private fun SectionTab(
     fraction: Float,
     onClick: () -> Unit,
 ) {
-    val palette = LocalDhikraPalette.current
     HeaderTab(selected = selected, onClick = onClick) {
         Icon(sectionIcon(section.icon), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(section.title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         if (now) {
-            // The time slot we are in: a small gold dot after the title.
+            // The time slot we are in: a small orange dot after the title.
             Spacer(Modifier.width(6.dp))
-            Box(Modifier.size(6.dp).clip(CircleShape).background(palette.ornament))
+            Box(Modifier.size(6.dp).clip(CircleShape).background(Orange))
         }
         Spacer(Modifier.width(10.dp))
         SectionProgress(fraction, LocalContentColor.current)
@@ -463,7 +579,6 @@ private fun SectionProgress(fraction: Float, color: Color) {
 @Composable
 private fun DaySheet(state: UiState, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val palette = LocalDhikraPalette.current
     val ordered = remember(state.schedule) {
         state.schedule.sections.withIndex()
             .sortedWith(compareBy({ it.value.reminderMinutes ?: Int.MAX_VALUE }, { it.index }))
@@ -513,7 +628,7 @@ private fun DaySheet(state: UiState, onSelect: (String) -> Unit, onDismiss: () -
                             )
                         }
                         if (now) {
-                            Surface(shape = CircleShape, color = palette.ornament.copy(alpha = 0.18f), contentColor = palette.ornamentText) {
+                            Surface(shape = CircleShape, color = scheme.secondaryContainer, contentColor = scheme.onSecondaryContainer) {
                                 Text(
                                     stringResource(R.string.now),
                                     style = MaterialTheme.typography.labelMedium,
@@ -538,10 +653,11 @@ private fun SectionPage(
     nextSection: ProgramSection?,
     state: UiState,
     bottomInset: Dp,
-    playingItemId: String?,
-    onPlayingChange: (String?) -> Unit,
     actions: HomeActions,
-    onOpenCounter: (String) -> Unit,
+    onOpenReader: (String) -> Unit,
+    revealStepId: String?,
+    onRevealed: () -> Unit,
+    fabShown: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val items = section.items
@@ -558,17 +674,20 @@ private fun SectionPage(
         items.map { if (it.type.isTrackable) ++number else 0 }
     }
 
-    // The open step. Only the first step of the section starts open; after that cards open and
-    // fold only when the user taps them — never by scrolling or by finishing a step.
-    val focus = rememberStepFocus(listState, section.id) { items.firstOrNull { it.type.isTrackable }?.id }
-
-    val focusedId = focus.focusedId
-    // Leaving a card folds it: stop its reader (the card's own, or one of its texts' in a group).
-    LaunchedEffect(focusedId) {
-        val readStepId = playingItemId?.let { id ->
-            items.firstOrNull { step -> step.id == id || step.members.any { it.id == id } }?.id
+    // Coming back from the reader, bring the step it was on into view, a quarter of the way down.
+    val headerCount = 1 + (if (section.note.isNotBlank()) 1 else 0) + (if (items.isEmpty()) 1 else 0)
+    LaunchedEffect(revealStepId) {
+        val index = items.indexOfFirst { it.id == revealStepId }
+        if (index >= 0) {
+            val layout = listState.layoutInfo
+            val shown = layout.visibleItemsInfo.firstOrNull { it.index == headerCount + index }
+            val fullyVisible = shown != null && shown.offset >= layout.viewportStartOffset &&
+                shown.offset + shown.size <= layout.viewportEndOffset - layout.afterContentPadding
+            if (!fullyVisible) {
+                listState.animateScrollToItem(headerCount + index, scrollOffset = -layout.viewportSize.height / 4)
+            }
         }
-        if (playingItemId != null && readStepId != focusedId) onPlayingChange(null)
+        if (revealStepId != null) onRevealed()
     }
 
     // On large screens the schedule keeps a comfortable reading width, centred on the page.
@@ -581,7 +700,8 @@ private fun SectionPage(
             start = side + 8.dp,
             end = side + 16.dp,
             top = 16.dp,
-            bottom = bottomInset + 32.dp,
+            // Room for the start button, so it never hides the last step.
+            bottom = bottomInset + if (fabShown) 96.dp else 32.dp,
         ),
     ) {
         item(key = KEY_SUMMARY) {
@@ -614,27 +734,6 @@ private fun SectionPage(
                 item.id == currentStepId -> StepState.Current
                 else -> StepState.Upcoming
             }
-            val focused = item.id == focusedId
-            // The callbacks of a step, or of one text of a group step (each is counted on its own).
-            fun actionsFor(target: ProgramItem) = ItemActions(
-                onTogglePlay = {
-                    if (playingItemId == target.id) {
-                        onPlayingChange(null)
-                    } else {
-                        onPlayingChange(target.id)
-                        // Repeatable items expand to the immersive full-screen counter.
-                        if (target.isRepeatable) onOpenCounter(target.id)
-                    }
-                },
-                onIncrement = { actions.onIncrement(target) },
-                onRepetitionRead = { actions.onRepetitionRead(target, it) },
-                onSetComplete = { actions.onSetComplete(target, it) },
-                onReset = { actions.onResetItem(target) },
-                onExpandCounter = { onOpenCounter(target.id) },
-                onToggleExpanded = { focus.toggle(target.id) },
-            )
-            // In the current group, its first unfinished text is the one to read next.
-            val nextTextId = item.members.firstOrNull { !state.isComplete(it) }?.id
             TimelineRow(
                 segments = segments,
                 nodeCenter = item.nodeCenter,
@@ -645,24 +744,12 @@ private fun SectionPage(
                 ProgramItemView(
                     item = item,
                     done = state.doneCount(item),
-                    playing = playingItemId == item.id,
-                    expanded = focused && item.type.isExpandable,
-                    focused = focused,
-                    current = stepState == StepState.Current,
-                    lettersPerSecond = state.speedFor(item),
                     textScale = state.textScale,
-                    actions = actionsFor(item),
-                    member = { text ->
-                        GroupMemberView(
-                            item = text,
-                            done = state.doneCount(text),
-                            playing = playingItemId == text.id,
-                            lettersPerSecond = state.speedFor(text),
-                            textScale = state.textScale,
-                            actions = actionsFor(text),
-                            current = stepState == StepState.Current && text.id == nextTextId,
-                        )
-                    },
+                    onOpen = { onOpenReader(item.id) },
+                    onSetComplete = { actions.onSetComplete(item, it) },
+                    current = stepState == StepState.Current,
+                    onOpenText = onOpenReader,
+                    textDone = state::doneCount,
                 )
             }
         }

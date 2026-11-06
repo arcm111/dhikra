@@ -34,20 +34,27 @@ import androidx.compose.ui.unit.em
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.ui.theme.ElementColors
 
-/** A word (or whitespace / ayah marker) of a text that can be read progressively. */
-private class Token(val text: String, val isMarker: Boolean, val endWeight: Float)
+/**
+ * A word (or whitespace / ayah marker / Quranic sign) of a text that can be read progressively.
+ * Signs (pause marks, ۩, ۞) weigh nothing: the highlight never stops on them.
+ */
+private class Token(val text: String, val isMarker: Boolean, val isSign: Boolean, val endWeight: Float) {
+    /** The rub el hizb sign, which belongs to the word after it rather than the one before. */
+    val opensAyah: Boolean get() = isSign && text[0] == ArabicText.RUB_EL_HIZB
+}
 
 private fun tokenize(text: String): List<Token> {
     var cumulative = 0f
     return Regex("""\s+|\S+""").findAll(text).map { match ->
         val value = match.value
         val isMarker = ArabicText.isAyahMarker(value)
+        val isSign = !isMarker && ArabicText.isQuranicSign(value)
         cumulative += when {
-            value.isBlank() -> 0f
+            value.isBlank() || isSign -> 0f
             isMarker -> MARKER_PAUSE_WEIGHT
             else -> ArabicText.letterWeight(value).coerceAtLeast(1).toFloat()
         }
-        Token(value, isMarker, cumulative)
+        Token(value, isMarker, isSign, cumulative)
     }.toList()
 }
 
@@ -67,6 +74,8 @@ private const val JUSTIFY_SAFETY_PX = 1f
  * relying on the font's ۝ sign. Each marker is kept on the same line as the word it closes.
  * @param onCycleStart receives the uptime (ms) at which the current cycle started.
  * @param onReachedEnd called with true when the highlight reached the last word of the cycle.
+ * @param onProgress called on every frame of a cycle with how far the highlight is through the
+ * text (0 to 1), so a scrolling container can follow it.
  */
 @Composable
 fun ReaderText(
@@ -80,12 +89,14 @@ fun ReaderText(
     ornamentalAyahMarkers: Boolean = false,
     onCycleStart: (Long) -> Unit = {},
     onReachedEnd: (Boolean) -> Unit = {},
+    onProgress: (Float) -> Unit = {},
 ) {
     val tokens = remember(text) { tokenize(text) }
     var current by remember(text) { mutableIntStateOf(-1) }
     val speed by rememberUpdatedState(lettersPerSecond)
     val cycleStart by rememberUpdatedState(onCycleStart)
     val reachedEnd by rememberUpdatedState(onReachedEnd)
+    val progress by rememberUpdatedState(onProgress)
 
     LaunchedEffect(playing, cycle, tokens) {
         reachedEnd(false)
@@ -94,14 +105,17 @@ fun ReaderText(
             return@LaunchedEffect
         }
         val start = SystemClock.uptimeMillis()
+        val totalWeight = tokens.lastOrNull()?.endWeight ?: 0f
         cycleStart(start)
         current = 0
+        progress(0f)
         while (current < tokens.size) {
             withFrameMillis { }
             val readWeight = (SystemClock.uptimeMillis() - start) / 1000f * speed
             val index = tokens.indexOfFirst { it.endWeight > readWeight }
                 .let { if (it < 0) tokens.size else it }
             if (index != current) current = index
+            if (totalWeight > 0f) progress((readWeight / totalWeight).coerceIn(0f, 1f))
         }
         // Highlight reached the end: wait for the user's tap (which starts the next cycle).
         reachedEnd(true)
@@ -203,12 +217,16 @@ private fun buildReaderText(
             }
             val value = when {
                 justification?.breaks?.contains(index) == true -> "\n"
-                // A no-break space glues every ayah marker to the word it closes.
+                // A pause sign is drawn on the word it closes, like in the mushaf (the text keeps
+                // the space before it, on which the font would draw it between the lines).
+                isGlue(tokens, index) && tokens.getOrNull(index + 1)?.let { it.isSign && !it.opensAyah } == true -> ""
+                // A no-break space glues every ayah marker to the word it closes, and ۞ to the
+                // word it opens.
                 isGlue(tokens, index) -> NO_BREAK_SPACE
                 else -> token.text
             }
             val colorStyle = when {
-                token.isMarker -> markerStyle
+                token.isMarker || token.isSign -> markerStyle
                 current < 0 -> null
                 token.text.isBlank() -> null
                 index < current -> readStyle
@@ -223,9 +241,18 @@ private fun buildReaderText(
     return ReaderString(text, starts, placeholders)
 }
 
+/**
+ * Whether the space [index] is drawn as a no-break space, so a line never starts with an ayah
+ * marker or a pause sign (they stay with the word they close) nor ends with ۞ (it stays with the
+ * word it opens).
+ */
 private fun isGlue(tokens: List<Token>, index: Int): Boolean {
     val token = tokens[index]
-    return token.text.isBlank() && '\n' !in token.text && tokens.getOrNull(index + 1)?.isMarker == true
+    if (token.text.isNotBlank() || '\n' in token.text) return false
+    val next = tokens.getOrNull(index + 1)
+    val previous = tokens.getOrNull(index - 1)
+    return (next != null && (next.isMarker || (next.isSign && !next.opensAyah))) ||
+        previous?.opensAyah == true
 }
 
 /**

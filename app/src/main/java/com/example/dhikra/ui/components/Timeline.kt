@@ -3,6 +3,7 @@ package com.example.dhikra.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -66,6 +67,8 @@ data class TimelineSegments(
 /** Width of the timeline column on the start (right) side of the schedule. */
 val TimelineGutter = 40.dp
 val StepNodeSize = 28.dp
+/** A finished step's check circle: smaller than the numbered ones, so the steps still to read stand out. */
+private val DoneNodeSize = 22.dp
 private val LineWidth = 2.dp
 private val NodeGap = 5.dp
 private val RowSpacing = 14.dp
@@ -128,7 +131,8 @@ fun TimelineRow(
 
 /**
  * Numbered circle of a step: an outlined number while upcoming, a tinted ring with a soft
- * breathing halo for the current step, and a filled check once done.
+ * breathing halo for the current step, and a smaller filled check once done. The node keeps its
+ * full [StepNodeSize] slot either way, so the timeline does not move when a step is finished.
  */
 @Composable
 fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
@@ -148,6 +152,10 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
         },
         label = "nodeBorder",
     )
+    val circle by animateDpAsState(
+        targetValue = if (state == StepState.Done) DoneNodeSize else StepNodeSize,
+        label = "nodeSize",
+    )
     val description = stringResource(R.string.step_label, ArabicText.toArabicDigits(number)) +
         when (state) {
             StepState.Done -> "، " + stringResource(R.string.step_state_done)
@@ -163,7 +171,7 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
         if (state == StepState.Current) Halo(scheme.primary)
         Box(
             modifier = Modifier
-                .size(StepNodeSize)
+                .size(circle)
                 .clip(CircleShape)
                 .background(container)
                 .border(if (state == StepState.Current) 2.dp else 1.5.dp, border, CircleShape),
@@ -182,7 +190,7 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
                         imageVector = Icons.Filled.Check,
                         contentDescription = null,
                         tint = scheme.onPrimary,
-                        modifier = Modifier.size(17.dp),
+                        modifier = Modifier.size(13.dp),
                     )
                 } else {
                     Text(

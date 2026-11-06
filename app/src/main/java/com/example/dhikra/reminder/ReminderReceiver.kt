@@ -15,7 +15,8 @@ class ReminderReceiver : BroadcastReceiver() {
         if (intent.action != ReminderScheduler.ACTION_REMIND) return
         val sectionId = intent.getStringExtra(ReminderScheduler.EXTRA_SECTION_ID) ?: return
         goAsyncOnIo(context) { appContext ->
-            val bundle = ProgramRepository(appContext).load()
+            // Only the program being followed has reminders.
+            val bundle = ProgramRepository(appContext).load().bundle
             bundle.program.resolvedWith(bundle.library).section(sectionId)
                 ?.let { ReminderScheduler.showNotification(appContext, it) }
             ReminderScheduler.scheduleAll(appContext, bundle.program)
@@ -28,7 +29,7 @@ class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in RESCHEDULE_ACTIONS) return
         goAsyncOnIo(context) { appContext ->
-            ReminderScheduler.scheduleAll(appContext, ProgramRepository(appContext).load().program)
+            ReminderScheduler.scheduleAll(appContext, ProgramRepository(appContext).load().active)
         }
     }
 

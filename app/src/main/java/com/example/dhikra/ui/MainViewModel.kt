@@ -12,12 +12,19 @@ import com.example.dhikra.data.DefaultProgram
 import com.example.dhikra.data.Library
 import com.example.dhikra.data.LibraryEntry
 import com.example.dhikra.data.LibraryGroup
+import com.example.dhikra.data.MockPrayerTimes
+import com.example.dhikra.data.PrayerTimesSource
+import com.example.dhikra.data.PrayerTimetable
 import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramBundle
 import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramJson
 import com.example.dhikra.data.ProgramRepository
 import com.example.dhikra.data.ProgramSection
+import com.example.dhikra.data.ProgramStore
+import com.example.dhikra.data.QuranDatabase
+import com.example.dhikra.data.QuranLookup
+import com.example.dhikra.data.newId
 import com.example.dhikra.reminder.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,8 +42,10 @@ import java.util.Calendar
 
 data class UiState(
     val loading: Boolean = true,
-    /** The program as stored: content steps only reference library entries. */
+    /** The program being followed, as stored: content steps only reference library entries. */
     val program: Program = Program(name = ""),
+    /** All the user's programs, [program] included; they share the [library]. */
+    val programs: List<Program> = emptyList(),
     val library: Library = Library(),
     /** The program as displayed, with every step's library text filled in. */
     val schedule: Program = Program(name = ""),
@@ -52,7 +61,12 @@ data class UiState(
     val nowSectionId: String? = null,
     /** A program waiting for the user to confirm its import. */
     val pendingImport: ProgramBundle? = null,
+    /** Today's prayer times in the city the user picked; null until a city is picked. */
+    val prayerTimes: PrayerTimetable? = null,
 ) {
+    /** What is stored: every program, the one being followed and the library. */
+    val store: ProgramStore get() = ProgramStore(programs.ifEmpty { listOf(program) }, program.id, library)
+
     /** Repetitions done today; for a group, how many of its texts are done. */
     fun doneCount(item: ProgramItem): Int =
         if (item.isGroup) item.members.count(::isComplete)
@@ -70,6 +84,12 @@ sealed interface UiEvent {
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProgramRepository(application)
+
+    /** The bundled Quran text, for the editors that pick Quran passages. */
+    val quran: QuranLookup = QuranDatabase.get(application).lookup
+
+    /** Where prayer times come from: a mock timetable until the real source is chosen. */
+    val prayerSource: PrayerTimesSource = MockPrayerTimes
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
@@ -84,17 +104,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val today = ProgramRepository.today()
             val loaded = withContext(Dispatchers.IO) {
-                val bundle = repository.load()
+                val store = repository.load()
                 UiState(
                     loading = false,
-                    program = bundle.program,
-                    library = bundle.library,
-                    schedule = bundle.program.resolvedWith(bundle.library),
+                    program = store.active,
+                    programs = store.programs,
+                    library = store.library,
+                    schedule = store.active.resolvedWith(store.library),
                     day = today,
                     progress = repository.loadProgress(today),
                     speeds = repository.loadSpeeds(),
                     defaultSpeed = repository.loadDefaultSpeed(),
                     textScale = repository.loadTextScale(),
+                    prayerTimes = repository.loadPrayerCity()?.let { prayerSource.timetable(it, today) },
                 )
             }
             val now = currentSectionByTime(loaded.program)
@@ -131,6 +153,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 day = today,
                 progress = if (newDay) emptyMap() else it.progress,
+                prayerTimes = if (newDay) it.prayerTimes?.let { t -> prayerSource.timetable(t.city.id, today) } else it.prayerTimes,
                 nowSectionId = now,
                 selectedSectionId = now ?: it.selectedSectionId,
             )
@@ -163,7 +186,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** The items whose progress is stored: a group's texts, or the step itself. */
     private fun ProgramItem.trackedParts(): List<ProgramItem> = if (isGroup) members else listOf(this)
 
-    fun resetToday() = updateProgress { it.clear() }
+    /** Starts today over for the program being followed; the other programs keep their progress. */
+    fun resetToday() {
+        val stepIds = _state.value.program.sections.flatMapTo(mutableSetOf()) { s -> s.items.map { it.id } }
+        // A group's texts are tracked as "<step id>/<entry id>".
+        updateProgress { progress -> progress.keys.removeAll { it.substringBefore('/') in stepIds } }
+    }
 
     /**
      * Called each time the user taps while the reader effect is running: one repetition has
@@ -206,6 +234,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repository.saveTextScale(scale) }
     }
 
+    /** Shows the prayer times of [cityId] and remembers it as the user's city. */
+    fun setPrayerCity(cityId: String) {
+        val timetable = prayerSource.timetable(cityId, _state.value.day.ifEmpty { ProgramRepository.today() }) ?: return
+        _state.update { it.copy(prayerTimes = timetable) }
+        viewModelScope.launch(Dispatchers.IO) { repository.savePrayerCity(cityId) }
+    }
+
     // ---------------------------------------------------------------- Editing
 
     /** Applies an edit to the program; it is persisted (debounced) and reminders rescheduled. */
@@ -214,39 +249,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Adds or updates an entry of the library collections. */
     fun saveEntry(entry: LibraryEntry) = edit { it.copy(library = it.library.upsert(entry)) }
 
-    /** Deletes a library entry, together with the program steps that read it (it also leaves its groups). */
-    fun deleteEntry(entryId: String) = edit {
-        ProgramBundle(program = it.program.withoutEntry(entryId), library = it.library.remove(entryId))
-    }
+    /** Deletes a library entry, together with the steps of every program that read it (it also leaves its groups). */
+    fun deleteEntry(entryId: String) = editStore { it.withoutEntry(entryId) }
 
     /** Adds or updates a group of library texts. */
     fun saveGroup(group: LibraryGroup) = edit { it.copy(library = it.library.upsertGroup(group)) }
 
-    /** Deletes a group, together with the program steps that read it; its texts stay in the library. */
-    fun deleteGroup(groupId: String) = edit {
-        ProgramBundle(program = it.program.withoutGroup(groupId), library = it.library.removeGroup(groupId))
+    /** Deletes a group, together with the steps of every program that read it; its texts stay in the library. */
+    fun deleteGroup(groupId: String) = editStore { it.withoutGroup(groupId) }
+
+    /** Edits the program being followed and the library. */
+    private fun edit(transform: (ProgramBundle) -> ProgramBundle) =
+        editStore { it.withBundle(transform(it.bundle)) }
+
+    /** Applies an edit; it is persisted (debounced) and the reminders rescheduled. */
+    private fun editStore(transform: (ProgramStore) -> ProgramStore) {
+        val current = _state.value.store
+        commit(transform(current), reselect = false)
     }
 
-    private fun edit(transform: (ProgramBundle) -> ProgramBundle) {
-        val current = _state.value
-        val bundle = transform(ProgramBundle(current.program, current.library))
-        apply(bundle)
+    /**
+     * Shows [store] and saves it after a short delay. [reselect] opens the section of the current
+     * time, for a program that has just been switched to.
+     */
+    private fun commit(store: ProgramStore, reselect: Boolean) {
+        apply(store, reselect)
         dirty = true
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(SAVE_DEBOUNCE_MS)
-            persist(bundle)
+            persist(store)
         }
     }
 
-    private fun apply(bundle: ProgramBundle, reselect: Boolean = false) {
-        val program = bundle.program
+    private fun apply(store: ProgramStore, reselect: Boolean = false) {
+        val program = store.active
         _state.update { state ->
             state.copy(
                 program = program,
-                library = bundle.library,
-                schedule = program.resolvedWith(bundle.library),
-                pendingImport = if (reselect) null else state.pendingImport,
+                programs = store.programs,
+                library = store.library,
+                schedule = program.resolvedWith(store.library),
                 selectedSectionId = if (reselect) currentSectionByTime(program)
                 else state.selectedSectionId?.takeIf { program.section(it) != null }
                     ?: program.sections.firstOrNull()?.id,
@@ -255,26 +298,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun persist(bundle: ProgramBundle) = withContext(Dispatchers.IO) {
-        repository.save(bundle)
+    private suspend fun persist(store: ProgramStore) = withContext(Dispatchers.IO) {
+        repository.save(store)
         dirty = false
-        ReminderScheduler.scheduleAll(getApplication(), bundle.program)
+        // Only the program being followed has reminders.
+        ReminderScheduler.scheduleAll(getApplication(), store.active)
     }
 
-    /** Restores the default program; its texts are added back to the library collections. */
-    fun restoreDefault() = replaceWith(DefaultProgram.bundle())
+    // ---------------------------------------------------------------- Programs
 
-    /** Replaces the program, merging [bundle]'s texts into the existing library. */
-    private fun replaceWith(bundle: ProgramBundle) {
+    /** Switches to the program [programId]: its sections, progress and reminders. */
+    fun selectProgram(programId: String) {
+        val current = _state.value.store
+        if (current.active.id == programId) return
+        commit(current.select(programId), reselect = true)
+    }
+
+    /** Adds an empty program named [name] and switches to it. */
+    fun createProgram(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        commit(_state.value.store.add(Program(name = trimmed)), reselect = true)
+    }
+
+    /** Deletes the program [programId], unless it is the last one. */
+    fun deleteProgram(programId: String) {
+        val current = _state.value.store
+        commit(current.remove(programId), reselect = current.active.id == programId)
+    }
+
+    /**
+     * Replaces the program being followed by the default one; its texts are added back to the
+     * library collections.
+     */
+    fun restoreDefault() {
+        val defaults = DefaultProgram.bundle()
+        addPrograms { store ->
+            val others = store.programs.filterNot { it.id == store.active.id }
+            val program = defaults.program
+                .withIdsOutside(others.flatMapTo(mutableSetOf()) { it.ids })
+                .copy(id = store.active.id)
+            store.copy(library = store.library.merge(defaults.library)).add(program)
+        }
+    }
+
+    /**
+     * Adds [bundle]'s program as a new program and switches to it, merging its texts into the
+     * library. Its sections and steps get new ids where they clash with the other programs'.
+     */
+    private fun importProgram(bundle: ProgramBundle) = addPrograms { store ->
+        val program = bundle.program.copy(id = newId()).withIdsOutside(store.ids)
+        store.copy(library = store.library.merge(bundle.library)).add(program)
+    }
+
+    /**
+     * Applies [transform], which brings in programs and texts from outside, once their Quran
+     * passages (only references) have their text read from the bundled Quran text.
+     */
+    private fun addPrograms(transform: (ProgramStore) -> ProgramStore) {
         saveJob?.cancel()
-        val merged = ProgramBundle(bundle.program, _state.value.library.merge(bundle.library))
-        apply(merged, reselect = true)
-        viewModelScope.launch { persist(merged) }
+        val changed = transform(_state.value.store)
+        viewModelScope.launch {
+            val withText = withContext(Dispatchers.IO) { repository.withQuranText(changed) }
+            _state.update { it.copy(pendingImport = null) }
+            commit(withText, reselect = true)
+        }
     }
 
     // ---------------------------------------------------------------- Import / export
 
-    private fun currentBundle() = _state.value.let { ProgramBundle(it.program, it.library) }
+    private fun currentBundle() = _state.value.store.bundle
 
     fun exportTo(uri: Uri) {
         val bundle = currentBundle()
@@ -309,7 +402,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return base + ProgramJson.FILE_EXTENSION
     }
 
-    /** Reads a program file and asks the user to confirm replacing the current program. */
+    /** Reads a program file and asks the user to confirm adding it as a new program. */
     fun loadImport(uri: Uri) {
         viewModelScope.launch {
             val bundle = withContext(Dispatchers.IO) {
@@ -331,7 +424,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmImport() {
         val bundle = _state.value.pendingImport ?: return
-        replaceWith(bundle)
+        // Dismissed right away: the replacement lands once the Quran texts are read.
+        _state.update { it.copy(pendingImport = null) }
+        importProgram(bundle)
         viewModelScope.launch { _events.send(UiEvent.Message(R.string.import_done)) }
     }
 
@@ -339,7 +434,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         // Flush a debounced edit that has not been written yet.
-        if (dirty) runCatching { repository.save(currentBundle()) }
+        if (dirty) runCatching { repository.save(_state.value.store) }
     }
 
     private companion object {

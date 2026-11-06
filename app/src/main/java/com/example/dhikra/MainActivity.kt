@@ -8,10 +8,12 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.content.IntentCompat
 import com.example.dhikra.reminder.ReminderScheduler
 import com.example.dhikra.ui.DhikraApp
 import com.example.dhikra.ui.MainViewModel
+import com.example.dhikra.ui.library.LocalQuranLookup
 import com.example.dhikra.ui.theme.DhikraTheme
 
 class MainActivity : ComponentActivity() {
@@ -20,13 +22,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Every screen starts with the dark emerald header (or the dark counter), so the status
+        // Every screen starts with the dark green header (or the dark counter), so the status
         // bar always uses light icons; the navigation bar follows the system theme.
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         if (savedInstanceState == null) handleIntent(intent)
         setContent {
             DhikraTheme {
-                DhikraApp(viewModel)
+                // The editors pick Quran passages from the bundled Quran text.
+                CompositionLocalProvider(LocalQuranLookup provides viewModel.quran) {
+                    DhikraApp(viewModel)
+                }
             }
         }
     }

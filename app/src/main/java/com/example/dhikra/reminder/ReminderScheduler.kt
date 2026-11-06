@@ -119,7 +119,7 @@ object ReminderScheduler {
         val preview = items.joinToString("\n") { "• " + it.title.ifBlank { it.text }.take(60) }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.emerald))
+            .setColor(ContextCompat.getColor(context, R.color.brand_primary))
             .setContentTitle("${section.icon} ${section.title}")
             .setContentText(
                 context.getString(R.string.reminder_text, ArabicText.toArabicDigits(items.size))

@@ -14,7 +14,15 @@ class ProgramJsonTest {
     fun defaultBundle_roundTripsThroughJson() {
         val bundle = DefaultProgram.bundle()
         val decoded = ProgramJson.decode(ProgramJson.encode(bundle))
-        assertEquals(bundle, decoded)
+        assertEquals(bundle, decoded.withProgramId(bundle.program.id))
+    }
+
+    @Test
+    fun export_doesNotCarryTheProgramId_soAnImportIsANewProgram() {
+        val bundle = DefaultProgram.bundle()
+        val json = ProgramJson.encode(bundle)
+        assertFalse(JSONObject(json).has("id"))
+        assertNotEquals(bundle.program.id, ProgramJson.decode(json).program.id)
     }
 
     @Test
@@ -65,6 +73,54 @@ class ProgramJsonTest {
         assertTrue(content.all { it.has("entry") != it.has("group") && !it.has("text") && !it.has("title") })
         assertEquals(DefaultProgram.library().entries.size, root.getJSONArray("library").length())
         assertEquals(DefaultProgram.library().groups.size, root.getJSONArray("groups").length())
+    }
+
+    @Test
+    fun defaultQuranPassages_areReferencesToTheirAyat() {
+        val quran = DefaultProgram.library().ofType(ItemType.QURAN)
+        assertTrue(quran.isNotEmpty())
+        assertTrue(quran.all { it.quran?.isValid == true && it.text.isEmpty() })
+        assertEquals(QuranRef(2, 255), DefaultProgram.library().entry("ayat_al_kursi")?.quran)
+    }
+
+    @Test
+    fun encode_quranPassagesCarryTheirAyatNotTheirText() {
+        val source = QuranSource { ref -> Quran.passage(ref, List(ref.ayahCount) { "آية" }) }
+        val bundle = DefaultProgram.bundle().let { it.copy(library = it.library.withQuranText(source)) }
+        assertTrue(bundle.library.ofType(ItemType.QURAN).all { it.text.isNotEmpty() })
+
+        val json = ProgramJson.encode(bundle)
+        val library = JSONObject(json).getJSONArray("library").let { array ->
+            (0 until array.length()).map { array.getJSONObject(it) }
+        }
+        val kahf = library.single { it.getString("id") == "kahf_1_10" }
+        assertEquals("18:1-10", kahf.getString("quran"))
+        assertFalse(kahf.has("text"))
+        assertTrue(library.filter { it.getString("type") != "quran" }.all { it.has("text") && !it.has("quran") })
+
+        // Read back, the passages are references again: their text comes from the Quran text.
+        assertEquals(DefaultProgram.bundle(), ProgramJson.decode(json).withProgramId(DefaultProgram.PROGRAM_ID))
+    }
+
+    @Test
+    fun decode_quranEntries() {
+        val json = """
+            {"version":4,"library":[
+              {"id":"ref","type":"quran","title":"آية الكرسي","quran":"2:255","text":"ignored"},
+              {"id":"untitled","type":"quran","quran":"3:190-200"},
+              {"id":"typed","type":"quran","title":"الإخلاص","text":"قل هو الله أحد"},
+              {"id":"out_of_range","type":"quran","title":"x","quran":"2:300"},
+              {"id":"dua","type":"dua","title":"d","quran":"2:255","text":"دعاء"}
+            ],"sections":[]}
+        """.trimIndent()
+        val library = ProgramJson.decode(json).library
+        assertEquals(LibraryEntry("ref", ItemType.QURAN, "آية الكرسي", text = "", quran = QuranRef(2, 255)), library.entry("ref"))
+        assertEquals("٣:١٩٠-٢٠٠", library.entry("untitled")?.title)
+        // A Quran text typed in before the Quran text was bundled stays a text.
+        assertEquals("قل هو الله أحد", library.entry("typed")?.text)
+        assertNull(library.entry("typed")?.quran)
+        assertNull(library.entry("out_of_range"))
+        assertNull(library.entry("dua")?.quran)
     }
 
     @Test
@@ -147,3 +203,6 @@ class ProgramJsonTest {
         assertEquals(3, program.duplicateItem("s", "1").sections[0].items.size)
     }
 }
+
+/** This bundle with its program's [id]: exported files don't carry it, decoding gives a new one. */
+internal fun ProgramBundle.withProgramId(id: String) = copy(program = program.copy(id = id))

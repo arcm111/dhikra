@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="emerald">#FF0B6B57</color>
+    <color name="brand_primary">#FF174B35</color>
     <!-- Matches the Compose theme background so launch has no color jump. -->
     <color name="window_background">#FFF9F7F2</color>
 </resources>

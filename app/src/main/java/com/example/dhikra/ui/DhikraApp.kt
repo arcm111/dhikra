@@ -20,8 +20,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -37,10 +40,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -57,13 +63,14 @@ import com.example.dhikra.ui.library.CollectionScreen
 import com.example.dhikra.ui.library.LibraryScreen
 import com.example.dhikra.ui.library.SettingsActions
 import com.example.dhikra.ui.library.SettingsScreen
+import com.example.dhikra.ui.prayer.PrayerTimesScreen
 import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
 import kotlinx.coroutines.launch
 
-private enum class AppDialog { RestoreDefault, ResetToday, TextSize }
+private enum class AppDialog { RestoreDefault, ResetToday, TextSize, NewProgram, DeleteProgram }
 
 /** Screens of the app. Saved as plain strings so the current screen survives recreation. */
 private object Route {
@@ -71,6 +78,7 @@ private object Route {
     const val EDITOR = "editor"
     const val SETTINGS = "settings"
     const val LIBRARY = "library"
+    const val PRAYER = "prayer"
     const val COLLECTION = "collection/"
 
     fun collection(type: ItemType) = COLLECTION + type.key
@@ -138,6 +146,8 @@ fun DhikraApp(viewModel: MainViewModel) {
 
     val homeActions = HomeActions(
         onSelectSection = viewModel::selectSection,
+        onSelectProgram = viewModel::selectProgram,
+        onCreateProgram = { dialog = AppDialog.NewProgram },
         onEdit = { route = Route.EDITOR },
         onOpenLibrary = { route = Route.LIBRARY },
         onOpenSettings = { route = Route.SETTINGS },
@@ -148,6 +158,7 @@ fun DhikraApp(viewModel: MainViewModel) {
         onRepetitionRead = viewModel::onRepetitionRead,
         onSetComplete = viewModel::setComplete,
         onResetItem = viewModel::resetItem,
+        onOpenPrayerTimes = { route = Route.PRAYER },
     )
     val settingsActions = SettingsActions(
         onTextSize = { dialog = AppDialog.TextSize },
@@ -199,10 +210,17 @@ fun DhikraApp(viewModel: MainViewModel) {
                     onEdit = viewModel::editProgram,
                     onSaveEntry = viewModel::saveEntry,
                     onSaveGroup = viewModel::saveGroup,
+                    onDelete = if (state.programs.size > 1) ({ dialog = AppDialog.DeleteProgram }) else null,
                 )
                 current == Route.SETTINGS -> SettingsScreen(
                     onBack = { route = Route.HOME },
                     actions = settingsActions,
+                )
+                current == Route.PRAYER -> PrayerTimesScreen(
+                    timetable = state.prayerTimes,
+                    source = viewModel.prayerSource,
+                    onSelectCity = viewModel::setPrayerCity,
+                    onBack = { route = Route.HOME },
                 )
                 current == Route.LIBRARY -> LibraryScreen(
                     library = state.library,
@@ -212,7 +230,7 @@ fun DhikraApp(viewModel: MainViewModel) {
                 current.startsWith(Route.COLLECTION) -> CollectionScreen(
                     type = ItemType.fromKey(current.removePrefix(Route.COLLECTION)),
                     library = state.library,
-                    program = state.program,
+                    programs = state.programs,
                     onBack = { route = Route.LIBRARY },
                     onSave = viewModel::saveEntry,
                     onDelete = viewModel::deleteEntry,
@@ -264,6 +282,24 @@ fun DhikraApp(viewModel: MainViewModel) {
             onConfirm = { viewModel.setTextScale(it); dialog = null },
             onDismiss = { dialog = null },
         )
+        AppDialog.NewProgram -> NewProgramDialog(
+            onCreate = { name -> viewModel.createProgram(name); dialog = null },
+            onDismiss = { dialog = null },
+        )
+        AppDialog.DeleteProgram -> ConfirmDialog(
+            title = stringResource(R.string.delete_program),
+            message = stringResource(
+                R.string.delete_program_message,
+                state.program.name.ifBlank { stringResource(R.string.default_program_name) },
+            ),
+            confirm = stringResource(R.string.delete),
+            onConfirm = {
+                viewModel.deleteProgram(state.program.id)
+                dialog = null
+                route = Route.HOME
+            },
+            onDismiss = { dialog = null },
+        )
         null -> Unit
     }
 }
@@ -305,4 +341,32 @@ private fun TextSizeDialog(initial: Float, onConfirm: (Float) -> Unit, onDismiss
         confirmButton = { TextButton(onClick = { onConfirm(scale) }) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** Asks for the name of a new, empty program. */
+@Composable
+private fun NewProgramDialog(onCreate: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    val create = { if (name.isNotBlank()) onCreate(name) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.new_program)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.program_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { create() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = create, enabled = name.isNotBlank()) { Text(stringResource(R.string.create)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }

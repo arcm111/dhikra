@@ -20,18 +20,21 @@
     <string name="action_restore_default">استعادة البرنامج الافتراضي</string>
     <string name="play">بدء القراءة</string>
     <string name="pause">إيقاف القراءة</string>
-    <string name="reader_hint">اضغط على البطاقة عند إتمام كل قراءة</string>
     <string name="reader_waiting">اضغط للعدّ</string>
     <string name="counter_description">العدد %1$s من %2$s. اضغط للعدّ، واضغط مطولاً للتصفير</string>
     <string name="counter_reset">تصفير</string>
     <string name="counter_screen_hint">اضغط في أي مكان من الشاشة للعدّ</string>
-    <string name="counter_complete_hint">اكتمل العدد، تقبّل الله منك</string>
     <string name="counter_of">من %1$s</string>
     <string name="counter_done">اكتمل العدد</string>
-    <string name="counter_continue">متابعة</string>
     <string name="counter_undo">تراجع خطوة</string>
     <string name="counter_reset_confirm">اضغط مجدداً للتأكيد</string>
-    <string name="expand_counter">تكبير العداد</string>
+    <string name="open_full_screen">عرض بملء الشاشة</string>
+    <string name="reader_swipe_hint">اسحب للأعلى للخطوة التالية</string>
+    <string name="reader_next_step">الخطوة التالية</string>
+    <string name="reader_back_to_list">العودة إلى القائمة</string>
+    <string name="reader_position">الخطوة %1$s من %2$s</string>
+    <string name="reader_group_position">%1$s • %2$s من %3$s</string>
+    <string name="reader_done_hint">بعد القراءة اضغط «تمّ»</string>
     <string name="mark_done">تمّ</string>
     <string name="undo_done">تراجع</string>
     <string name="note_label">ملاحظة</string>
@@ -40,8 +43,6 @@
     <string name="step_label">الخطوة %1$s</string>
     <string name="step_state_done">مكتملة</string>
     <string name="step_state_current">الخطوة الحالية</string>
-    <string name="expand">عرض</string>
-    <string name="collapse">طيّ</string>
     <string name="group_label">مجموعة</string>
     <string name="group_progress">%1$s من %2$s</string>
     <string name="group_complete_all">إتمام الكل</string>
@@ -59,6 +60,7 @@
     <string name="settings">الإعدادات</string>
     <string name="settings_display">العرض</string>
     <string name="settings_data">البيانات</string>
+    <string name="settings_about">عن التطبيق</string>
 
     <!-- Library -->
     <string name="library">المكتبة</string>
@@ -100,6 +102,42 @@
     <string name="entry_text">النص</string>
     <string name="entry_title_error">أدخل العنوان</string>
     <string name="entry_text_error">أدخل النص</string>
+
+    <!-- Quran passages: the surah and ayat of a Quran text, read from the bundled mushaf text -->
+    <string name="quran_surah">السورة</string>
+    <string name="quran_surah_hint">ابحث باسم السورة أو رقمها</string>
+    <string name="quran_surah_error">اختر السورة</string>
+    <!-- %1$s: number of the surah, %2$s: its name. -->
+    <string name="quran_surah_item">%1$s. %2$s</string>
+    <!-- %1$s: name of the surah, the default title of a passage. -->
+    <string name="quran_surah_title">سورة %1$s</string>
+    <plurals name="quran_ayah_count">
+        <item quantity="zero">%1$s آية</item>
+        <item quantity="one">آية واحدة</item>
+        <item quantity="two">آيتان</item>
+        <item quantity="few">%1$s آيات</item>
+        <item quantity="many">%1$s آية</item>
+        <item quantity="other">%1$s آية</item>
+    </plurals>
+    <string name="quran_from">من الآية</string>
+    <string name="quran_to">إلى الآية</string>
+    <!-- %1$s: number of ayat of the surah. -->
+    <string name="quran_range_error">من ١ إلى %1$s</string>
+    <string name="quran_to_error">لا تسبق آية البداية</string>
+    <string name="quran_whole_surah">السورة كاملة</string>
+    <!-- %1$s: number of the ayah. -->
+    <string name="quran_ayah">الآية %1$s</string>
+    <!-- %1$s, %2$s: first and last ayah of the passage. -->
+    <string name="quran_ayat">الآيات %1$s - %2$s</string>
+    <!-- %1$s: last ayah of a passage too long to be previewed in full. -->
+    <string name="quran_preview_more">… إلى الآية %1$s</string>
+    <string name="quran_loading">جارٍ قراءة الآيات…</string>
+    <string name="quran_unavailable">تعذّرت قراءة نص المصحف</string>
+    <string name="quran_basmala_auto">تُعرض البسملة تلقائياً في أول السورة</string>
+    <string name="quran_legacy_text">نص كُتب باليد قبل تضمين المصحف في التطبيق. اختر السورة والآيات ليُستبدَل بنص المصحف.</string>
+    <string name="quran_source">نص المصحف: مشروع تنزيل</string>
+    <string name="quran_source_details" translatable="false">Tanzil Quran Text (Uthmani, Version 1.1) • tanzil.net</string>
+    <string name="quran_source_url" translatable="false">https://tanzil.net</string>
     <string name="delete_entry_message">حذف «%1$s» من المكتبة؟</string>
     <string name="delete_entry_used_message">حذف «%1$s» من المكتبة؟ سيُحذف أيضاً من برنامجك (العدد: %2$s).</string>
     <string name="entry_in_program">في البرنامج</string>
@@ -117,14 +155,14 @@
     <string name="delete">حذف</string>
     <string name="close">إغلاق</string>
     <string name="import_title">استيراد برنامج</string>
-    <string name="import_message">سيتم استبدال برنامجك الحالي بـ «%1$s» (%2$s أقسام، %3$s عناصر). هل تريد المتابعة؟</string>
+    <string name="import_message">سيُضاف «%1$s» (%2$s أقسام، %3$s عناصر) إلى برامجك كبرنامج جديد، وتُضاف نصوصه إلى المكتبة.</string>
     <string name="import_confirm">استيراد</string>
     <string name="import_done">تم استيراد البرنامج</string>
     <string name="import_failed">تعذّرت قراءة الملف. تأكد أنه ملف برنامج صالح.</string>
     <string name="export_done">تم تصدير البرنامج</string>
     <string name="export_failed">تعذّر تصدير الملف</string>
     <string name="share_failed">تعذّرت مشاركة البرنامج</string>
-    <string name="restore_message">سيتم استبدال برنامجك الحالي بالبرنامج الافتراضي، وتُضاف نصوصه إلى المكتبة.</string>
+    <string name="restore_message">سيتم استبدال البرنامج المفتوح حالياً بالبرنامج الافتراضي، وتُضاف نصوصه إلى المكتبة. برامجك الأخرى لن تتغير.</string>
     <string name="reset_today_message">سيتم تصفير عدادات اليوم في جميع الأقسام.</string>
     <string name="text_size_sample">سُبْحَانَ اللَّهِ وَبِحَمْدِهِ</string>
 
@@ -132,6 +170,13 @@
     <string name="editor_title">تعديل البرنامج</string>
     <string name="back">رجوع</string>
     <string name="program_name">اسم البرنامج</string>
+    <string name="programs">البرامج</string>
+    <string name="new_program">برنامج جديد</string>
+    <string name="create">إنشاء</string>
+    <string name="delete_program">حذف البرنامج</string>
+    <string name="delete_program_message">سيتم حذف «%1$s» بأقسامه وخطواته. تبقى نصوص المكتبة كما هي.</string>
+    <string name="group_show_texts">عرض النصوص</string>
+    <string name="group_hide_texts">إخفاء النصوص</string>
     <string name="default_program_name">برنامجي اليومي</string>
     <string name="add_section">إضافة قسم</string>
     <string name="add_item">إضافة عنصر</string>
@@ -172,4 +217,28 @@
     <string name="reminder_channel">تذكير الأوراد</string>
     <string name="reminder_channel_desc">تنبيه عند بدء وقت كل قسم من البرنامج اليومي</string>
     <string name="reminder_text">حان وقت وردك • %1$s عناصر</string>
+
+    <!-- Start the task of the current time -->
+    <string name="start_now_section">ابدأ %1$s</string>
+    <string name="continue_now_section">تابع %1$s</string>
+
+    <!-- Prayer times -->
+    <string name="prayer_times">مواقيت الصلاة</string>
+    <string name="prayer_fajr">الفجر</string>
+    <string name="prayer_sunrise">الشروق</string>
+    <string name="prayer_dhuhr">الظهر</string>
+    <string name="prayer_asr">العصر</string>
+    <string name="prayer_maghrib">المغرب</string>
+    <string name="prayer_isha">العشاء</string>
+    <string name="prayer_next_label">الصلاة القادمة</string>
+    <string name="prayer_today">مواقيت اليوم</string>
+    <string name="prayer_in_hours">بعد %1$s س %2$s د</string>
+    <string name="prayer_in_minutes">بعد %1$s د</string>
+    <string name="prayer_choose_city">اختيار المدينة</string>
+    <string name="prayer_change_city">تغيير المدينة</string>
+    <string name="prayer_pick_city">اختر مدينتك</string>
+    <string name="prayer_pick_city_note">تُعرض المواقيت حسب المدينة التي تختارها، دون الحاجة إلى إذن الموقع.</string>
+    <string name="prayer_search_city">ابحث عن مدينة أو دولة</string>
+    <string name="prayer_no_city">لا توجد مدينة بهذا الاسم</string>
+    <string name="prayer_mock_note">مواقيت تجريبية تقريبية للعرض فقط، لا يُعتمد عليها بعد.</string>
 </resources>

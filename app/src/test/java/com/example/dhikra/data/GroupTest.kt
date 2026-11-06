@@ -71,13 +71,13 @@ class GroupTest {
     @Test
     fun json_roundTripsGroupsAndGroupSteps() {
         val bundle = ProgramBundle(program, library)
-        assertEquals(bundle, ProgramJson.decode(ProgramJson.encode(bundle)))
+        assertEquals(bundle, ProgramJson.decode(ProgramJson.encode(bundle)).withProgramId(program.id))
     }
 
     @Test
     fun decode_keepsGroupsConsistent() {
         val json = """
-            {"version":3,"library":[
+            {"version":4,"library":[
               {"id":"a","type":"dhikr","title":"أ","text":"سبحان الله"}
             ],"groups":[
               {"id":"g","type":"dhikr","title":"تسبيح","items":[

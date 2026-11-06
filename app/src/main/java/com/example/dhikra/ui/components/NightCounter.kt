@@ -3,8 +3,6 @@ package com.example.dhikra.ui.components
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.os.SystemClock
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -21,9 +19,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,35 +27,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,10 +57,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -88,225 +67,68 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.util.lerp
 import androidx.core.view.WindowCompat
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.ui.theme.ElementColors
-import com.example.dhikra.ui.theme.GoldLight
-import com.example.dhikra.ui.theme.LocalDhikraPalette
-import com.example.dhikra.ui.theme.Mint
-import com.example.dhikra.ui.theme.ReadingStyles
-import kotlinx.coroutines.delay
+import com.example.dhikra.ui.theme.MustardLight
+import com.example.dhikra.ui.theme.ForestLight
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.time.Duration.Companion.seconds
+
+// The pieces of the night-time look shared by the full-screen reader: a misbaha-like counter dial,
+// the buttons and the dark palette of the texts.
 
 /** Up to this many repetitions, every one is drawn as its own bead around the dial. */
 private const val MAX_BEADS = 100
 
-private val NightInk = Color.White.copy(alpha = 0.92f)
-private val GoldInk = Color(0xFF3B2A00)
+private const val PEARL_RATIO = 0.58f
+
+internal val NightInk = Color.White.copy(alpha = 0.92f)
+internal val GoldInk = Color(0xFF2A2208)
+
+/** What texts are drawn with on the night background. */
+internal val NightTextColors = ElementColors(
+    container = Color.Transparent,
+    border = MustardLight,
+    accent = MustardLight,
+    onAccent = GoldInk,
+    ink = NightInk,
+    highlight = MustardLight.copy(alpha = 0.25f),
+)
 
 /**
- * Immersive counter, designed like a misbaha: a ring of beads that light up one by one around a
- * glowing central "pearl" holding the count. Tap anywhere to count; every tap sends a soft wave
- * out of the pearl, and completing the target bursts into gold sparkles. Undo and reset (with a
- * second tap to confirm) sit at the bottom, and back or the close button returns to the schedule.
+ * The bead ring with the pearl in the middle. Mirrors its direction in right-to-left layouts.
+ * Beads light up one by one with a soft wave out of the pearl, and reaching [target] bursts into
+ * gold sparkles. The dial only draws the count: it reports taps through [onCount] when asked to
+ * count by accessibility services, the screen around it handles the touch itself.
  *
- * While [playing], each tap reports the elapsed time of the repetition through
- * [onRepetitionRead] (which also counts it), so the reader keeps adapting to the user's pace.
+ * It is as wide as [modifier] lets it be, up to [maxDiameter]; by default no more than 44% of
+ * the window's height, so that the text above it keeps its room.
  */
 @Composable
-fun CounterScreen(
-    title: String,
-    text: String,
-    opening: String,
-    done: Int,
-    target: Int,
-    onCount: () -> Unit,
-    onUndo: () -> Unit,
-    onReset: () -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-    quran: Boolean = false,
-    playing: Boolean = false,
-    onRepetitionRead: (elapsedMs: Long) -> Unit = {},
-) {
-    BackHandler(onBack = onClose)
-    LightNavigationBarIcons()
-    val haptic = LocalHapticFeedback.current
-    val palette = LocalDhikraPalette.current
-
-    // The count lives in the ViewModel; this screen only reports taps, so there is a single
-    // source of truth and the number can never drift from the saved progress.
-    var cycleStart by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
-    LaunchedEffect(playing) { cycleStart = SystemClock.uptimeMillis() }
-
-    val complete = target > 0 && done >= target
-    var pressed by remember { mutableStateOf(false) }
-    val count by rememberUpdatedState {
-        if (!complete) {
-            haptic.performHapticFeedback(
-                if (done + 1 >= target) HapticFeedbackType.Confirm else HapticFeedbackType.SegmentTick
-            )
-            if (playing) {
-                val now = SystemClock.uptimeMillis()
-                onRepetitionRead(now - cycleStart)
-                cycleStart = now
-            } else {
-                onCount()
-            }
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(palette.nightStart, palette.nightEnd)))
-            .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        tryAwaitRelease()
-                        pressed = false
-                    },
-                    onTap = { count() },
-                )
-            },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            CounterTopBar(title, target, onClose)
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CounterTexts(opening, text, quran)
-            }
-            CounterDial(
-                done = done,
-                target = target,
-                complete = complete,
-                pressed = pressed,
-                onCount = { count() },
-            )
-            Spacer(Modifier.height(24.dp))
-            CounterFooter(
-                complete = complete,
-                canUndo = done > 0,
-                onUndo = {
-                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    onUndo()
-                },
-                onReset = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onReset()
-                },
-                onClose = onClose,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CounterTopBar(title: String, target: Int, onClose: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().height(56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onClose) {
-            Icon(Icons.Filled.Close, stringResource(R.string.close), tint = NightInk)
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = NightInk,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-        )
-        Box(Modifier.widthIn(min = 48.dp), contentAlignment = Alignment.Center) {
-            if (target > 0) {
-                Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.10f), contentColor = GoldLight) {
-                    Text(
-                        text = stringResource(R.string.times_count, ArabicText.toArabicDigits(target)),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Opening (Basmala…) and the recited text, centred above the dial; scrolls when long. */
-@Composable
-private fun CounterTexts(opening: String, text: String, quran: Boolean) {
-    val nightColors = remember {
-        ElementColors(
-            container = Color.Transparent,
-            border = GoldLight,
-            accent = GoldLight,
-            onAccent = GoldInk,
-            ink = NightInk,
-            highlight = GoldLight.copy(alpha = 0.25f),
-        )
-    }
-    val displayText = remember(text, quran) { if (quran) ArabicText.withAyahMarkers(text) else text }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (opening.isNotBlank()) {
-            Text(
-                text = opening,
-                style = if (quran) ReadingStyles.quranOpening(0.95f)
-                else MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-                color = GoldLight,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-            )
-        }
-        if (displayText.isNotBlank()) {
-            ReaderText(
-                text = displayText,
-                style = (if (quran) ReadingStyles.quran(1f) else ReadingStyles.dhikr(1f))
-                    .copy(textAlign = TextAlign.Center),
-                colors = nightColors,
-                ornamentalAyahMarkers = quran,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-/** The bead ring with the pearl in the middle. Mirrors its direction in right-to-left layouts. */
-@Composable
-private fun CounterDial(
+internal fun CounterDial(
     done: Int,
     target: Int,
     complete: Boolean,
     pressed: Boolean,
     onCount: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    maxDiameter: Dp = Dp.Unspecified,
 ) {
     val progress by animateFloatAsState(
         targetValue = if (target <= 0) 0f else (done.toFloat() / target).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "dialProgress",
     )
-    val lit by animateColorAsState(if (complete) GoldLight else Mint, tween(600), label = "dialColor")
+    val lit by animateColorAsState(if (complete) MustardLight else ForestLight, tween(600), label = "dialColor")
     val pearlScale by animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
         animationSpec = spring(dampingRatio = 0.45f, stiffness = 700f),
@@ -339,8 +161,9 @@ private fun CounterDial(
     val countLabel = stringResource(R.string.reader_waiting)
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
 
-    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        val diameter = minOf(maxWidth, 330.dp, windowHeight * 0.44f)
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val cap = if (maxDiameter.isSpecified) maxDiameter else minOf(330.dp, windowHeight * 0.44f)
+        val diameter = minOf(maxWidth, maxHeight, cap)
         Box(
             modifier = Modifier
                 .size(diameter)
@@ -422,7 +245,7 @@ private fun CounterDial(
                             radius = (if (k % 2 == 0) 9.dp else 6.dp).toPx() * (1f - 0.5f * t),
                         )
                     }
-                    drawPath(sparkles, GoldLight.copy(alpha = 1f - t))
+                    drawPath(sparkles, MustardLight.copy(alpha = 1f - t))
                 }
             }
             Pearl(
@@ -440,13 +263,11 @@ private fun CounterDial(
     }
 }
 
-private const val PEARL_RATIO = 0.58f
-
-/** The glowing central bead: emerald while counting, gold once the target is reached. */
+/** The glowing central bead: green while counting, mustard once the target is reached. */
 @Composable
 private fun Pearl(done: Int, target: Int, complete: Boolean, modifier: Modifier = Modifier) {
-    val light by animateColorAsState(if (complete) Color(0xFFF3D697) else Color(0xFF1F9A7E), tween(600), label = "pearlLight")
-    val deep by animateColorAsState(if (complete) Color(0xFFA6772A) else Color(0xFF0A4A3D), tween(600), label = "pearlDeep")
+    val light by animateColorAsState(if (complete) Color(0xFFF0DC9A) else Color(0xFF2F7A57), tween(600), label = "pearlLight")
+    val deep by animateColorAsState(if (complete) Color(0xFFA88A2E) else Color(0xFF0F3524), tween(600), label = "pearlDeep")
     val ink by animateColorAsState(if (complete) GoldInk else Color.White, tween(600), label = "pearlInk")
     Box(
         modifier = modifier
@@ -511,64 +332,8 @@ private fun Pearl(done: Int, target: Int, complete: Boolean, modifier: Modifier 
     }
 }
 
-/** Hint plus the undo / reset actions, or "continue" once the target is reached. */
 @Composable
-private fun CounterFooter(
-    complete: Boolean,
-    canUndo: Boolean,
-    onUndo: () -> Unit,
-    onReset: () -> Unit,
-    onClose: () -> Unit,
-) {
-    var confirmReset by remember { mutableStateOf(false) }
-    LaunchedEffect(confirmReset) {
-        if (confirmReset) {
-            delay(3.seconds)
-            confirmReset = false
-        }
-    }
-    val reset = {
-        if (confirmReset) {
-            confirmReset = false
-            onReset()
-        } else {
-            confirmReset = true
-        }
-    }
-    val resetLabel = stringResource(if (confirmReset) R.string.counter_reset_confirm else R.string.counter_reset)
-
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = stringResource(if (complete) R.string.counter_complete_hint else R.string.counter_screen_hint),
-            style = MaterialTheme.typography.labelLarge,
-            color = if (complete) GoldLight else Color.White.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(14.dp))
-        if (complete) {
-            Button(
-                onClick = onClose,
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldLight, contentColor = GoldInk),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Icon(Icons.Filled.Check, null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.counter_continue), style = MaterialTheme.typography.labelLarge)
-            }
-            Spacer(Modifier.height(8.dp))
-            NightButton(Icons.Filled.Refresh, resetLabel, onClick = reset, modifier = Modifier.fillMaxWidth())
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                NightButton(UndoIcon, stringResource(R.string.counter_undo), onClick = onUndo, enabled = canUndo, modifier = Modifier.weight(1f))
-                NightButton(Icons.Filled.Refresh, resetLabel, onClick = reset, enabled = canUndo, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun NightButton(
+internal fun NightButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
@@ -592,9 +357,9 @@ private fun NightButton(
     }
 }
 
-/** The counter is always dark: use light navigation bar icons while it is shown. */
+/** The reader is always dark: use light navigation bar icons while it is shown. */
 @Composable
-private fun LightNavigationBarIcons() {
+internal fun LightNavigationBarIcons() {
     val view = LocalView.current
     if (view.isInEditMode) return
     DisposableEffect(view) {

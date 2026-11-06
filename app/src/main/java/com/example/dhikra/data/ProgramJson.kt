@@ -7,15 +7,17 @@ import org.json.JSONObject
 class ProgramFormatException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Shareable program format (`*.dhikra.json`), version 3:
+ * Shareable program format (`*.dhikra.json`), version 4:
  *
  * ```json
  * {
  *   "format": "dhikra.program",
- *   "version": 3,
+ *   "version": 4,
  *   "name": "...",
  *   "library": [
- *     { "id": "kahf_1_10", "type": "quran|hadith|dua|dhikr", "title": "...",
+ *     { "id": "kahf_1_10", "type": "quran", "title": "...", "description": "...",
+ *       "opening": "...", "quran": "18:1-10" },
+ *     { "id": "dua_nur", "type": "hadith|dua|dhikr", "title": "...",
  *       "description": "...", "opening": "...", "text": "..." }
  *   ],
  *   "groups": [
@@ -33,16 +35,21 @@ class ProgramFormatException(message: String, cause: Throwable? = null) : Except
  * }
  * ```
  * Program steps never embed Quran / hadith / dua / dhikr texts: they reference a library entry
- * or a group of entries by id. Version 1 files (texts embedded in the steps) are migrated into
- * library entries; version 2 files simply have no groups.
+ * or a group of entries by id. Quran entries don't embed their text either: they reference their
+ * ayat ("2:255", "3:190-200"), whose text comes from the Quran text bundled with the app, so a
+ * file can't carry an altered Quran text. Version 1 files (texts embedded in the steps) are
+ * migrated into library entries; version 2 files simply have no groups; Quran entries of version
+ * 3 files, typed in as text, stay text entries.
  * Empty fields are omitted; unknown fields are ignored so the format can evolve.
  */
 object ProgramJson {
     const val FORMAT = "dhikra.program"
-    const val VERSION = 3
+    const val VERSION = 4
     const val FILE_EXTENSION = ".dhikra.json"
     const val MIME_TYPE = "application/json"
     const val MAX_COUNT = 100_000
+    private const val STORE_FORMAT = "dhikra.store"
+    private const val STORE_VERSION = 1
 
     fun encode(bundle: ProgramBundle): String = JSONObject().apply {
         put("format", FORMAT)
@@ -66,31 +73,93 @@ object ProgramJson {
             }
             val sectionsJson = root.optJSONArray("sections")
                 ?: throw ProgramFormatException("Missing sections")
-
-            val entryIds = mutableSetOf<String>()
-            val libraryJson = root.optJSONArray("library") ?: JSONArray()
-            val entries = (0 until libraryJson.length()).mapNotNull { i ->
-                decodeEntry(libraryJson.getJSONObject(i), entryIds)
-            }.toMutableList()
-
-            val groupIds = mutableSetOf<String>()
-            val groupsJson = root.optJSONArray("groups") ?: JSONArray()
-            val groups = (0 until groupsJson.length()).mapNotNull { i ->
-                decodeGroup(groupsJson.getJSONObject(i), groupIds, entryIds)
-            }
-
-            val usedIds = mutableSetOf<String>()
-            val context = DecodeContext(usedIds, entryIds, entries, groups.associateBy { it.id })
-            val sections = (0 until sectionsJson.length()).map { i ->
-                decodeSection(sectionsJson.getJSONObject(i), context)
-            }
-            return ProgramBundle(
-                program = Program(name = root.optString("name").trim(), sections = sections),
-                library = Library(entries, groups),
-            )
+            val context = decodeLibrary(root)
+            val program = decodeProgram(root.optString("name"), sectionsJson, context)
+            return ProgramBundle(program = program, library = context.library)
         } catch (e: JSONException) {
             throw ProgramFormatException("Invalid JSON", e)
         }
+    }
+
+    /**
+     * The app's own storage of all the user's programs, with the library they share (not a format
+     * for sharing: a program is exported on its own with [encode]):
+     *
+     * ```json
+     * { "format": "dhikra.store", "version": 1, "active": "<program id>",
+     *   "library": [ ... ], "groups": [ ... ],
+     *   "programs": [ { "id": "...", "name": "...", "sections": [ ... ] } ] }
+     * ```
+     */
+    fun encodeStore(store: ProgramStore): String = JSONObject().apply {
+        put("format", STORE_FORMAT)
+        put("version", STORE_VERSION)
+        put("active", store.active.id)
+        put("library", JSONArray().apply { store.library.entries.forEach { put(encodeEntry(it)) } })
+        if (store.library.groups.isNotEmpty()) {
+            put("groups", JSONArray().apply { store.library.groups.forEach { put(encodeGroup(it)) } })
+        }
+        put("programs", JSONArray().apply {
+            store.programs.forEach { program ->
+                put(JSONObject().apply {
+                    put("id", program.id)
+                    put("name", program.name)
+                    put("sections", JSONArray().apply { program.sections.forEach { put(encodeSection(it)) } })
+                })
+            }
+        })
+    }.toString(2)
+
+    /** Reads [encodeStore]'s output; section and step ids stay unique across all the programs. */
+    fun decodeStore(json: String): ProgramStore {
+        try {
+            val root = JSONObject(json)
+            if (root.optString("format") != STORE_FORMAT) throw ProgramFormatException("Not a program store")
+            val programsJson = root.optJSONArray("programs") ?: throw ProgramFormatException("Missing programs")
+            val context = decodeLibrary(root)
+            val programIds = mutableSetOf<String>()
+            val programs = (0 until programsJson.length()).map { i ->
+                val programJson = programsJson.getJSONObject(i)
+                decodeProgram(
+                    name = programJson.optString("name"),
+                    sectionsJson = programJson.optJSONArray("sections") ?: JSONArray(),
+                    context = context,
+                    id = uniqueId(programJson.optString("id"), programIds),
+                )
+            }
+            if (programs.isEmpty()) throw ProgramFormatException("No program")
+            return ProgramStore(programs, root.optString("active"), context.library)
+        } catch (e: JSONException) {
+            throw ProgramFormatException("Invalid JSON", e)
+        }
+    }
+
+    /** The library entries and groups of a program file or of the store. */
+    private fun decodeLibrary(root: JSONObject): DecodeContext {
+        val entryIds = mutableSetOf<String>()
+        val libraryJson = root.optJSONArray("library") ?: JSONArray()
+        val entries = (0 until libraryJson.length()).mapNotNull { i ->
+            decodeEntry(libraryJson.getJSONObject(i), entryIds)
+        }.toMutableList()
+
+        val groupIds = mutableSetOf<String>()
+        val groupsJson = root.optJSONArray("groups") ?: JSONArray()
+        val groups = (0 until groupsJson.length()).mapNotNull { i ->
+            decodeGroup(groupsJson.getJSONObject(i), groupIds, entryIds)
+        }
+        return DecodeContext(mutableSetOf(), entryIds, entries, groups)
+    }
+
+    private fun decodeProgram(
+        name: String,
+        sectionsJson: JSONArray,
+        context: DecodeContext,
+        id: String = newId(),
+    ): Program {
+        val sections = (0 until sectionsJson.length()).map { i ->
+            decodeSection(sectionsJson.getJSONObject(i), context)
+        }
+        return Program(name = name.trim(), sections = sections, id = id)
     }
 
     /** True when [json] is an older file that should be re-saved in the current format. */
@@ -103,20 +172,29 @@ object ProgramJson {
         put("title", entry.title)
         putIfNotBlank("description", entry.description)
         putIfNotBlank("opening", entry.opening)
-        put("text", entry.text)
+        val quran = entry.quran
+        if (quran != null) put("quran", quran.toString()) else put("text", entry.text)
     }
 
+    /**
+     * A library entry; a Quran entry with a valid reference gets no text (it is read from the
+     * bundled Quran text), any other entry needs one.
+     */
     private fun decodeEntry(json: JSONObject, entryIds: MutableSet<String>): LibraryEntry? {
         val type = ItemType.fromKey(json.optString("type")).takeIf { it.isContent } ?: return null
-        val text = json.optString("text").trim()
-        if (text.isEmpty()) return null
+        val quran = if (type == ItemType.QURAN) QuranRef.parse(json.optString("quran")) else null
+        val text = if (quran != null) "" else json.optString("text").trim()
+        if (quran == null && text.isEmpty()) return null
         return LibraryEntry(
             id = uniqueId(json.optString("id"), entryIds),
             type = type,
-            title = json.optString("title").trim().ifEmpty { titleFrom(text) },
+            title = json.optString("title").trim().ifEmpty {
+                if (quran != null) ArabicText.toArabicDigits(quran.toString()) else titleFrom(text)
+            },
             text = text,
             description = json.optString("description").trim(),
             opening = json.optString("opening").trim(),
+            quran = quran,
         )
     }
 
@@ -177,13 +255,19 @@ object ProgramJson {
         putIfNotBlank("note", item.note)
     }
 
-    /** What decoding the steps needs: the ids taken so far and the library read before them. */
+    /**
+     * What decoding the steps needs: the ids taken so far and the library read before them. Version 1
+     * steps add the texts they embed to [entries].
+     */
     private class DecodeContext(
         val usedIds: MutableSet<String>,
         val entryIds: MutableSet<String>,
         val entries: MutableList<LibraryEntry>,
-        val groups: Map<String, LibraryGroup>,
-    )
+        private val groupList: List<LibraryGroup>,
+    ) {
+        val groups: Map<String, LibraryGroup> = groupList.associateBy { it.id }
+        val library: Library get() = Library(entries.toList(), groupList)
+    }
 
     private fun decodeSection(json: JSONObject, context: DecodeContext): ProgramSection {
         val itemsJson = json.optJSONArray("items") ?: JSONArray()

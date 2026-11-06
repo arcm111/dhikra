@@ -1,15 +1,9 @@
 package com.example.dhikra.ui.home
 
-import android.os.SystemClock
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,8 +14,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -39,24 +31,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,13 +52,10 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -85,81 +65,43 @@ import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.ItemType
 import com.example.dhikra.data.ProgramItem
-import com.example.dhikra.ui.components.CounterBar
-import com.example.dhikra.ui.components.DoneBar
 import com.example.dhikra.ui.components.ExpandIcon
 import com.example.dhikra.ui.components.NoteIcon
+import com.example.dhikra.ui.components.Pill
 import com.example.dhikra.ui.components.QuranTitle
-import com.example.dhikra.ui.components.ReaderText
-import com.example.dhikra.ui.components.UndoIcon
 import com.example.dhikra.ui.components.icon
 import com.example.dhikra.ui.components.starLattice
 import com.example.dhikra.ui.theme.ElementColors
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
 
-/** Callbacks of an item in the daily program. */
-class ItemActions(
-    val onTogglePlay: () -> Unit,
-    val onIncrement: () -> Unit,
-    val onRepetitionRead: (elapsedMs: Long) -> Unit,
-    val onSetComplete: (Boolean) -> Unit,
-    val onReset: () -> Unit,
-    /** Expands the repetition counter to the immersive full-screen view. */
-    val onExpandCounter: () -> Unit = {},
-    /** Tapping the card header: focuses and opens a folded card, folds the open one. */
-    val onToggleExpanded: () -> Unit = {},
-)
-
 /**
- * One step of the schedule. Cards are folded to their header (type and title) and only the
- * [expanded] one shows its text; [focused] lifts it. [current] marks the first unfinished step,
- * whose main action is emphasized. An open group step lists its texts, each drawn by [member]
- * (normally a [GroupMemberView]); [done] then counts the finished texts.
+ * One step of the schedule, as a card with only its header (type and title). Tapping a text opens
+ * it in the full-screen reader through [onOpen]; tapping a group unfolds the list of its texts,
+ * each of which opens in the reader through [onOpenText] (with the text's id). A task is checked
+ * off in place through [onSetComplete]. [done] counts the repetitions (for a group, the finished
+ * texts), [textDone] the repetitions of each text of a group, and [current] marks the first
+ * unfinished step, which is lifted.
  */
 @Composable
 fun ProgramItemView(
     item: ProgramItem,
     done: Int,
-    playing: Boolean,
-    lettersPerSecond: Float,
     textScale: Float,
-    actions: ItemActions,
+    onOpen: () -> Unit,
+    onSetComplete: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    expanded: Boolean = false,
-    focused: Boolean = expanded,
     current: Boolean = false,
-    member: @Composable (ProgramItem) -> Unit = {},
+    onOpenText: (String) -> Unit = {},
+    textDone: (ProgramItem) -> Int = { 0 },
 ) {
     when {
         item.type == ItemType.HEADING -> HeadingItem(item, modifier)
-        item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, focused, actions.onSetComplete, modifier)
-        item.isGroup -> GroupCard(item, done, expanded, focused, textScale, actions, modifier, member)
-        else -> ReadingCard(item, done, playing, lettersPerSecond, textScale, actions, expanded, focused, current, modifier)
+        item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, current, onSetComplete, modifier)
+        item.isGroup -> GroupCard(item, done, current, onOpenText, textDone, modifier)
+        else -> ReadingCard(item, done, textScale, current, onOpen, modifier)
     }
 }
-
-/**
- * One text inside an open group: its own card, styled for its type and always open, with its own
- * reader and counter (or done button).
- */
-@Composable
-fun GroupMemberView(
-    item: ProgramItem,
-    done: Int,
-    playing: Boolean,
-    lettersPerSecond: Float,
-    textScale: Float,
-    actions: ItemActions,
-    modifier: Modifier = Modifier,
-    current: Boolean = false,
-) = ReadingCard(
-    item, done, playing, lettersPerSecond, textScale, actions,
-    expanded = true, focused = false, current = current, modifier = modifier, foldable = false,
-)
-
-/** Whether a step has text to unfold (tasks and headings are always fully visible). */
-val ItemType.isExpandable: Boolean get() = isContent
 
 /**
  * Vertical centre of each card's header, measured from its top: the timeline node is placed
@@ -196,17 +138,6 @@ val ItemType.label: Int
         ItemType.QURAN -> R.string.type_quran
         ItemType.HADITH -> R.string.type_hadith
     }
-
-/**
- * Folding and unfolding share one duration with the focus motion ([FOLD_MILLIS]), so the card
- * that takes the focus can be held steady for exactly as long as the sizes around it change.
- */
-private val Unfold: EnterTransition =
-    expandVertically(tween(FOLD_MILLIS, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) +
-        fadeIn(tween(220, delayMillis = 90))
-private val Fold: ExitTransition =
-    shrinkVertically(tween(FOLD_MILLIS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
-        fadeOut(tween(140))
 
 /** A group label on the timeline, e.g. "أذكار الصباح", followed by a fading gold rule. */
 @Composable
@@ -283,13 +214,13 @@ private fun TaskItem(
     item: ProgramItem,
     complete: Boolean,
     textScale: Float,
-    focused: Boolean,
+    current: Boolean,
     onSetComplete: (Boolean) -> Unit,
     modifier: Modifier,
 ) {
     val colors = ItemType.TASK.colors()
     val haptic = LocalHapticFeedback.current
-    StepSurface(colors, focused, modifier) {
+    StepSurface(colors, current, modifier) {
         Row(
             modifier = Modifier
                 .toggleable(
@@ -333,156 +264,39 @@ private fun CheckMark(checked: Boolean, colors: ElementColors) {
     )
     Box(
         modifier = Modifier
-            .size(30.dp)
+            .size(24.dp)
             .clip(CircleShape)
             .background(fill)
             .border(2.dp, outline, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(visible = checked, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-            Icon(Icons.Filled.Check, null, tint = colors.onAccent, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Check, null, tint = colors.onAccent, modifier = Modifier.size(14.dp))
         }
     }
 }
 
-/** A text's card. Not [foldable], it is always open and its header does nothing (texts of a group). */
+/** A text's card: just its header, which opens the text in the reader. */
 @Composable
 private fun ReadingCard(
     item: ProgramItem,
     done: Int,
-    playing: Boolean,
-    lettersPerSecond: Float,
     textScale: Float,
-    actions: ItemActions,
-    expanded: Boolean,
-    focused: Boolean,
     current: Boolean,
+    onOpen: () -> Unit,
     modifier: Modifier,
-    foldable: Boolean = true,
 ) {
     val colors = item.type.colors()
-    val haptic = LocalHapticFeedback.current
-    val target = item.target
-    val complete = done >= target
-
-    var cycle by remember { mutableIntStateOf(0) }
-    var cycleStart by remember { mutableLongStateOf(0L) }
-    var awaitingTap by remember { mutableStateOf(false) }
-
-    LaunchedEffect(complete, playing) {
-        if (complete && playing) actions.onTogglePlay()
-    }
-
-    val countTap: () -> Unit = {
-        if (done + 1 >= target) haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-        else haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-        if (playing) {
-            actions.onRepetitionRead(SystemClock.uptimeMillis() - cycleStart)
-            cycle++
-        } else {
-            actions.onIncrement()
-        }
-    }
-    val reset: () -> Unit = {
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        actions.onReset()
-    }
-    val isQuran = item.type == ItemType.QURAN
-    val displayText = remember(item.text, isQuran) {
-        if (isQuran) ArabicText.withAyahMarkers(item.text) else item.text
-    }
-    val footer: @Composable () -> Unit = {
-        if (target > 1) {
-            RepeatFooter(
-                item = item,
-                done = done,
-                colors = colors,
-                playing = playing,
-                awaitingTap = playing && awaitingTap,
-                onTogglePlay = actions.onTogglePlay,
-                onCount = countTap,
-                onReset = reset,
-                onExpand = actions.onExpandCounter,
-            )
-        } else {
-            SingleFooter(complete, colors, current) {
-                haptic.performHapticFeedback(
-                    if (it) HapticFeedbackType.Confirm else HapticFeedbackType.ToggleOff
-                )
-                actions.onSetComplete(it)
-            }
-        }
-    }
-    val body: @Composable () -> Unit = {
-        if (item.opening.isNotBlank()) {
-            Text(
-                text = item.opening,
-                style = if (isQuran) ReadingStyles.quranOpening(textScale)
-                else ReadingStyles.dua(textScale).copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Medium),
-                color = if (isQuran) colors.ink.copy(alpha = 0.92f) else colors.accent,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
-        }
-        if (displayText.isNotBlank()) {
-            ReaderText(
-                text = displayText,
-                style = when (item.type) {
-                    ItemType.QURAN -> ReadingStyles.quran(textScale)
-                    ItemType.HADITH -> ReadingStyles.hadith(textScale)
-                    ItemType.DHIKR -> ReadingStyles.dhikr(textScale)
-                    else -> ReadingStyles.dua(textScale)
-                },
-                colors = colors,
-                playing = playing,
-                cycle = cycle,
-                lettersPerSecond = lettersPerSecond,
-                ornamentalAyahMarkers = isQuran,
-                onCycleStart = { cycleStart = it },
-                onReachedEnd = { awaitingTap = it },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
-        }
-        if (!isQuran && item.source.isNotBlank()) SourceLine(item.source, colors, textScale)
-        if (item.note.isNotBlank()) NoteLine(item.note, colors)
-        Spacer(Modifier.height(16.dp))
-        footer()
-    }
-
-    StepSurface(colors = colors, focused = focused, modifier = modifier) {
+    val complete = done >= item.target
+    val quran = item.type == ItemType.QURAN
+    StepSurface(colors = colors, focused = current, modifier = modifier) {
         Column(
-            modifier = Modifier
-                .then(if (isQuran) Modifier.quranBackground(colors) else Modifier)
-                .then(
-                    if (playing) {
-                        // While reading, the whole card is a big tap target to count one repetition.
-                        Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = colors.accent),
-                            onClick = countTap,
-                        )
-                    } else Modifier
-                ),
+            Modifier
+                .then(if (quran) Modifier.quranBackground(colors) else Modifier)
+                .clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)
         ) {
-            val onHeaderClick = actions.onToggleExpanded.takeIf { foldable }
-            if (isQuran) {
-                QuranHeader(item, colors, complete, expanded, textScale, onHeaderClick)
-            } else {
-                StepHeader(item, colors, complete, expanded, onHeaderClick)
-            }
-            val content: @Composable () -> Unit = {
-                Column(
-                    Modifier.fillMaxWidth().padding(
-                        start = if (isQuran) 22.dp else 16.dp,
-                        end = if (isQuran) 22.dp else 16.dp,
-                        bottom = 16.dp,
-                    )
-                ) { body() }
-            }
-            if (foldable) {
-                AnimatedVisibility(visible = expanded, enter = Unfold, exit = Fold) { content() }
-            } else {
-                content()
-            }
+            if (quran) QuranHeader(item, colors, done, complete, textScale)
+            else StepHeader(item, colors, done, complete)
         }
     }
 }
@@ -492,58 +306,56 @@ private fun ReadingCard(
 private fun ItemType.groupColors(): ElementColors {
     val colors = colors()
     val scheme = MaterialTheme.colorScheme
-    // The Quran's gold is made for its deep green card: on the light sheet, use the brand green.
-    val quran = this == ItemType.QURAN
     return colors.copy(
         container = scheme.surfaceContainerLowest,
-        border = if (quran) scheme.outlineVariant else colors.border,
-        accent = if (quran) scheme.primary else colors.accent,
-        onAccent = if (quran) scheme.onPrimary else colors.onAccent,
         ink = scheme.onSurface,
     )
 }
 
 /**
- * A group step: several texts read one after the other (e.g. «أدعية الحمد والشكر»). Folded, it
- * shows its title and progress, over two sheets of its texts' color; open, it lists each text on
- * its own card ([member]), then offers to finish (or undo) all of them at once.
+ * A group step: several texts read one after the other (e.g. «أدعية الحمد والشكر»). Folded, its
+ * card shows the title and the progress through the texts, over two sheets of their color; a tap
+ * unfolds the list of its texts, and a tap on a text opens the reader at it ([onOpenText]).
  */
 @Composable
 private fun GroupCard(
     item: ProgramItem,
     done: Int,
-    expanded: Boolean,
-    focused: Boolean,
-    textScale: Float,
-    actions: ItemActions,
+    current: Boolean,
+    onOpenText: (String) -> Unit,
+    textDone: (ProgramItem) -> Int,
     modifier: Modifier,
-    member: @Composable (ProgramItem) -> Unit,
 ) {
     val colors = item.type.groupColors()
     val total = item.members.size
     val complete = total > 0 && done >= total
+    // Kept while the step scrolls out of view: the list items are keyed by step id.
+    var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
+    // The sheets stand for the texts underneath: unfolded, the texts themselves are shown.
     val stack by animateDpAsState(if (expanded) 0.dp else 8.dp, label = "groupStack")
     Box(modifier.fillMaxWidth().padding(bottom = stack)) {
         if (stack > 0.dp) {
             StackSheet(item.type.colors(), inset = 18.dp, drop = stack)
             StackSheet(item.type.colors(), inset = 9.dp, drop = stack / 2)
         }
-        StepSurface(colors = colors, focused = focused, modifier = Modifier) {
+        StepSurface(colors = colors, focused = current, modifier = Modifier) {
             Column {
-                GroupHeader(item, colors, done, total, complete, expanded, actions.onToggleExpanded)
-                AnimatedVisibility(visible = expanded, enter = Unfold, exit = Fold) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (item.source.isNotBlank() || item.note.isNotBlank()) {
-                            Column(Modifier.padding(horizontal = 4.dp)) {
-                                if (item.source.isNotBlank()) SourceLine(item.source, colors, textScale)
-                                if (item.note.isNotBlank()) NoteLine(item.note, colors)
-                            }
+                GroupHeader(item, colors, done, total, complete, expanded, onToggle = { expanded = !expanded })
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    Column {
+                        item.members.forEachIndexed { index, member ->
+                            GroupText(
+                                number = index + 1,
+                                text = member,
+                                done = textDone(member),
+                                colors = colors,
+                                onOpen = { onOpenText(member.id) },
+                            )
                         }
-                        item.members.forEach { text -> key(text.id) { member(text) } }
-                        GroupFooter(complete, colors, actions.onSetComplete)
                     }
                 }
             }
@@ -551,7 +363,72 @@ private fun GroupCard(
     }
 }
 
-/** A sheet peeking out [drop] below a folded group card, narrower by [inset] on each side. */
+/** One text of an unfolded group: its number (a check once done), title and count; opens the reader. */
+@Composable
+private fun GroupText(
+    number: Int,
+    text: ProgramItem,
+    done: Int,
+    colors: ElementColors,
+    onOpen: () -> Unit,
+) {
+    val complete = text.target > 0 && done >= text.target
+    Column {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(horizontal = 14.dp),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)
+                .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(if (complete) colors.accent else colors.accent.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (complete) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = stringResource(R.string.step_state_done),
+                        tint = colors.onAccent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                } else {
+                    Text(
+                        text = ArabicText.toArabicDigits(number),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.accent,
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = text.title.ifBlank { stringResource(text.type.label) },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.ink.copy(alpha = if (complete) 0.65f else 1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (text.target > 1) {
+                Pill(
+                    text = repetitions(done, text.target),
+                    color = colors.accent,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+            OpenIcon(colors)
+        }
+    }
+}
+
+/** A sheet peeking out [drop] below a group card, narrower by [inset] on each side. */
 @Composable
 private fun BoxScope.StackSheet(colors: ElementColors, inset: Dp, drop: Dp) {
     Surface(
@@ -562,7 +439,7 @@ private fun BoxScope.StackSheet(colors: ElementColors, inset: Dp, drop: Dp) {
     ) {}
 }
 
-/** The group's badge, title and progress through its texts. The whole row folds / unfolds it. */
+/** The group's badge, title and progress through its texts. The whole row folds or unfolds the texts. */
 @Composable
 private fun GroupHeader(
     item: ProgramItem,
@@ -571,16 +448,17 @@ private fun GroupHeader(
     total: Int,
     complete: Boolean,
     expanded: Boolean,
-    onToggleExpanded: () -> Unit,
+    onToggle: () -> Unit,
 ) {
     val progress = if (complete) stringResource(R.string.step_state_done)
     else stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total))
+    val turn by animateFloatAsState(if (expanded) 180f else 0f, label = "groupChevron")
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(
-                onClickLabel = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                onClick = onToggleExpanded,
+                onClickLabel = stringResource(if (expanded) R.string.group_hide_texts else R.string.group_show_texts),
+                onClick = onToggle,
             )
             .padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -601,34 +479,12 @@ private fun GroupHeader(
                 color = colors.accent,
             )
         }
-        val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "groupChevron")
         Icon(
             imageVector = Icons.Filled.KeyboardArrowDown,
             contentDescription = null,
             tint = colors.accent.copy(alpha = 0.75f),
-            modifier = Modifier.padding(start = 4.dp).size(22.dp).rotate(rotation),
+            modifier = Modifier.padding(start = 8.dp).size(24.dp).rotate(turn),
         )
-    }
-}
-
-/** "Finish all" once the texts are read (or, when the whole group is done, undo it). */
-@Composable
-private fun GroupFooter(complete: Boolean, colors: ElementColors, onSetComplete: (Boolean) -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        TextButton(
-            onClick = {
-                haptic.performHapticFeedback(if (complete) HapticFeedbackType.ToggleOff else HapticFeedbackType.Confirm)
-                onSetComplete(!complete)
-            },
-        ) {
-            Icon(if (complete) UndoIcon else Icons.Filled.Check, null, Modifier.size(18.dp), tint = colors.accent)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = stringResource(if (complete) R.string.undo_done else R.string.group_complete_all),
-                color = colors.accent,
-            )
-        }
     }
 }
 
@@ -639,21 +495,20 @@ private fun GroupFooter(complete: Boolean, colors: ElementColors, onSetComplete:
 @Composable
 fun GroupBadge(type: ItemType, count: Int, modifier: Modifier = Modifier, size: Dp = 36.dp) {
     val colors = type.colors()
-    val quran = type == ItemType.QURAN
     Box(modifier.size(size)) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
-                .background(if (quran) colors.container else colors.accent.copy(alpha = 0.13f)),
+                .background(colors.accent.copy(alpha = 0.13f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(type.icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(size * 0.55f))
         }
         Surface(
             shape = CircleShape,
-            color = if (quran) MaterialTheme.colorScheme.primary else colors.accent,
-            contentColor = if (quran) MaterialTheme.colorScheme.onPrimary else colors.onAccent,
+            color = colors.accent,
+            contentColor = colors.onAccent,
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceContainerLowest),
             modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 4.dp),
         ) {
@@ -666,77 +521,75 @@ fun GroupBadge(type: ItemType, count: Int, modifier: Modifier = Modifier, size: 
     }
 }
 
-/** Deep green with a faint light from the top and a barely visible star texture. */
+/** Parchment warming to gold towards the bottom, with a barely visible star texture. */
 private fun Modifier.quranBackground(colors: ElementColors): Modifier = this
     .background(
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.05f).compositeOver(colors.container),
                 colors.container,
-                Color.Black.copy(alpha = 0.18f).compositeOver(colors.container),
+                colors.accent.copy(alpha = 0.07f).compositeOver(colors.container),
             )
         )
     )
-    .starLattice(colors.accent.copy(alpha = 0.045f), spacing = 54.dp, starRadius = 14.dp)
+    .starLattice(colors.accent.copy(alpha = 0.06f), spacing = 54.dp, starRadius = 14.dp)
 
-/** Centred, reverent header of a Quran card; folded it also tells the type and the count. */
+/** What a card shows next to its count while it is being read: how far, or how many times. */
+@Composable
+private fun repetitions(done: Int, target: Int): String =
+    if (done in 1 until target) {
+        stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(target))
+    } else {
+        stringResource(R.string.times_count, ArabicText.toArabicDigits(target))
+    }
+
+/** The hint at the end of a header that the card opens full screen. */
+@Composable
+private fun OpenIcon(colors: ElementColors) {
+    Icon(
+        imageVector = ExpandIcon,
+        contentDescription = null,
+        tint = colors.accent.copy(alpha = 0.75f),
+        modifier = Modifier.padding(start = 8.dp).size(20.dp),
+    )
+}
+
+/** Centred, reverent header of a Quran card; it also tells the type and how far the count is. */
 @Composable
 private fun QuranHeader(
     item: ProgramItem,
     colors: ElementColors,
+    done: Int,
     complete: Boolean,
-    expanded: Boolean,
     textScale: Float,
-    onToggleExpanded: (() -> Unit)?,
 ) {
-    // Always exactly one caption line, so the header keeps its height when the card unfolds.
-    val summary = listOfNotNull(
+    // Always exactly one caption line, so the card keeps its height as the count goes on.
+    val caption = listOfNotNull(
         stringResource(R.string.type_quran),
-        if (item.target > 1) stringResource(R.string.times_count, ArabicText.toArabicDigits(item.target)) else null,
+        if (item.target > 1) repetitions(done, item.target) else null,
         if (complete) stringResource(R.string.step_state_done) else null,
     ).joinToString(" • ")
-    val caption = if (expanded && item.source.isNotBlank()) item.source else summary
     QuranTitle(
         title = item.title.ifBlank { stringResource(R.string.type_quran) },
         caption = caption,
         colors = colors,
         textScale = textScale,
-        modifier = Modifier
-            .then(
-                if (onToggleExpanded == null) Modifier
-                else Modifier.clickable(
-                    onClickLabel = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                    onClick = onToggleExpanded,
-                )
-            )
-            .padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
+        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
     )
 }
 
-/**
- * Type badge, title and repeat count. The whole row folds / unfolds the card; without
- * [onToggleExpanded] (a card that is always open) it has no chevron and does nothing.
- */
+/** Type badge, title and repeat count. The whole row opens the reader. */
 @Composable
 private fun StepHeader(
     item: ProgramItem,
     colors: ElementColors,
+    done: Int,
     complete: Boolean,
-    expanded: Boolean,
-    onToggleExpanded: (() -> Unit)?,
 ) {
     val typeLabel = stringResource(item.type.label)
     val doneLabel = stringResource(R.string.step_state_done)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (onToggleExpanded == null) Modifier
-                else Modifier.clickable(
-                    onClickLabel = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                    onClick = onToggleExpanded,
-                )
-            )
             .padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -765,38 +618,14 @@ private fun StepHeader(
             )
         }
         if (item.target > 1) {
-            com.example.dhikra.ui.components.Pill(
-                text = stringResource(R.string.times_count, ArabicText.toArabicDigits(item.target)),
+            Pill(
+                text = repetitions(done, item.target),
                 color = colors.accent,
                 modifier = Modifier.padding(start = 6.dp),
             )
         }
-        if (onToggleExpanded != null) {
-            val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                tint = colors.accent.copy(alpha = 0.75f),
-                modifier = Modifier.padding(start = 4.dp).size(22.dp).rotate(rotation),
-            )
-        }
+        OpenIcon(colors)
     }
-}
-
-/** The entry's description (book, reference, grade...) as a soft tinted panel. */
-@Composable
-private fun SourceLine(source: String, colors: ElementColors, textScale: Float) {
-    Text(
-        text = source,
-        style = ReadingStyles.hadithMeta(textScale),
-        color = colors.ink.copy(alpha = 0.75f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .clip(MaterialTheme.shapes.small)
-            .background(colors.accent.copy(alpha = 0.07f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    )
 }
 
 @Composable
@@ -817,92 +646,5 @@ private fun NoteLine(note: String, colors: ElementColors) {
             style = MaterialTheme.typography.bodySmall,
             color = colors.ink.copy(alpha = 0.75f),
         )
-    }
-}
-
-/** Counter bar (tap to count) plus the reader and full-screen controls. */
-@Composable
-private fun RepeatFooter(
-    item: ProgramItem,
-    done: Int,
-    colors: ElementColors,
-    playing: Boolean,
-    awaitingTap: Boolean,
-    onTogglePlay: () -> Unit,
-    onCount: () -> Unit,
-    onReset: () -> Unit,
-    onExpand: () -> Unit,
-) {
-    val complete = done >= item.target
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CounterBar(
-                done = done,
-                target = item.target,
-                colors = colors,
-                onCount = onCount,
-                onReset = onReset,
-                pulse = awaitingTap,
-                modifier = Modifier.weight(1f),
-            )
-            AnimatedVisibility(visible = !complete) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(8.dp))
-                    FilledTonalIconButton(
-                        onClick = onTogglePlay,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = colors.accent.copy(alpha = 0.14f),
-                            contentColor = colors.accent,
-                        ),
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        if (playing) {
-                            Icon(painterResource(R.drawable.ic_pause), stringResource(R.string.pause))
-                        } else {
-                            Icon(Icons.Filled.PlayArrow, stringResource(R.string.play))
-                        }
-                    }
-                    IconButton(onClick = onExpand) {
-                        Icon(
-                            imageVector = ExpandIcon,
-                            contentDescription = stringResource(R.string.expand_counter),
-                            tint = colors.accent,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-        }
-        AnimatedVisibility(visible = playing) {
-            Text(
-                text = stringResource(if (awaitingTap) R.string.reader_waiting else R.string.reader_hint),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (awaitingTap) colors.accent else colors.ink.copy(alpha = 0.65f),
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-            )
-        }
-    }
-}
-
-/** "Done" bar for single-pass steps; once done, an undo action. */
-@Composable
-private fun SingleFooter(
-    complete: Boolean,
-    colors: ElementColors,
-    current: Boolean,
-    onSetComplete: (Boolean) -> Unit,
-) {
-    AnimatedContent(targetState = complete, label = "singleFooter") { isComplete ->
-        if (isComplete) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { onSetComplete(false) }) {
-                    Icon(UndoIcon, null, Modifier.size(18.dp), tint = colors.accent)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.undo_done), color = colors.accent)
-                }
-            }
-        } else {
-            DoneBar(colors = colors, emphasized = current, onClick = { onSetComplete(true) })
-        }
     }
 }

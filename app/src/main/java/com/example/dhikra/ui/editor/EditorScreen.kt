@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -90,6 +91,8 @@ fun EditorScreen(
     onEdit: ((Program) -> Program) -> Unit,
     onSaveEntry: (LibraryEntry) -> Unit,
     onSaveGroup: (LibraryGroup) -> Unit,
+    /** Deletes the program (after confirmation, by the caller); null when it is the only one. */
+    onDelete: (() -> Unit)? = null,
 ) {
     var dialog by remember { mutableStateOf<EditorDialog?>(null) }
 
@@ -101,6 +104,13 @@ fun EditorScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+                        }
+                    },
+                    actions = {
+                        if (onDelete != null) {
+                            IconButton(onClick = onDelete) {
+                                Icon(Icons.Outlined.Delete, stringResource(R.string.delete_program))
+                            }
                         }
                     },
                     expandedHeight = 56.dp,
@@ -342,7 +352,7 @@ private fun ItemRow(
             Text(
                 text = badge,
                 style = MaterialTheme.typography.labelMedium,
-                color = colors.accent.takeIf { item.type != ItemType.QURAN } ?: MaterialTheme.colorScheme.primary,
+                color = colors.accent,
                 modifier = Modifier.padding(horizontal = 6.dp),
             )
         }

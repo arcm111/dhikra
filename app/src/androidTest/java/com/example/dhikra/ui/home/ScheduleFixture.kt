@@ -1,8 +1,10 @@
 package com.example.dhikra.ui.home
 
+import com.example.dhikra.data.GroupItem
 import com.example.dhikra.data.ItemType
 import com.example.dhikra.data.Library
 import com.example.dhikra.data.LibraryEntry
+import com.example.dhikra.data.LibraryGroup
 import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramBundle
 import com.example.dhikra.data.ProgramItem
@@ -10,7 +12,8 @@ import com.example.dhikra.data.ProgramSection
 
 /**
  * A fixed program for the schedule UI tests, independent of the app's default content: a long
- * "shurooq" section (a counted dhikr first, long texts further down) and a short "duha" section.
+ * "shurooq" section (a counted dhikr first, long texts further down), a short "duha" section of
+ * tasks and a "protection" section reading a group of two texts.
  */
 object ScheduleFixture {
 
@@ -72,7 +75,15 @@ object ScheduleFixture {
                 description = "سورة البقرة (٢٥٥)",
                 text = AYAT_AL_KURSI,
             ),
-        )
+        ),
+        groups = listOf(
+            LibraryGroup(
+                id = "muawwidhat",
+                type = ItemType.QURAN,
+                title = "المعوّذتان",
+                items = listOf(GroupItem("al_falaq"), GroupItem("an_nas")),
+            ),
+        ),
     )
 
     /** A step reading the library entry [entryId] (the step reuses the entry's id). */
@@ -115,6 +126,14 @@ object ScheduleFixture {
                 items = listOf(
                     ProgramItem(id = "salat_duha", type = ItemType.TASK, text = "صلاة الضحى والدعاء بعدها"),
                     ProgramItem(id = "salat_shukr", type = ItemType.TASK, text = "صلاة شكر (ركعتين أو أكثر)"),
+                ),
+            ),
+            ProgramSection(
+                id = "protection",
+                title = "التحصين",
+                items = listOf(
+                    ProgramItem(id = "muawwidhat_step", type = ItemType.QURAN, groupId = "muawwidhat"),
+                    ProgramItem(id = "protection_kursi", type = ItemType.QURAN, entryId = "ayat_al_kursi"),
                 ),
             ),
         ),

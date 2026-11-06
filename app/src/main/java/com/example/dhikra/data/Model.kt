@@ -32,11 +32,22 @@ data class LibraryEntry(
     val id: String = newId(),
     val type: ItemType,
     val title: String,
+    /** For a Quran passage ([quran]), its ayat filled in from the bundled Quran text. */
     val text: String,
     val description: String = "",
     /** Optional opening line shown above the text (Basmala, Isti'adha...). */
     val opening: String = "",
-)
+    /**
+     * The ayat a Quran entry reads. Only this reference is stored: the [text] comes from the bundled
+     * Quran text (see [withQuranText]) and is never edited. Null for the other collections, and for
+     * Quran texts typed in before the Quran text was bundled.
+     */
+    val quran: QuranRef? = null,
+) {
+    /** The line shown above the text: the [opening] chosen, else the basmala of a passage opening its surah. */
+    val displayOpening: String
+        get() = opening.ifEmpty { if (quran?.opensWithBasmala == true) Quran.BASMALA else "" }
+}
 
 /** One text of a [LibraryGroup]: the library entry [entryId], read [count] times. */
 data class GroupItem(val entryId: String, val count: Int = 1)
@@ -172,7 +183,7 @@ data class ProgramItem(
                         type = entry.type,
                         title = entry.title,
                         text = entry.text,
-                        opening = entry.opening,
+                        opening = entry.displayOpening,
                         count = member.count,
                         source = entry.description,
                         entryId = entry.id,
@@ -187,7 +198,7 @@ data class ProgramItem(
             type = entry.type,
             title = entry.title,
             text = entry.text,
-            opening = entry.opening,
+            opening = entry.displayOpening,
             source = entry.description,
         )
     }
@@ -208,8 +219,28 @@ data class ProgramSection(
 data class Program(
     val name: String,
     val sections: List<ProgramSection> = emptyList(),
+    /** Tells the user's programs apart; not part of exported files. */
+    val id: String = newId(),
 ) {
     val itemCount: Int get() = sections.sumOf { it.trackableItems.size }
+
+    /** The ids of every section and step: today's progress and the reminders are keyed by them. */
+    val ids: Set<String>
+        get() = sections.flatMapTo(mutableSetOf()) { section -> section.items.map { it.id } + section.id }
+
+    /**
+     * This program with a fresh id for each section and step whose id is in [taken] (or repeated
+     * within the program), so it can sit next to other programs without sharing their progress.
+     */
+    fun withIdsOutside(taken: Set<String>): Program {
+        val used = taken.toMutableSet()
+        fun fresh(id: String): String = (if (id in used) newId() else id).also { used += it }
+        return copy(
+            sections = sections.map { section ->
+                section.copy(id = fresh(section.id), items = section.items.map { it.copy(id = fresh(it.id)) })
+            }
+        )
+    }
 
     fun section(id: String?): ProgramSection? = sections.firstOrNull { it.id == id }
 
@@ -289,6 +320,79 @@ data class Program(
 
 /** A program together with the library it references: what is stored, exported and shared. */
 data class ProgramBundle(val program: Program, val library: Library)
+
+/**
+ * Everything the app stores: the user's [programs], the one being followed ([activeId]) and the
+ * library they all read from. There is always at least one program.
+ */
+data class ProgramStore(
+    val programs: List<Program>,
+    val activeId: String,
+    val library: Library,
+) {
+    init {
+        require(programs.isNotEmpty()) { "A store holds at least one program" }
+    }
+
+    /** The program being followed (the first one if [activeId] is unknown). */
+    val active: Program get() = programs.firstOrNull { it.id == activeId } ?: programs.first()
+
+    /** The active program with the library: what the screens and exports work on. */
+    val bundle: ProgramBundle get() = ProgramBundle(active, library)
+
+    /** The ids of every section and step of every program. */
+    val ids: Set<String> get() = programs.flatMapTo(mutableSetOf()) { it.ids }
+
+    /** Replaces the active program and the library with [bundle]'s. */
+    fun withBundle(bundle: ProgramBundle): ProgramStore = copy(
+        programs = programs.map { if (it.id == active.id) bundle.program.copy(id = it.id) else it },
+        library = bundle.library,
+    )
+
+    /** Adds [program] (or replaces the one with its id) and makes it the active one. */
+    fun add(program: Program): ProgramStore {
+        val index = programs.indexOfFirst { it.id == program.id }
+        return copy(
+            programs = if (index < 0) programs + program
+            else programs.toMutableList().also { it[index] = program },
+            activeId = program.id,
+        )
+    }
+
+    fun select(programId: String): ProgramStore =
+        if (programs.any { it.id == programId }) copy(activeId = programId) else this
+
+    /** Deletes a program, unless it is the last one; the first remaining one becomes active if needed. */
+    fun remove(programId: String): ProgramStore {
+        val remaining = programs.filterNot { it.id == programId }
+        if (remaining.isEmpty() || remaining.size == programs.size) return this
+        return copy(
+            programs = remaining,
+            activeId = if (activeId == programId) remaining.first().id else activeId,
+        )
+    }
+
+    /** Deletes a library entry, with the steps of every program that read it. */
+    fun withoutEntry(entryId: String): ProgramStore = copy(
+        programs = programs.map { it.withoutEntry(entryId) },
+        library = library.remove(entryId),
+    )
+
+    /** Deletes a library group, with the steps of every program that read it. */
+    fun withoutGroup(groupId: String): ProgramStore = copy(
+        programs = programs.map { it.withoutGroup(groupId) },
+        library = library.removeGroup(groupId),
+    )
+}
+
+/** How many steps of these programs read the library entry [entryId] on its own. */
+fun List<Program>.usages(entryId: String): Int = sumOf { it.usages(entryId) }
+
+/** How many steps of these programs read the library group [groupId]. */
+fun List<Program>.groupUsages(groupId: String): Int = sumOf { it.groupUsages(groupId) }
+
+/** Whether one of these programs reads [entryId], on its own or through a group. */
+fun List<Program>.reads(entryId: String, library: Library): Boolean = any { it.reads(entryId, library) }
 
 fun newId(): String = UUID.randomUUID().toString().replace("-", "").take(12)
 

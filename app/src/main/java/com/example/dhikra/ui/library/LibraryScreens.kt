@@ -57,9 +57,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,6 +72,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -89,9 +93,16 @@ import com.example.dhikra.data.LibraryEntry
 import com.example.dhikra.data.LibraryGroup
 import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramJson
+import com.example.dhikra.data.QuranPassage
+import com.example.dhikra.data.QuranRef
+import com.example.dhikra.data.Surah
+import com.example.dhikra.data.groupUsages
+import com.example.dhikra.data.reads
+import com.example.dhikra.data.usages
 import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.HeaderTab
 import com.example.dhikra.ui.components.Pill
+import com.example.dhikra.ui.components.QuranIcon
 import com.example.dhikra.ui.components.StarOrnamentIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.icon
@@ -179,7 +190,7 @@ fun LibraryScreen(library: Library, onBack: () -> Unit, onOpenCollection: (ItemT
                             leading = {
                                 Box(
                                     Modifier.size(40.dp).clip(CircleShape).background(
-                                        if (type == ItemType.QURAN) colors.container else colors.accent.copy(alpha = 0.13f)
+                                        colors.accent.copy(alpha = 0.13f)
                                     ),
                                     contentAlignment = Alignment.Center,
                                 ) { Icon(type.icon, null, tint = colors.accent, modifier = Modifier.size(22.dp)) }
@@ -241,6 +252,20 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
                     SettingsRow(stringResource(R.string.action_reset_today), leading = { RowIcon(Icons.Outlined.Refresh) }, onClick = actions.onResetToday)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SettingsRow(stringResource(R.string.action_restore_default), leading = { RowIcon(StarOrnamentIcon) }, onClick = actions.onRestoreDefault)
+                }
+            }
+            item { GroupTitle(R.string.settings_about) }
+            item {
+                // Tanzil's terms: the source of the Quran text is named, with a link to tanzil.net.
+                val uriHandler = LocalUriHandler.current
+                val url = stringResource(R.string.quran_source_url)
+                SettingsGroup {
+                    SettingsRow(
+                        title = stringResource(R.string.quran_source),
+                        subtitle = stringResource(R.string.quran_source_details),
+                        leading = { RowIcon(QuranIcon) },
+                        onClick = { uriHandler.openUri(url) },
+                    )
                 }
             }
         }
@@ -327,7 +352,8 @@ const val GROUPS_TAB = 1
 fun CollectionScreen(
     type: ItemType,
     library: Library,
-    program: Program,
+    /** All the user's programs: a text is "in the program" when one of them reads it. */
+    programs: List<Program>,
     onBack: () -> Unit,
     onSave: (LibraryEntry) -> Unit,
     onDelete: (String) -> Unit,
@@ -385,6 +411,9 @@ fun CollectionScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (type == ItemType.QURAN) {
+                item(key = "source") { QuranSourceNote() }
+            }
             if (entries.isNotEmpty() || groups.isNotEmpty()) {
                 item(key = "search") { SearchField(query, onQueryChange = { query = it }) }
             }
@@ -396,7 +425,7 @@ fun CollectionScreen(
                     GroupEntryCard(
                         group = group,
                         library = library,
-                        inProgram = program.groupUsages(group.id) > 0,
+                        inProgram = programs.groupUsages(group.id) > 0,
                         onClick = { editingGroup = group },
                         modifier = Modifier.animateItem(),
                     )
@@ -408,7 +437,7 @@ fun CollectionScreen(
                 items(shownEntries, key = { "entry:" + it.id }) { entry ->
                     EntryCard(
                         entry = entry,
-                        inProgram = program.reads(entry.id, library),
+                        inProgram = programs.reads(entry.id, library),
                         onClick = { editing = entry },
                         modifier = Modifier.animateItem(),
                     )
@@ -440,7 +469,7 @@ fun CollectionScreen(
         EntryEditorDialog(
             type = type,
             initial = entry,
-            usages = program.usages(entry.id),
+            usages = programs.usages(entry.id),
             groups = library.groupsWith(entry.id).size,
             onDismiss = { editing = null },
             onSave = { onSave(it); editing = null },
@@ -452,7 +481,7 @@ fun CollectionScreen(
             type = type,
             initial = group,
             library = library,
-            usages = program.groupUsages(group.id),
+            usages = programs.groupUsages(group.id),
             onDismiss = { editingGroup = null },
             onSave = { onSaveGroup(it); editingGroup = null },
             onSaveEntry = onSave,
@@ -497,6 +526,10 @@ private fun EmptyText(text: Int) {
         modifier = Modifier.fillMaxWidth().padding(32.dp),
     )
 }
+
+/** The entry's text as previewed in the lists: a Quran text's ayah numbers in Arabic digits. */
+private val LibraryEntry.previewText: String
+    get() = if (type == ItemType.QURAN) ArabicText.toArabicDigits(text) else text
 
 /** Whether the entry's title, description or text contains the search [key] (see [ArabicText.searchKey]). */
 private fun LibraryEntry.matches(key: String): Boolean =
@@ -547,7 +580,7 @@ fun EntryCard(
                 )
             }
             Text(
-                text = entry.text,
+                text = entry.previewText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.ink.copy(alpha = 0.85f),
                 maxLines = 2,
@@ -563,8 +596,9 @@ private const val ISTIADHA = "أَعُوذُ بِاللَّهِ مِنَ الش�
 
 /**
  * Full-screen editor of a library text: title, optional description, optional opening (Quran
- * and dua) and the text itself. [onDelete] adds a delete action (with confirmation, which tells
- * how many program steps and [groups] read the text).
+ * and dua) and the text itself. A Quran text is not typed in: its surah and ayat are picked, and
+ * its text read from the bundled Quran text. [onDelete] adds a delete action (with confirmation,
+ * which tells how many program steps and [groups] read the text).
  */
 @Composable
 fun EntryEditorDialog(
@@ -584,8 +618,55 @@ fun EntryEditorDialog(
     var confirmDelete by remember { mutableStateOf(false) }
     val hasOpening = type == ItemType.QURAN || type == ItemType.DUA
 
+    // A Quran text: the surah and the two ayah fields as typed, and the passage they name.
+    val isQuran = type == ItemType.QURAN
+    val resources = LocalResources.current
+    val quranLookup = LocalQuranLookup.current
+    val surahs by produceState(emptyList<Surah>(), quranLookup, isQuran) {
+        if (isQuran) value = quranLookup?.surahs().orEmpty()
+    }
+    var sura by rememberSaveable { mutableIntStateOf(initial?.quran?.sura ?: 0) }
+    var fromAya by rememberSaveable { mutableStateOf(initial?.quran?.from?.let(ArabicText::toArabicDigits).orEmpty()) }
+    var toAya by rememberSaveable { mutableStateOf(initial?.quran?.to?.let(ArabicText::toArabicDigits).orEmpty()) }
+    val ref = if (isQuran) quranRefOf(sura, fromAya, toAya) else null
+    var loaded by remember { mutableStateOf<Pair<QuranRef, QuranPassage?>?>(null) }
+    LaunchedEffect(ref, quranLookup) {
+        if (ref != null && loaded?.first != ref) loaded = ref to quranLookup?.passage(ref)
+    }
+    val passage = loaded?.takeIf { it.first == ref }?.second
+    // A Quran text typed in before the Quran text was bundled, kept until a passage is picked.
+    val legacyText = isQuran && initial != null && initial.quran == null && sura == 0 && initial.text.isNotBlank()
+
+    // The title and description last filled in from the passage: they follow it until edited.
+    var autoTitle by rememberSaveable { mutableStateOf("") }
+    var autoDescription by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(surahs) {
+        val initialRef = initial?.quran ?: return@LaunchedEffect
+        if (autoTitle.isEmpty()) surahs.firstOrNull { it.number == initialRef.sura }?.let { autoTitle = quranTitle(resources, it) }
+        if (autoDescription.isEmpty()) autoDescription = quranRangeDescription(resources, initialRef)
+    }
+
+    fun pick(newSura: Int, newFrom: String, newTo: String) {
+        if (newSura != sura) {
+            surahs.firstOrNull { it.number == newSura }?.let { surah ->
+                val auto = quranTitle(resources, surah)
+                if (title.isBlank() || title == autoTitle) title = auto
+                autoTitle = auto
+            }
+        }
+        quranRefOf(newSura, newFrom, newTo)?.let { newRef ->
+            val auto = quranRangeDescription(resources, newRef)
+            if (description.isBlank() || description == autoDescription) description = auto
+            autoDescription = auto
+        }
+        sura = newSura
+        fromAya = newFrom
+        toAya = newTo
+    }
+
     fun save() {
-        if (title.isBlank() || text.isBlank()) {
+        val hasText = if (isQuran) passage != null || legacyText else text.isNotBlank()
+        if (title.isBlank() || !hasText) {
             showErrors = true
             return
         }
@@ -594,7 +675,8 @@ fun EntryEditorDialog(
                 title = title.trim(),
                 description = description.trim(),
                 opening = if (hasOpening) opening.trim() else "",
-                text = text.trim(),
+                text = passage?.text ?: text.trim(),
+                quran = passage?.ref,
             )
         )
     }
@@ -613,7 +695,20 @@ fun EntryEditorDialog(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = type.colors().accent.takeIf { type != ItemType.QURAN } ?: MaterialTheme.colorScheme.primary)
+                    Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = type.colors().accent)
+                    // A Quran text starts with its ayat: they fill in the title and description below.
+                    if (isQuran) {
+                        QuranPassagePicker(
+                            surahs = surahs,
+                            sura = sura,
+                            from = fromAya,
+                            to = toAya,
+                            onPick = ::pick,
+                            passage = passage,
+                            loading = ref != null && loaded?.first != ref,
+                            showErrors = showErrors && !legacyText,
+                        )
+                    }
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
@@ -639,6 +734,9 @@ fun EntryEditorDialog(
                             value = opening,
                             onValueChange = { opening = it },
                             label = { Text(stringResource(R.string.item_opening)) },
+                            supportingText = if (opening.isBlank() && ref?.opensWithBasmala == true) {
+                                { Text(stringResource(R.string.quran_basmala_auto)) }
+                            } else null,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -654,20 +752,29 @@ fun EntryEditorDialog(
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it },
-                        label = { Text(stringResource(R.string.entry_text)) },
-                        isError = showErrors && text.isBlank(),
-                        supportingText = if (showErrors && text.isBlank()) {
-                            { Text(stringResource(R.string.entry_text_error)) }
-                        } else null,
-                        textStyle = (if (type == ItemType.QURAN) ReadingStyles.quran(0.85f) else ReadingStyles.dua(0.9f))
-                            .copy(textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurface),
-                        minLines = 5,
-                        maxLines = 16,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    if (!isQuran || legacyText) {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            label = { Text(stringResource(R.string.entry_text)) },
+                            readOnly = legacyText,
+                            isError = !isQuran && showErrors && text.isBlank(),
+                            supportingText = when {
+                                legacyText -> {
+                                    { Text(stringResource(R.string.quran_legacy_text)) }
+                                }
+                                showErrors && text.isBlank() -> {
+                                    { Text(stringResource(R.string.entry_text_error)) }
+                                }
+                                else -> null
+                            },
+                            textStyle = (if (isQuran) ReadingStyles.quran(0.85f) else ReadingStyles.dua(0.9f))
+                                .copy(textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurface),
+                            minLines = 5,
+                            maxLines = 16,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -718,10 +825,9 @@ private fun EditorTopBar(title: String, onClose: () -> Unit, onSave: () -> Unit,
 
 // ------------------------------------------------------------------------------ Groups
 
-/** Accent of a collection on a light surface (the Quran's gold is made for its deep green). */
+/** Accent of a collection on a light surface. */
 @Composable
-private fun ItemType.surfaceAccent(): Color =
-    if (this == ItemType.QURAN) MaterialTheme.colorScheme.primary else colors().accent
+private fun ItemType.surfaceAccent(): Color = colors().accent
 
 /** A group of the library: its badge, title, description and the titles of its texts in order. */
 @Composable
@@ -735,7 +841,7 @@ fun GroupEntryCard(
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = group.type.surfaceAccent()
-    val border = if (group.type == ItemType.QURAN) scheme.outlineVariant else group.type.colors().border
+    val border = group.type.colors().border
     val titles = group.items.mapNotNull { item ->
         library.entry(item.entryId)?.let { entry ->
             if (item.count > 1) entry.title + " " + stringResource(R.string.times_count, ArabicText.toArabicDigits(item.count))
@@ -1001,11 +1107,10 @@ private fun GroupItemRow(
 ) {
     val scheme = MaterialTheme.colorScheme
     val colors = type.colors()
-    val quran = type == ItemType.QURAN
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = if (quran) scheme.surfaceContainerLowest else colors.container,
-        border = BorderStroke(1.dp, if (quran) scheme.outlineVariant else colors.border),
+        color = colors.container,
+        border = BorderStroke(1.dp, colors.border),
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1024,7 +1129,7 @@ private fun GroupItemRow(
                 )
                 if (entry != null) {
                     Text(
-                        text = entry.text,
+                        text = entry.previewText,
                         style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant,
                         maxLines = 1,
@@ -1127,7 +1232,7 @@ private fun AvailableEntryRow(entry: LibraryEntry, accent: Color, onAdd: () -> U
             Column(Modifier.weight(1f)) {
                 Text(entry.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = entry.text,
+                    text = entry.previewText,
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant,
                     maxLines = 1,

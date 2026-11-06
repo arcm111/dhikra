@@ -477,7 +477,7 @@ fun ItemEditorDialog(
                         CountEditor(
                             countText = countText,
                             count = count,
-                            accent = type.colors().accent.takeIf { type != ItemType.QURAN } ?: MaterialTheme.colorScheme.primary,
+                            accent = type.colors().accent,
                             onCountTextChange = { countText = it },
                         )
                     } else {

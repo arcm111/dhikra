@@ -15,20 +15,69 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.dhikra.data.DefaultProgram
 import com.example.dhikra.data.ItemType
-import com.example.dhikra.ui.components.CounterScreen
-import com.example.dhikra.ui.home.GroupMemberView
+import com.example.dhikra.data.ProgramSection
+import com.example.dhikra.data.Quran
+import com.example.dhikra.data.QuranRef
+import com.example.dhikra.data.QuranSource
+import com.example.dhikra.data.Surah
+import com.example.dhikra.data.withQuranText
 import com.example.dhikra.ui.home.HomeActions
 import com.example.dhikra.ui.home.HomeScreen
-import com.example.dhikra.ui.home.ItemActions
 import com.example.dhikra.ui.home.ProgramItemView
+import com.example.dhikra.ui.home.StepReader
 import com.example.dhikra.ui.library.CollectionScreen
 import com.example.dhikra.ui.library.GROUPS_TAB
 import com.example.dhikra.ui.library.LibraryScreen
+import com.example.dhikra.ui.library.QuranPassagePicker
 import com.example.dhikra.ui.library.SettingsActions
 import com.example.dhikra.ui.library.SettingsScreen
 import com.example.dhikra.ui.theme.DhikraTheme
 
-private val sample = DefaultProgram.bundle()
+/**
+ * The ayat the previews show, verbatim from the bundled Quran text (previews can't open its
+ * database). As in the database, the first ayah of a surah starts with the basmala.
+ */
+private val previewAyat = mapOf(
+    18 to listOf(
+        "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٱلْحَمْدُ لِلَّهِ ٱلَّذِىٓ أَنزَلَ عَلَىٰ عَبْدِهِ ٱلْكِتَـٰبَ وَلَمْ يَجْعَل لَّهُۥ عِوَجَا ۜ",
+        "قَيِّمًا لِّيُنذِرَ بَأْسًا شَدِيدًا مِّن لَّدُنْهُ وَيُبَشِّرَ ٱلْمُؤْمِنِينَ ٱلَّذِينَ يَعْمَلُونَ ٱلصَّـٰلِحَـٰتِ أَنَّ لَهُمْ أَجْرًا حَسَنًا",
+        "مَّـٰكِثِينَ فِيهِ أَبَدًا",
+        "وَيُنذِرَ ٱلَّذِينَ قَالُوا۟ ٱتَّخَذَ ٱللَّهُ وَلَدًا",
+        "مَّا لَهُم بِهِۦ مِنْ عِلْمٍ وَلَا لِـَٔابَآئِهِمْ ۚ كَبُرَتْ كَلِمَةً تَخْرُجُ مِنْ أَفْوَٰهِهِمْ ۚ إِن يَقُولُونَ إِلَّا كَذِبًا",
+        "فَلَعَلَّكَ بَـٰخِعٌ نَّفْسَكَ عَلَىٰٓ ءَاثَـٰرِهِمْ إِن لَّمْ يُؤْمِنُوا۟ بِهَـٰذَا ٱلْحَدِيثِ أَسَفًا",
+        "إِنَّا جَعَلْنَا مَا عَلَى ٱلْأَرْضِ زِينَةً لَّهَا لِنَبْلُوَهُمْ أَيُّهُمْ أَحْسَنُ عَمَلًا",
+        "وَإِنَّا لَجَـٰعِلُونَ مَا عَلَيْهَا صَعِيدًا جُرُزًا",
+        "أَمْ حَسِبْتَ أَنَّ أَصْحَـٰبَ ٱلْكَهْفِ وَٱلرَّقِيمِ كَانُوا۟ مِنْ ءَايَـٰتِنَا عَجَبًا",
+        "إِذْ أَوَى ٱلْفِتْيَةُ إِلَى ٱلْكَهْفِ فَقَالُوا۟ رَبَّنَآ ءَاتِنَا مِن لَّدُنكَ رَحْمَةً وَهَيِّئْ لَنَا مِنْ أَمْرِنَا رَشَدًا",
+    ),
+    112 to listOf(
+        "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ قُلْ هُوَ ٱللَّهُ أَحَدٌ",
+        "ٱللَّهُ ٱلصَّمَدُ",
+        "لَمْ يَلِدْ وَلَمْ يُولَدْ",
+        "وَلَمْ يَكُن لَّهُۥ كُفُوًا أَحَدٌۢ",
+    ),
+    113 to listOf(
+        "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ",
+        "مِن شَرِّ مَا خَلَقَ",
+        "وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ",
+        "وَمِن شَرِّ ٱلنَّفَّـٰثَـٰتِ فِى ٱلْعُقَدِ",
+        "وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ",
+    ),
+    114 to listOf(
+        "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ",
+        "مَلِكِ ٱلنَّاسِ",
+        "إِلَـٰهِ ٱلنَّاسِ",
+        "مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ",
+        "ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ ٱلنَّاسِ",
+        "مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ",
+    ),
+)
+
+private val previewQuran = QuranSource { ref ->
+    previewAyat[ref.sura]?.takeIf { ref.to <= it.size }?.let { Quran.passage(ref, it.subList(ref.from - 1, ref.to)) }
+}
+
+private val sample = DefaultProgram.bundle().let { it.copy(library = it.library.withQuranText(previewQuran)) }
 
 private val previewState = UiState(
     loading = false,
@@ -51,10 +100,10 @@ private val previewState = UiState(
 
 private val previewItems = previewState.schedule.sections.flatMap { it.items }
 
-private val noItemActions = ItemActions({}, {}, {}, {}, {})
-
 private val noHomeActions = HomeActions(
     onSelectSection = {},
+    onSelectProgram = {},
+    onCreateProgram = {},
     onEdit = {},
     onOpenLibrary = {},
     onOpenSettings = {},
@@ -108,12 +157,10 @@ private fun CardsPreview() {
                     ProgramItemView(
                         item = item,
                         done = previewState.doneCount(item),
-                        playing = false,
-                        expanded = item.id == "open_ikhlas",
-                        current = item.id == "open_ikhlas",
-                        lettersPerSecond = 7f,
                         textScale = 1f,
-                        actions = noItemActions,
+                        onOpen = {},
+                        onSetComplete = {},
+                        current = item.id == "open_ikhlas",
                     )
                 }
             }
@@ -121,11 +168,11 @@ private fun CardsPreview() {
     }
 }
 
-/** An open group step: each of its texts on its own card, the first unfinished one current. */
-@Preview(name = "Group card", heightDp = 2600, locale = "ar")
+/** Group steps: a stack of cards (one per text), opened full screen like any other step. */
+@Preview(name = "Group card", heightDp = 420, locale = "ar")
 @Preview(
     name = "Group card (dark)",
-    heightDp = 2600,
+    heightDp = 420,
     locale = "ar",
     uiMode = Configuration.UI_MODE_NIGHT_YES,
 )
@@ -139,27 +186,13 @@ private fun GroupCardPreview() {
             ) {
                 listOf("shurooq_muawwidhat", "duha_adiya").forEach { id ->
                     val group = previewItems.first { it.id == id }
-                    val next = group.members.firstOrNull { !previewState.isComplete(it) }?.id
                     ProgramItemView(
                         item = group,
                         done = previewState.doneCount(group),
-                        playing = false,
-                        expanded = true,
-                        current = true,
-                        lettersPerSecond = 7f,
                         textScale = 1f,
-                        actions = noItemActions,
-                        member = { text ->
-                            GroupMemberView(
-                                item = text,
-                                done = previewState.doneCount(text),
-                                playing = false,
-                                lettersPerSecond = 7f,
-                                textScale = 1f,
-                                actions = noItemActions,
-                                current = text.id == next,
-                            )
-                        },
+                        onOpen = {},
+                        onSetComplete = {},
+                        current = true,
                     )
                 }
             }
@@ -167,10 +200,10 @@ private fun GroupCardPreview() {
     }
 }
 
-@Preview(name = "Quran card", heightDp = 1100, locale = "ar")
+@Preview(name = "Quran card", heightDp = 240, locale = "ar")
 @Preview(
     name = "Quran card (dark)",
-    heightDp = 1100,
+    heightDp = 240,
     locale = "ar",
     uiMode = Configuration.UI_MODE_NIGHT_YES,
 )
@@ -182,14 +215,33 @@ private fun QuranCardPreview() {
                 ProgramItemView(
                     item = previewItems.first { it.id == "shurooq_kahf" },
                     done = 0,
-                    playing = false,
-                    expanded = true,
-                    current = true,
-                    lettersPerSecond = 7f,
                     textScale = 1f,
-                    actions = noItemActions,
+                    onOpen = {},
+                    onSetComplete = {},
+                    current = true,
                 )
             }
+        }
+    }
+}
+
+/** Picking the ayat of a Quran text: the first ten of Al-Kahf, with their preview. */
+@Preview(name = "Quran passage picker", heightDp = 1100, locale = "ar")
+@Composable
+private fun QuranPassagePickerPreview() {
+    DhikraTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            QuranPassagePicker(
+                surahs = listOf(Surah(18, "الكهف", 110), Surah(112, "الإخلاص", 4)),
+                sura = 18,
+                from = "١",
+                to = "١٠",
+                onPick = { _, _, _ -> },
+                passage = previewQuran.passage(QuranRef(18, 1, 10)),
+                loading = false,
+                showErrors = false,
+                modifier = Modifier.padding(16.dp),
+            )
         }
     }
 }
@@ -224,7 +276,7 @@ private fun CollectionPreview() {
         CollectionScreen(
             type = ItemType.DUA,
             library = sample.library,
-            program = sample.program,
+            programs = listOf(sample.program),
             onBack = {},
             onSave = {},
             onDelete = {},
@@ -241,7 +293,7 @@ private fun CollectionGroupsPreview() {
         CollectionScreen(
             type = ItemType.DUA,
             library = sample.library,
-            program = sample.program,
+            programs = listOf(sample.program),
             onBack = {},
             onSave = {},
             onDelete = {},
@@ -252,20 +304,89 @@ private fun CollectionGroupsPreview() {
     }
 }
 
-@Preview(name = "Counter", showSystemUi = true, locale = "ar")
+/** Every step of [section] finished: the reader's last screen then closes the whole section. */
+private fun allDoneState(section: ProgramSection): UiState = previewState.copy(
+    progress = previewState.progress + section.trackableItems
+        .flatMap { step -> if (step.isGroup) step.members else listOf(step) }
+        .associate { it.id to it.target },
+)
+
 @Composable
-private fun CounterPreview() {
+private fun ReaderPreview(sectionId: String, startId: String, state: UiState = previewState) {
     DhikraTheme {
-        CounterScreen(
-            title = "سبحان الله وبحمده",
-            text = "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ",
-            opening = "",
-            done = 37,
-            target = 100,
-            onCount = {},
-            onUndo = {},
-            onReset = {},
+        StepReader(
+            section = state.schedule.sections.first { it.id == sectionId },
+            startId = startId,
+            state = state,
+            actions = noHomeActions,
             onClose = {},
         )
     }
+}
+
+/** A counted step: the bead dial, 37 of 100 so far. */
+@Preview(name = "Reader: counted", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderCountedPreview() {
+    ReaderPreview(
+        sectionId = "shurooq",
+        startId = "shurooq_tasbeeh_100",
+        state = previewState.copy(progress = previewState.progress + ("shurooq_tasbeeh_100" to 37)),
+    )
+}
+
+/** A counted step that is finished: the reader invites to swipe up. */
+@Preview(name = "Reader: counted, finished", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderCountedFinishedPreview() {
+    ReaderPreview(
+        sectionId = "shurooq",
+        startId = "shurooq_tasbeeh_100",
+        state = previewState.copy(progress = previewState.progress + ("shurooq_tasbeeh_100" to 100)),
+    )
+}
+
+/** A step read once: marked done with its button. */
+@Preview(name = "Reader: Quran", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderQuranPreview() {
+    ReaderPreview(sectionId = "shurooq", startId = "shurooq_kahf")
+}
+
+/** A group step opens on its first unfinished text. */
+@Preview(name = "Reader: group", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderGroupPreview() {
+    ReaderPreview(sectionId = "shurooq", startId = "shurooq_muawwidhat")
+}
+
+/** A task has no text: its screen only holds the title and the button. */
+@Preview(name = "Reader: task", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderTaskPreview() {
+    ReaderPreview(sectionId = "duha", startId = "salat_duha")
+}
+
+/** The last screen of a finished section. */
+@Preview(name = "Reader: last", showSystemUi = true, locale = "ar")
+@Composable
+private fun ReaderLastPreview() {
+    val section = previewState.schedule.sections.first { it.id == "duha" }
+    val last = section.trackableItems.last().let { if (it.isGroup) it.members.last() else it }
+    ReaderPreview(
+        sectionId = "duha",
+        startId = last.id,
+        state = allDoneState(section),
+    )
+}
+
+/** A phone held sideways: the dial goes beside the text. */
+@Preview(name = "Reader: landscape", widthDp = 800, heightDp = 360, locale = "ar")
+@Composable
+private fun ReaderLandscapePreview() {
+    ReaderPreview(
+        sectionId = "shurooq",
+        startId = "shurooq_tasbeeh_100",
+        state = previewState.copy(progress = previewState.progress + ("shurooq_tasbeeh_100" to 37)),
+    )
 }
