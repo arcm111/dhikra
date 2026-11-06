@@ -219,10 +219,15 @@
     <string name="reminder_text">حان وقت وردك • %1$s عناصر</string>
 
     <!-- Play button of a task: visible label, then its spoken description -->
-    <string name="section_start">ابدأ</string>
-    <string name="section_continue">تابع</string>
     <string name="start_now_section">ابدأ %1$s</string>
     <string name="continue_now_section">تابع %1$s</string>
+    <string name="section_finished">مكتمل</string>
+
+    <!-- The home header, pulled open into the day's sections -->
+    <string name="sections_show">عرض أقسام اليوم</string>
+    <string name="sections_hide">إخفاء أقسام اليوم</string>
+    <string name="sections_shown">القائمة مفتوحة</string>
+    <string name="sections_hidden">القائمة مغلقة</string>
 
     <!-- Prayer times -->
     <string name="prayer_times">مواقيت الصلاة</string>

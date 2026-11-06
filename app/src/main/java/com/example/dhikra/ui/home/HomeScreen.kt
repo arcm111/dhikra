@@ -1,10 +1,10 @@
 package com.example.dhikra.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,7 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,59 +29,37 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -97,34 +75,26 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.dhikra.R
-import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.ItemType
-import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.ui.UiState
-import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.DhikraLogo
 import com.example.dhikra.ui.components.FinishNode
-import com.example.dhikra.ui.components.HeaderTab
 import com.example.dhikra.ui.components.HeadingNode
 import com.example.dhikra.ui.components.HeadingNodeSize
-import com.example.dhikra.ui.components.LibraryIcon
-import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.StepNode
 import com.example.dhikra.ui.components.StepNodeSize
 import com.example.dhikra.ui.components.StepState
@@ -132,13 +102,9 @@ import com.example.dhikra.ui.components.TimelineRow
 import com.example.dhikra.ui.components.TimelineSegments
 import com.example.dhikra.ui.components.TimelineSide
 import com.example.dhikra.ui.components.addEightPointStar
-import com.example.dhikra.ui.components.headerAppBarColors
-import com.example.dhikra.ui.components.sectionIcon
-import com.example.dhikra.ui.formatTimeArabic
 import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
-import com.example.dhikra.ui.theme.Orange
 import kotlin.math.absoluteValue
 import kotlin.math.cos
 import kotlin.math.sin
@@ -161,16 +127,15 @@ class HomeActions(
     val onOpenPrayerTimes: () -> Unit = {},
 )
 
-private const val KEY_SUMMARY = "summary"
 private const val KEY_NOTE = "note"
 private const val KEY_EMPTY = "empty"
 private const val KEY_COMPLETE = "complete"
 
 /**
- * Task-then-step home: the branded header holds the program's tasks (sections) as tabs, plus a
- * sheet listing the whole day; each page shows the task's summary and its steps on a vertical
- * timeline. Tapping a step opens the full-screen reader at it, which goes through the steps of the
- * task with a swipe up.
+ * Task-then-step home: the branded header shows the task (section) being looked at — its
+ * progress and a play button — and pulls down into the list of the day's tasks; each page shows
+ * the task's steps on a vertical timeline. Tapping a step opens the full-screen reader at it,
+ * which goes through the steps of the task with a swipe up.
  */
 @Composable
 fun HomeScreen(
@@ -190,36 +155,27 @@ private fun ProgramHome(
 ) {
     val sections = state.schedule.sections
     val selectedIndex = sections.indexOfFirst { it.id == state.selectedSectionId }.coerceAtLeast(0)
-    val tabsState = rememberLazyListState()
     // Step the full-screen reader was opened from (null = reader closed).
     var readerStartId by rememberSaveable { mutableStateOf<String?>(null) }
     // The step the reader was closed on: the list scrolls to it so the user finds their place.
     var revealStepId by remember { mutableStateOf<String?>(null) }
-    var showDay by rememberSaveable { mutableStateOf(false) }
     val readerSection = readerStartId?.let { id -> sectionOf(sections, id) }
     KeepScreenOn(readerSection != null)
 
-    LaunchedEffect(selectedIndex, sections.size) {
-        if (sections.isEmpty()) return@LaunchedEffect
-        val layout = tabsState.layoutInfo
-        val tab = layout.visibleItemsInfo.firstOrNull { it.index == selectedIndex }
-        val fullyVisible = tab != null && tab.offset >= layout.viewportStartOffset &&
-            tab.offset + tab.size <= layout.viewportEndOffset
-        if (!fullyVisible) tabsState.animateScrollToItem(selectedIndex)
+    val pagerState = rememberPagerState(initialPage = selectedIndex) { sections.size }
+    val expansion = rememberHeaderExpansion()
+    // Height of the closed header: the page keeps exactly that much room for it. Until the
+    // header has been measured, a close estimate keeps the first frame from jumping.
+    val density = LocalDensity.current
+    val statusBar = WindowInsets.statusBars.getTop(density)
+    var headerHeight by remember {
+        mutableIntStateOf(statusBar + with(density) { (if (sections.isEmpty()) 60.dp else 124.dp).roundToPx() })
     }
+    BackHandler(enabled = expansion.expanded) { expansion.close() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = {
-                HomeHeader(
-                    sections = sections,
-                    selectedIndex = selectedIndex,
-                    state = state,
-                    tabsState = tabsState,
-                    actions = actions,
-                    onShowDay = { showDay = true },
-                )
-            },
+            topBar = { Spacer(Modifier.fillMaxWidth().height(with(density) { headerHeight.toDp() })) },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
@@ -228,7 +184,6 @@ private fun ProgramHome(
                 return@Scaffold
             }
 
-            val pagerState = rememberPagerState(initialPage = selectedIndex) { sections.size }
             val currentSections by rememberUpdatedState(sections)
             LaunchedEffect(selectedIndex) {
                 if (pagerState.currentPage != selectedIndex) pagerState.animateScrollToPage(selectedIndex)
@@ -237,8 +192,15 @@ private fun ProgramHome(
                 // The first page is not a change: a reader restored after rotation must stay open.
                 var initial = true
                 snapshotFlow { pagerState.settledPage }.collect { page ->
-                    currentSections.getOrNull(page)?.let { actions.onSelectSection(it.id) }
-                    if (initial) initial = false else readerStartId = null
+                    val shown = currentSections.getOrNull(page)
+                    shown?.let { actions.onSelectSection(it.id) }
+                    // Leaving a task closes its reader; one opened on the task arrived at stays.
+                    val reading = readerStartId
+                    if (initial) {
+                        initial = false
+                    } else if (reading != null && (shown == null || sectionOf(listOf(shown), reading) == null)) {
+                        readerStartId = null
+                    }
                 }
             }
 
@@ -276,6 +238,29 @@ private fun ProgramHome(
             }
         }
 
+        // While the header is pulled open, the page dims behind it; a tap there closes it.
+        val fraction = expansion.fraction
+        if (fraction > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = fraction }
+                    .background(Color.Black.copy(alpha = 0.38f))
+                    .pointerInput(expansion) { detectTapGestures { expansion.close() } },
+            )
+        }
+
+        HomeHeader(
+            state = state,
+            sections = sections,
+            // The section the pager is on, or heading to: the header follows a swipe at once.
+            shownIndex = if (sections.isEmpty()) 0 else pagerState.targetPage,
+            expansion = expansion,
+            actions = actions,
+            onPlay = { stepId -> readerStartId = stepId },
+            onClosedHeight = { headerHeight = it },
+        )
+
         // Full-screen reader: grows out of the schedule and shrinks back into it.
         AnimatedContent(
             targetState = readerStartId?.takeIf { readerSection != null },
@@ -308,17 +293,6 @@ private fun ProgramHome(
             }
         }
     }
-
-    if (showDay) {
-        DaySheet(
-            state = state,
-            onSelect = { id ->
-                actions.onSelectSection(id)
-                showDay = false
-            },
-            onDismiss = { showDay = false },
-        )
-    }
 }
 
 /** The task holding the step (or the text of a group step) with this [id]. */
@@ -331,271 +305,6 @@ private fun sectionOf(sections: List<ProgramSection>, id: String): ProgramSectio
 private fun nextUnfinishedSection(sections: List<ProgramSection>, page: Int, state: UiState): ProgramSection? {
     val unfinished = { s: ProgramSection -> s.trackableItems.isNotEmpty() && state.completedIn(s) < s.trackableItems.size }
     return (sections.drop(page + 1) + sections.take(page)).firstOrNull(unfinished)
-}
-
-// ------------------------------------------------------------------------------ Header
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun HomeHeader(
-    sections: List<ProgramSection>,
-    selectedIndex: Int,
-    state: UiState,
-    tabsState: LazyListState,
-    actions: HomeActions,
-    onShowDay: () -> Unit,
-) {
-    DhikraHeader(bottomPadding = if (sections.isEmpty()) 4.dp else 14.dp) {
-        TopAppBar(
-            title = {
-                ProgramSwitcher(
-                    programs = state.programs,
-                    active = state.program,
-                    onSelect = actions.onSelectProgram,
-                    onCreate = actions.onCreateProgram,
-                )
-            },
-            actions = {
-                if (sections.size > 1) {
-                    IconButton(onClick = onShowDay) {
-                        Icon(Icons.AutoMirrored.Outlined.List, stringResource(R.string.day_sections))
-                    }
-                }
-                OverflowMenu(actions)
-            },
-            expandedHeight = 56.dp,
-            windowInsets = WindowInsets(0, 0, 0, 0),
-            colors = headerAppBarColors(),
-        )
-        if (sections.isNotEmpty()) {
-            LazyRow(
-                state = tabsState,
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().selectableGroup(),
-            ) {
-                itemsIndexed(sections, key = { _, s -> s.id }) { index, section ->
-                    SectionTab(
-                        section = section,
-                        selected = index == selectedIndex,
-                        now = section.id == state.nowSectionId,
-                        fraction = state.fractionOf(section),
-                        onClick = { actions.onSelectSection(section.id) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * The program's name in the app bar: it drops down the user's programs, to switch to another one,
- * and the action that adds a new program.
- */
-@Composable
-private fun ProgramSwitcher(
-    programs: List<Program>,
-    active: Program,
-    onSelect: (String) -> Unit,
-    onCreate: () -> Unit,
-) {
-    var open by remember { mutableStateOf(false) }
-    val defaultName = stringResource(R.string.default_program_name)
-    Box {
-        Row(
-            modifier = Modifier
-                .clip(MaterialTheme.shapes.small)
-                .clickable(onClickLabel = stringResource(R.string.programs)) { open = true }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = active.name.ifBlank { defaultName },
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            programs.forEach { program ->
-                val current = program.id == active.id
-                DropdownMenuItem(
-                    text = { Text(program.name.ifBlank { defaultName }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingIcon = {
-                        if (current) Icon(Icons.Filled.Check, contentDescription = null)
-                        else Spacer(Modifier.size(24.dp))
-                    },
-                    onClick = {
-                        open = false
-                        onSelect(program.id)
-                    },
-                    modifier = Modifier.semantics { selected = current },
-                )
-            }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.new_program)) },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                onClick = {
-                    open = false
-                    onCreate()
-                },
-            )
-        }
-    }
-}
-
-private fun UiState.fractionOf(section: ProgramSection): Float {
-    val total = section.trackableItems.size
-    return if (total == 0) 0f else completedIn(section).toFloat() / total
-}
-
-@Composable
-private fun OverflowMenu(actions: HomeActions) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            @Composable
-            fun entry(text: Int, icon: @Composable () -> Unit, onClick: () -> Unit) =
-                DropdownMenuItem(
-                    text = { Text(stringResource(text)) },
-                    leadingIcon = icon,
-                    onClick = { open = false; onClick() },
-                )
-            entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, actions.onEdit)
-            entry(R.string.prayer_times, { Icon(PrayerIcon, null) }, actions.onOpenPrayerTimes)
-            entry(R.string.library, { Icon(LibraryIcon, null) }, actions.onOpenLibrary)
-            entry(R.string.settings, { Icon(Icons.Outlined.Settings, null) }, actions.onOpenSettings)
-            HorizontalDivider()
-            entry(R.string.action_text_size, { Text("أ", style = MaterialTheme.typography.titleMedium) }, actions.onTextSize)
-            entry(R.string.action_reset_today, { Icon(Icons.Outlined.Refresh, null) }, actions.onResetToday)
-        }
-    }
-}
-
-/** A task tab: icon, title and a small progress ring (a check once the task is finished). */
-@Composable
-private fun SectionTab(
-    section: ProgramSection,
-    selected: Boolean,
-    now: Boolean,
-    fraction: Float,
-    onClick: () -> Unit,
-) {
-    HeaderTab(selected = selected, onClick = onClick) {
-        Icon(sectionIcon(section.icon), contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(section.title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-        if (now) {
-            // The time slot we are in: a small orange dot after the title.
-            Spacer(Modifier.width(6.dp))
-            Box(Modifier.size(6.dp).clip(CircleShape).background(Orange))
-        }
-        Spacer(Modifier.width(10.dp))
-        SectionProgress(fraction, LocalContentColor.current)
-    }
-}
-
-@Composable
-private fun SectionProgress(fraction: Float, color: Color) {
-    val palette = LocalDhikraPalette.current
-    if (fraction >= 1f) {
-        Box(
-            modifier = Modifier.size(18.dp).clip(CircleShape).background(palette.ornament),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(12.dp))
-        }
-    } else {
-        CircularProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier.size(16.dp),
-            color = color,
-            trackColor = color.copy(alpha = 0.25f),
-            strokeWidth = 2.5.dp,
-            strokeCap = StrokeCap.Round,
-            gapSize = 0.dp,
-        )
-    }
-}
-
-/**
- * The whole day at a glance, for programs with many sections: every section in time order with
- * its reminder time and progress, the current time slot marked "الآن". Tap one to open it.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DaySheet(state: UiState, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val ordered = remember(state.schedule) {
-        state.schedule.sections.withIndex()
-            .sortedWith(compareBy({ it.value.reminderMinutes ?: Int.MAX_VALUE }, { it.index }))
-            .map { it.value }
-    }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
-        Text(
-            text = stringResource(R.string.day_sections),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
-        )
-        LazyColumn(
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp),
-            modifier = Modifier.navigationBarsPadding(),
-        ) {
-            items(ordered, key = { it.id }) { section ->
-                val selected = section.id == state.selectedSectionId
-                val now = section.id == state.nowSectionId
-                Surface(
-                    selected = selected,
-                    onClick = { onSelect(section.id) },
-                    shape = MaterialTheme.shapes.large,
-                    color = if (selected) scheme.secondaryContainer else Color.Transparent,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(40.dp).clip(CircleShape).background(scheme.primaryContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(sectionIcon(section.icon), null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(section.title, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                text = listOfNotNull(
-                                    section.reminderMinutes?.let(::formatTimeArabic),
-                                    stringResource(
-                                        R.string.steps_done,
-                                        ArabicText.toArabicDigits(state.completedIn(section)),
-                                        ArabicText.toArabicDigits(section.trackableItems.size),
-                                    ),
-                                ).joinToString("  •  "),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = scheme.onSurfaceVariant,
-                            )
-                        }
-                        if (now) {
-                            Surface(shape = CircleShape, color = scheme.secondaryContainer, contentColor = scheme.onSecondaryContainer) {
-                                Text(
-                                    stringResource(R.string.now),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                        }
-                        SectionProgress(state.fractionOf(section), scheme.primary)
-                    }
-                }
-            }
-        }
-    }
 }
 
 // ------------------------------------------------------------------------------ Page
@@ -627,7 +336,7 @@ private fun SectionPage(
     }
 
     // Coming back from the reader, bring the step it was on into view, a quarter of the way down.
-    val headerCount = 1 + (if (section.note.isNotBlank()) 1 else 0) + (if (items.isEmpty()) 1 else 0)
+    val headerCount = (if (section.note.isNotBlank()) 1 else 0) + (if (items.isEmpty()) 1 else 0)
     LaunchedEffect(revealStepId) {
         val index = items.indexOfFirst { it.id == revealStepId }
         if (index >= 0) {
@@ -659,16 +368,6 @@ private fun SectionPage(
             bottom = bottomInset + 32.dp,
         ),
     ) {
-        item(key = KEY_SUMMARY) {
-            TaskSummary(
-                section = section,
-                done = done,
-                total = total,
-                // Opens the reader at the first unfinished step; none once the task is finished.
-                onPlay = currentStepId?.let { id -> { onOpenReader(id) } },
-                modifier = Modifier.padding(alongTimeline).padding(bottom = 14.dp),
-            )
-        }
         if (section.note.isNotBlank()) {
             item(key = KEY_NOTE) { SectionNote(section.note, Modifier.padding(alongTimeline).padding(bottom = 16.dp)) }
         }
@@ -743,122 +442,6 @@ private val ScheduleTimelineSide = TimelineSide.Start
 
 /** Test tag of a schedule page's step list. */
 const val ScheduleListTag = "schedule"
-
-/**
- * Compact task summary: icon, title, reminder time, the progress through its steps and a play
- * button that reads the task from its first unfinished step ([onPlay]; null hides it).
- */
-@Composable
-private fun TaskSummary(
-    section: ProgramSection,
-    done: Int,
-    total: Int,
-    onPlay: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val fraction = if (total == 0) 0f else done.toFloat() / total
-    val progress by animateFloatAsState(fraction, tween(500), label = "taskProgress")
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = scheme.surfaceContainerLowest,
-        border = BorderStroke(1.dp, scheme.outlineVariant),
-    ) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(scheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = sectionIcon(section.icon),
-                        contentDescription = null,
-                        tint = scheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(section.title, style = MaterialTheme.typography.titleMedium, color = scheme.onSurface)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        section.reminderMinutes?.let { minutes ->
-                            Icon(
-                                imageVector = Icons.Outlined.Notifications,
-                                contentDescription = null,
-                                tint = scheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = formatTimeArabic(minutes),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = scheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = "  •  ",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = scheme.outline,
-                            )
-                        }
-                        Text(
-                            text = stringResource(
-                                R.string.steps_done,
-                                ArabicText.toArabicDigits(done),
-                                ArabicText.toArabicDigits(total),
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = scheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                if (onPlay != null) {
-                    Spacer(Modifier.width(8.dp))
-                    PlayButton(started = done > 0, title = section.title, onClick = onPlay)
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.weight(1f).height(8.dp),
-                    color = scheme.primary,
-                    trackColor = scheme.primary.copy(alpha = 0.12f),
-                    strokeCap = StrokeCap.Round,
-                    gapSize = 0.dp,
-                    drawStopIndicator = {},
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = ArabicText.toArabicDigits((fraction * 100).toInt()) + "٪",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.primary,
-                )
-            }
-        }
-    }
-}
-
-/** "ابدأ" (or "تابع" once begun): reads the task in the full-screen reader. */
-@Composable
-private fun PlayButton(started: Boolean, title: String, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val description = stringResource(if (started) R.string.continue_now_section else R.string.start_now_section, title)
-    Button(
-        onClick = onClick,
-        shape = CircleShape,
-        colors = ButtonDefaults.buttonColors(containerColor = scheme.secondary, contentColor = scheme.onSecondary),
-        contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
-        modifier = Modifier.height(40.dp).semantics { contentDescription = description },
-    ) {
-        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(if (started) R.string.section_continue else R.string.section_start))
-    }
-}
 
 @Composable
 private fun SectionNote(note: String, modifier: Modifier = Modifier) {

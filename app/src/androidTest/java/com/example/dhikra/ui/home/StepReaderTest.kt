@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -68,8 +69,8 @@ class StepReaderTest {
     private val nasText = "الْخَنَّاسِ"
     private val kursiText = "الْعَلِيُّ الْعَظِيمُ"
 
-    private fun string(@StringRes id: Int): String =
-        InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
+    private fun string(@StringRes id: Int, vararg args: Any): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(id, *args)
 
     /** Every step of the section [id] done, the texts of its groups included. */
     private fun allDone(id: String): Map<String, Int> =
@@ -82,6 +83,7 @@ class StepReaderTest {
         section: String = "shurooq",
         progress: Map<String, Int> = emptyMap(),
         height: Dp? = null,
+        onSelectSection: (String) -> Unit = {},
     ): MutableState<UiState> {
         val state = mutableStateOf(
             UiState(
@@ -102,7 +104,7 @@ class StepReaderTest {
                         state = state.value,
                         snackbarHostState = remember { SnackbarHostState() },
                         actions = HomeActions(
-                            onSelectSection = {},
+                            onSelectSection = onSelectSection,
                             onSelectProgram = {},
                             onCreateProgram = {},
                             onEdit = {},
@@ -332,5 +334,60 @@ class StepReaderTest {
         rule.waitForIdle()
         reader.assertDoesNotExist()
         assertEquals(before, boundsOf(task).top, 1.5f)
+    }
+
+    // ------------------------------------------------------------------ The header
+
+    private val dayList get() = string(R.string.day_sections)
+
+    @Test
+    fun header_playButton_opensTheReader() {
+        show()
+        val title = checkNotNull(schedule.section("shurooq")).title
+        rule.onNode(hasContentDescription(string(R.string.start_now_section, title))).performClick()
+        rule.waitForIdle()
+        reader.assertExists()
+    }
+
+    @Test
+    fun header_finishedSection_hasNoPlayButton() {
+        show(section = "duha", progress = allDone("duha"))
+        val title = checkNotNull(schedule.section("duha")).title
+        assertFalse(rule.onAllNodes(hasContentDescription(string(R.string.continue_now_section, title)))
+            .fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onAllNodes(hasContentDescription(string(R.string.section_finished)))
+            .fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun header_handle_opensTheDay_andPickingASectionClosesIt() {
+        var selected: String? = null
+        show(onSelectSection = { selected = it })
+        assertFalse(isShown(dayList))
+        rule.onNode(hasContentDescription(string(R.string.sections_show)) and hasClickAction()).performClick()
+        rule.waitForIdle()
+        assertTrue(isShown(dayList))
+        // Opened, the header no longer offers the play button.
+        val shurooq = checkNotNull(schedule.section("shurooq")).title
+        assertFalse(rule.onAllNodes(hasContentDescription(string(R.string.start_now_section, shurooq)))
+            .fetchSemanticsNodes().isNotEmpty())
+
+        val duha = checkNotNull(schedule.section("duha")).title
+        rule.onNode(hasText(duha) and hasClickAction()).performClick()
+        rule.waitForIdle()
+        assertEquals("duha", selected)
+        assertFalse(isShown(dayList))
+    }
+
+    @Test
+    fun header_pulledDown_opensTheDay_andPushedUp_closesIt() {
+        show()
+        val panel = rule.onNodeWithTag(HeaderPanelTag)
+        panel.performTouchInput { swipeDown(startY = top + 4f, endY = top + 600f, durationMillis = 300) }
+        rule.waitForIdle()
+        assertTrue(isShown(dayList))
+        panel.performTouchInput { swipeUp(startY = bottom - 4f, endY = top, durationMillis = 300) }
+        rule.waitForIdle()
+        assertFalse(isShown(dayList))
     }
 }
