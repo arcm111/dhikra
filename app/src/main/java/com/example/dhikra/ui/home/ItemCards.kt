@@ -48,7 +48,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -68,9 +67,7 @@ import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.ui.components.ExpandIcon
 import com.example.dhikra.ui.components.NoteIcon
 import com.example.dhikra.ui.components.Pill
-import com.example.dhikra.ui.components.QuranTitle
 import com.example.dhikra.ui.components.icon
-import com.example.dhikra.ui.components.starLattice
 import com.example.dhikra.ui.theme.ElementColors
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
@@ -99,7 +96,7 @@ fun ProgramItemView(
         item.type == ItemType.HEADING -> HeadingItem(item, modifier)
         item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, current, onSetComplete, modifier)
         item.isGroup -> GroupCard(item, done, current, onOpenText, textDone, modifier)
-        else -> ReadingCard(item, done, textScale, current, onOpen, modifier)
+        else -> ReadingCard(item, done, current, onOpen, modifier)
     }
 }
 
@@ -110,7 +107,6 @@ fun ProgramItemView(
 val ItemType.nodeCenter: Dp
     get() = when (this) {
         ItemType.HEADING -> 17.dp
-        ItemType.QURAN -> 30.dp
         else -> 32.dp
     }
 
@@ -139,18 +135,26 @@ val ItemType.label: Int
         ItemType.HADITH -> R.string.type_hadith
     }
 
-/** A group label on the timeline, e.g. "أذكار الصباح", followed by a fading gold rule. */
+/**
+ * Opacity of the supporting text around the steps (headings, notes, descriptions), so it reads
+ * as secondary to the steps and the progress. Kept at a level that still passes text contrast.
+ */
+internal const val QuietTextAlpha = 0.8f
+internal const val FaintTextAlpha = 0.78f
+
+/** A group label on the timeline, e.g. "أذكار الصباح", followed by a fading rule. */
 @Composable
 private fun HeadingItem(item: ProgramItem, modifier: Modifier) {
-    val palette = LocalDhikraPalette.current
+    val scheme = MaterialTheme.colorScheme
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val rule = palette.ornament.copy(alpha = 0.55f)
+    // Quiet on purpose: a heading only groups the steps, it should not compete with them.
+    val rule = scheme.outlineVariant
     Column(modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = item.title.ifBlank { item.text },
                 style = MaterialTheme.typography.titleSmall,
-                color = palette.ornamentText,
+                color = scheme.onSurfaceVariant.copy(alpha = QuietTextAlpha),
                 modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.width(12.dp))
@@ -169,7 +173,7 @@ private fun HeadingItem(item: ProgramItem, modifier: Modifier) {
             Text(
                 text = item.text,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = scheme.onSurfaceVariant.copy(alpha = FaintTextAlpha),
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -281,22 +285,15 @@ private fun CheckMark(checked: Boolean, colors: ElementColors) {
 private fun ReadingCard(
     item: ProgramItem,
     done: Int,
-    textScale: Float,
     current: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier,
 ) {
     val colors = item.type.colors()
     val complete = done >= item.target
-    val quran = item.type == ItemType.QURAN
     StepSurface(colors = colors, focused = current, modifier = modifier) {
-        Column(
-            Modifier
-                .then(if (quran) Modifier.quranBackground(colors) else Modifier)
-                .clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)
-        ) {
-            if (quran) QuranHeader(item, colors, done, complete, textScale)
-            else StepHeader(item, colors, done, complete)
+        Column(Modifier.clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)) {
+            StepHeader(item, colors, done, complete)
         }
     }
 }
@@ -521,18 +518,6 @@ fun GroupBadge(type: ItemType, count: Int, modifier: Modifier = Modifier, size: 
     }
 }
 
-/** Parchment warming to gold towards the bottom, with a barely visible star texture. */
-private fun Modifier.quranBackground(colors: ElementColors): Modifier = this
-    .background(
-        Brush.verticalGradient(
-            listOf(
-                colors.container,
-                colors.accent.copy(alpha = 0.07f).compositeOver(colors.container),
-            )
-        )
-    )
-    .starLattice(colors.accent.copy(alpha = 0.06f), spacing = 54.dp, starRadius = 14.dp)
-
 /** What a card shows next to its count while it is being read: how far, or how many times. */
 @Composable
 private fun repetitions(done: Int, target: Int): String =
@@ -550,30 +535,6 @@ private fun OpenIcon(colors: ElementColors) {
         contentDescription = null,
         tint = colors.accent.copy(alpha = 0.75f),
         modifier = Modifier.padding(start = 8.dp).size(20.dp),
-    )
-}
-
-/** Centred, reverent header of a Quran card; it also tells the type and how far the count is. */
-@Composable
-private fun QuranHeader(
-    item: ProgramItem,
-    colors: ElementColors,
-    done: Int,
-    complete: Boolean,
-    textScale: Float,
-) {
-    // Always exactly one caption line, so the card keeps its height as the count goes on.
-    val caption = listOfNotNull(
-        stringResource(R.string.type_quran),
-        if (item.target > 1) repetitions(done, item.target) else null,
-        if (complete) stringResource(R.string.step_state_done) else null,
-    ).joinToString(" • ")
-    QuranTitle(
-        title = item.title.ifBlank { stringResource(R.string.type_quran) },
-        caption = caption,
-        colors = colors,
-        textScale = textScale,
-        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
     )
 }
 
@@ -637,14 +598,14 @@ private fun NoteLine(note: String, colors: ElementColors) {
         Icon(
             imageVector = NoteIcon,
             contentDescription = stringResource(R.string.note_label),
-            tint = colors.accent.copy(alpha = 0.8f),
-            modifier = Modifier.size(16.dp),
+            tint = colors.ink.copy(alpha = 0.4f),
+            modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(6.dp))
         Text(
             text = note,
             style = MaterialTheme.typography.bodySmall,
-            color = colors.ink.copy(alpha = 0.75f),
+            color = colors.ink.copy(alpha = 0.65f),
         )
     }
 }

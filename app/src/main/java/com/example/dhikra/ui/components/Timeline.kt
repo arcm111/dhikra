@@ -64,7 +64,13 @@ data class TimelineSegments(
     val bottomReached: Boolean,
 )
 
-/** Width of the timeline column on the start (right) side of the schedule. */
+/**
+ * Which side of the schedule the timeline runs along. [Start] is the reading side (the right in
+ * Arabic, the left in an LTR layout); [End] is the other one.
+ */
+enum class TimelineSide { Start, End }
+
+/** Width of the timeline column. */
 val TimelineGutter = 40.dp
 val StepNodeSize = 28.dp
 /** A finished step's check circle: smaller than the numbered ones, so the steps still to read stand out. */
@@ -74,8 +80,8 @@ private val NodeGap = 5.dp
 private val RowSpacing = 14.dp
 
 /**
- * One row of the step schedule: a vertical line with a [node] in the start gutter and the row
- * [content] next to it. Consecutive rows join their line segments into one continuous track.
+ * One row of the step schedule: the row [content], with a vertical line and its [node] in a
+ * gutter on the [side] of the schedule (by default the start: the right, in Arabic). Consecutive rows join their line segments into one continuous track.
  *
  * @param nodeCenter vertical position of the node's centre, measured from the top of the row,
  * so it can line up with the first line of the content.
@@ -87,6 +93,7 @@ fun TimelineRow(
     nodeSize: Dp,
     node: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    side: TimelineSide = TimelineSide.Start,
     content: @Composable () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -107,7 +114,9 @@ fun TimelineRow(
             .fillMaxWidth()
             .drawBehind {
                 val half = TimelineGutter.toPx() / 2f
-                val x = if (layoutDirection == LayoutDirection.Rtl) size.width - half else half
+                // The start side is on the right in RTL, on the left in LTR.
+                val onRight = (side == TimelineSide.Start) == (layoutDirection == LayoutDirection.Rtl)
+                val x = if (onRight) size.width - half else half
                 val centerY = nodeCenter.toPx()
                 val gap = (nodeSize / 2 + NodeGap).toPx()
                 val width = LineWidth.toPx()
@@ -119,13 +128,17 @@ fun TimelineRow(
                 }
             },
     ) {
-        Box(
-            modifier = Modifier
-                .width(TimelineGutter)
-                .padding(top = nodeCenter - nodeSize / 2),
-            contentAlignment = Alignment.TopCenter,
-        ) { node() }
+        val gutter = @Composable {
+            Box(
+                modifier = Modifier
+                    .width(TimelineGutter)
+                    .padding(top = nodeCenter - nodeSize / 2),
+                contentAlignment = Alignment.TopCenter,
+            ) { node() }
+        }
+        if (side == TimelineSide.Start) gutter()
         Box(Modifier.weight(1f).padding(bottom = RowSpacing)) { content() }
+        if (side == TimelineSide.End) gutter()
     }
 }
 
@@ -226,13 +239,13 @@ private fun Halo(color: Color) {
 
 val HeadingNodeSize = 14.dp
 
-/** Gold star marking a group heading on the timeline. */
+/** Small, soft mustard star marking a group heading on the timeline. */
 @Composable
 fun HeadingNode(modifier: Modifier = Modifier) {
     Icon(
         imageVector = StarOrnamentIcon,
         contentDescription = null,
-        tint = LocalDhikraPalette.current.ornament,
+        tint = LocalDhikraPalette.current.ornament.copy(alpha = 0.55f),
         modifier = modifier.size(HeadingNodeSize),
     )
 }

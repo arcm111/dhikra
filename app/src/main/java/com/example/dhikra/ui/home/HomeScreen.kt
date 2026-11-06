@@ -58,10 +58,10 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -103,6 +103,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -129,6 +130,7 @@ import com.example.dhikra.ui.components.StepNodeSize
 import com.example.dhikra.ui.components.StepState
 import com.example.dhikra.ui.components.TimelineRow
 import com.example.dhikra.ui.components.TimelineSegments
+import com.example.dhikra.ui.components.TimelineSide
 import com.example.dhikra.ui.components.addEightPointStar
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.sectionIcon
@@ -194,25 +196,8 @@ private fun ProgramHome(
     // The step the reader was closed on: the list scrolls to it so the user finds their place.
     var revealStepId by remember { mutableStateOf<String?>(null) }
     var showDay by rememberSaveable { mutableStateOf(false) }
-    // The reader is opened at this step once the pager has settled on its task.
-    var pendingStartId by remember { mutableStateOf<String?>(null) }
     val readerSection = readerStartId?.let { id -> sectionOf(sections, id) }
     KeepScreenOn(readerSection != null)
-
-    // The task of the current time of day, and the step to start it from (its first unfinished
-    // one); null once that task is finished, which hides the start button.
-    val nowSection = sections.firstOrNull { it.id == state.nowSectionId }
-    val nowStepId = nowSection?.items?.firstOrNull { it.type.isTrackable && !state.isComplete(it) }?.id
-    val startNow: () -> Unit = start@{
-        val section = nowSection ?: return@start
-        val step = nowStepId ?: return@start
-        if (section.id == state.selectedSectionId) {
-            readerStartId = step
-        } else {
-            pendingStartId = step
-            actions.onSelectSection(section.id)
-        }
-    }
 
     LaunchedEffect(selectedIndex, sections.size) {
         if (sections.isEmpty()) return@LaunchedEffect
@@ -235,15 +220,6 @@ private fun ProgramHome(
                     onShowDay = { showDay = true },
                 )
             },
-            floatingActionButton = {
-                if (nowSection != null && nowStepId != null) {
-                    StartNowButton(
-                        section = nowSection,
-                        started = state.completedIn(nowSection) > 0,
-                        onClick = startNow,
-                    )
-                }
-            },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
@@ -263,13 +239,6 @@ private fun ProgramHome(
                 snapshotFlow { pagerState.settledPage }.collect { page ->
                     currentSections.getOrNull(page)?.let { actions.onSelectSection(it.id) }
                     if (initial) initial = false else readerStartId = null
-                    // Started from the button: open the reader once its task is on screen.
-                    val start = pendingStartId
-                    val shown = currentSections.getOrNull(page)
-                    if (start != null && shown != null && sectionOf(listOf(shown), start) != null) {
-                        pendingStartId = null
-                        readerStartId = start
-                    }
                 }
             }
 
@@ -295,7 +264,6 @@ private fun ProgramHome(
                     onOpenReader = { stepId -> readerStartId = stepId },
                     revealStepId = revealStepId?.takeIf { id -> sections[page].items.any { it.id == id } },
                     onRevealed = { revealStepId = null },
-                    fabShown = nowStepId != null,
                     modifier = Modifier.graphicsLayer {
                         // Pages ease back and fade a little while swiping between tasks.
                         val offset = pagerState.getOffsetDistanceInPages(page).absoluteValue.coerceIn(0f, 1f)
@@ -351,21 +319,6 @@ private fun ProgramHome(
             onDismiss = { showDay = false },
         )
     }
-}
-
-/** Starts (or resumes) the task of the current time of day in the full-screen reader. */
-@Composable
-private fun StartNowButton(section: ProgramSection, started: Boolean, onClick: () -> Unit) {
-    val label = stringResource(if (started) R.string.continue_now_section else R.string.start_now_section, section.title)
-    ExtendedFloatingActionButton(
-        onClick = onClick,
-        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-        text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        containerColor = MaterialTheme.colorScheme.secondary,
-        contentColor = MaterialTheme.colorScheme.onSecondary,
-        shape = CircleShape,
-        modifier = Modifier.widthIn(max = 300.dp),
-    )
 }
 
 /** The task holding the step (or the text of a group step) with this [id]. */
@@ -657,7 +610,6 @@ private fun SectionPage(
     onOpenReader: (String) -> Unit,
     revealStepId: String?,
     onRevealed: () -> Unit,
-    fabShown: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val items = section.items
@@ -693,22 +645,32 @@ private fun SectionPage(
     // On large screens the schedule keeps a comfortable reading width, centred on the page.
     val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     val side = ((windowWidth - MaxContentWidth) / 2).coerceAtLeast(0.dp)
+    val timelineOnStart = ScheduleTimelineSide == TimelineSide.Start
+    // The summary and the note line up with the cards' edge on the timeline's side.
+    val alongTimeline = if (timelineOnStart) PaddingValues(start = 8.dp) else PaddingValues(end = 8.dp)
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize().testTag(ScheduleListTag),
         contentPadding = PaddingValues(
-            start = side + 8.dp,
-            end = side + 16.dp,
+            // The gutter brings its own room: the page margin is smaller on the timeline's side.
+            start = side + if (timelineOnStart) 8.dp else 16.dp,
+            end = side + if (timelineOnStart) 16.dp else 8.dp,
             top = 16.dp,
-            // Room for the start button, so it never hides the last step.
-            bottom = bottomInset + if (fabShown) 96.dp else 32.dp,
+            bottom = bottomInset + 32.dp,
         ),
     ) {
         item(key = KEY_SUMMARY) {
-            TaskSummary(section, done, total, Modifier.padding(start = 8.dp, bottom = 14.dp))
+            TaskSummary(
+                section = section,
+                done = done,
+                total = total,
+                // Opens the reader at the first unfinished step; none once the task is finished.
+                onPlay = currentStepId?.let { id -> { onOpenReader(id) } },
+                modifier = Modifier.padding(alongTimeline).padding(bottom = 14.dp),
+            )
         }
         if (section.note.isNotBlank()) {
-            item(key = KEY_NOTE) { SectionNote(section.note, Modifier.padding(start = 8.dp, bottom = 16.dp)) }
+            item(key = KEY_NOTE) { SectionNote(section.note, Modifier.padding(alongTimeline).padding(bottom = 16.dp)) }
         }
         if (items.isEmpty()) {
             item(key = KEY_EMPTY) {
@@ -740,6 +702,7 @@ private fun SectionPage(
                 nodeSize = if (heading) HeadingNodeSize else StepNodeSize,
                 node = { if (heading) HeadingNode() else StepNode(stepNumbers[index], stepState) },
                 modifier = Modifier.animateItem(),
+                side = ScheduleTimelineSide,
             ) {
                 ProgramItemView(
                     item = item,
@@ -761,6 +724,7 @@ private fun SectionPage(
                     nodeSize = StepNodeSize,
                     node = { FinishNode() },
                     modifier = Modifier.animateItem(),
+                    side = ScheduleTimelineSide,
                 ) {
                     SectionComplete(section, nextSection, onGoTo = actions.onSelectSection)
                 }
@@ -771,12 +735,27 @@ private fun SectionPage(
 
 private val MaxContentWidth = 720.dp
 
+/**
+ * Side of the schedule the step timeline runs along: the start (the right, in Arabic). Switch to
+ * [TimelineSide.End] to put it on the other side.
+ */
+private val ScheduleTimelineSide = TimelineSide.Start
+
 /** Test tag of a schedule page's step list. */
 const val ScheduleListTag = "schedule"
 
-/** Compact task summary: icon, title, reminder time and the progress through its steps. */
+/**
+ * Compact task summary: icon, title, reminder time, the progress through its steps and a play
+ * button that reads the task from its first unfinished step ([onPlay]; null hides it).
+ */
 @Composable
-private fun TaskSummary(section: ProgramSection, done: Int, total: Int, modifier: Modifier = Modifier) {
+private fun TaskSummary(
+    section: ProgramSection,
+    done: Int,
+    total: Int,
+    onPlay: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     val scheme = MaterialTheme.colorScheme
     val fraction = if (total == 0) 0f else done.toFloat() / total
     val progress by animateFloatAsState(fraction, tween(500), label = "taskProgress")
@@ -836,44 +815,65 @@ private fun TaskSummary(section: ProgramSection, done: Int, total: Int, modifier
                         )
                     }
                 }
+                if (onPlay != null) {
+                    Spacer(Modifier.width(8.dp))
+                    PlayButton(started = done > 0, title = section.title, onClick = onPlay)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.weight(1f).height(8.dp),
+                    color = scheme.primary,
+                    trackColor = scheme.primary.copy(alpha = 0.12f),
+                    strokeCap = StrokeCap.Round,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
+                )
+                Spacer(Modifier.width(12.dp))
                 Text(
                     text = ArabicText.toArabicDigits((fraction * 100).toInt()) + "٪",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.labelLarge,
                     color = scheme.primary,
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = scheme.primary,
-                trackColor = scheme.primary.copy(alpha = 0.12f),
-                strokeCap = StrokeCap.Round,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
         }
+    }
+}
+
+/** "ابدأ" (or "تابع" once begun): reads the task in the full-screen reader. */
+@Composable
+private fun PlayButton(started: Boolean, title: String, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val description = stringResource(if (started) R.string.continue_now_section else R.string.start_now_section, title)
+    Button(
+        onClick = onClick,
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(containerColor = scheme.secondary, contentColor = scheme.onSecondary),
+        contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+        modifier = Modifier.height(40.dp).semantics { contentDescription = description },
+    ) {
+        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(stringResource(if (started) R.string.section_continue else R.string.section_start))
     }
 }
 
 @Composable
 private fun SectionNote(note: String, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(scheme.tertiaryContainer.copy(alpha = 0.55f))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
+    // A plain, faded line rather than a coloured box: it explains the task without competing
+    // with its steps.
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier = modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
         Icon(
             imageVector = Icons.Outlined.Info,
             contentDescription = stringResource(R.string.note_label),
-            tint = scheme.tertiary,
-            modifier = Modifier.padding(top = 2.dp).size(18.dp),
+            tint = color.copy(alpha = 0.45f),
+            modifier = Modifier.padding(top = 2.dp).size(15.dp),
         )
-        Spacer(Modifier.width(10.dp))
-        Text(note, style = MaterialTheme.typography.bodyMedium, color = scheme.onTertiaryContainer)
+        Spacer(Modifier.width(8.dp))
+        Text(note, style = MaterialTheme.typography.bodySmall, color = color.copy(alpha = FaintTextAlpha))
     }
 }
 
