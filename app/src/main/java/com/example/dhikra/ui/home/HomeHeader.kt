@@ -2,20 +2,14 @@ package com.example.dhikra.ui.home
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -34,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -68,7 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -101,13 +99,12 @@ import com.example.dhikra.ui.components.sectionIcon
 import com.example.dhikra.ui.formatTimeArabic
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
-import com.example.dhikra.ui.theme.Mustard
 import com.example.dhikra.ui.theme.MustardLight
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.max
-import kotlin.math.roundToInt
 
 /**
  * How far the home header is pulled open: 0 shows the current section, 1 the list of every
@@ -174,9 +171,9 @@ private val ListVerticalPadding = 8.dp
 
 /**
  * The home header: the app bar (program switcher and menu) over the current section — its icon,
- * title, time, play button and progress — with a handle underneath. Pulling the header down
+ * title, reminder bell and play button — with a handle underneath. Pulling the header down
  * (or tapping the section or the handle) opens it into the list of the day's sections; the play
- * button and the progress bar give way to that list as it opens.
+ * button gives way to that list as it opens.
  *
  * It is drawn over the page, which only keeps room for it closed ([onClosedHeight]), so opening
  * it never moves the schedule.
@@ -274,31 +271,58 @@ private fun SectionPanel(
                         shownIndex = shownIndex,
                         onOpenList = expansion::open,
                         onPlay = onPlay,
+                        handle = { Handle(expanded = expansion.expanded, fraction = fraction, onToggle = expansion::toggle) },
                     )
                 }
             },
             open = {
                 if (fraction > 0f) {
-                    SectionList(
-                        state = state,
-                        ordered = ordered,
-                        selectedId = sections[shownIndex].id,
-                        scrollable = !fits,
-                        maxHeight = maxListHeight,
-                        onSelect = onSelect,
-                    )
+                    Column {
+                        SectionList(
+                            state = state,
+                            ordered = ordered,
+                            selectedId = sections[shownIndex].id,
+                            scrollable = !fits,
+                            maxHeight = maxListHeight,
+                            onSelect = onSelect,
+                        )
+                        Handle(expanded = expansion.expanded, fraction = fraction, onToggle = expansion::toggle)
+                    }
                 }
             },
         )
-        Handle(expanded = expansion.expanded, fraction = fraction, onToggle = expansion::toggle)
     }
 }
+
+/** Shape of the panel that holds the current section in the header. */
+private val SectionPanelShape = RoundedCornerShape(26.dp)
+
+/**
+ * Makes a (clipped) panel look pressed into the header rather than raised from it: a slightly
+ * darker well, a soft shadow falling in from its top edge, and a rim that is dark at the top and
+ * catches the light at the bottom.
+ */
+private fun Modifier.recessed(shape: Shape): Modifier = this
+    .background(Color.Black.copy(alpha = 0.14f))
+    .drawBehind {
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
+                endY = 10.dp.toPx(),
+            )
+        )
+    }
+    .border(
+        width = 1.dp,
+        brush = Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.28f), Color.White.copy(alpha = 0.14f))),
+        shape = shape,
+    )
 
 /** Test tag of the header's section panel, the part that is pulled open. */
 const val HeaderPanelTag = "headerPanel"
 
 /** Rough height of the closed panel, only used to scale a drag to the opening. */
-private val ClosedPanelEstimate = 68.dp
+private val ClosedPanelEstimate = 74.dp
 
 /**
  * Lays [closed] and [open] over each other in a box whose height goes from the closed content's
@@ -328,8 +352,8 @@ private fun ExpandingLayout(
 }
 
 /**
- * The section shown in the pager: icon, title (with "now" when it is its time), reminder time
- * and steps done, the play button, and the progress through its steps. It slides along when the
+ * The section shown in the pager: icon, title (with "now" when it is its time) and reminder bell,
+ * and the play button (a check once every step is done). It slides along when the
  * user swipes to another section.
  */
 @Composable
@@ -339,36 +363,45 @@ private fun CurrentSection(
     shownIndex: Int,
     onOpenList: () -> Unit,
     onPlay: (String) -> Unit,
+    handle: @Composable () -> Unit,
 ) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    AnimatedContent(
-        targetState = sections[shownIndex],
-        contentKey = { it.id },
-        transitionSpec = {
-            // The next section comes in from the end side, as the pager's page does.
-            val forward = sections.indexOfFirst { it.id == targetState.id } >
-                sections.indexOfFirst { it.id == initialState.id }
-            val sign = (if (forward) 1 else -1) * (if (rtl) -1 else 1)
-            (slideInHorizontally(tween(320, easing = EmphasizedDecelerate)) { sign * it / 6 } + fadeIn(tween(220, 60))) togetherWith
-                (slideOutHorizontally(tween(220)) { -sign * it / 6 } + fadeOut(tween(120)))
-        },
-        label = "currentSection",
-    ) { section ->
-        val total = section.trackableItems.size
-        val done = state.completedIn(section)
-        val nextStep = section.items.firstOrNull { it.type.isTrackable && !state.isComplete(it) }
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.medium)
-                        .clickable(onClickLabel = stringResource(R.string.sections_show), onClick = onOpenList)
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SectionDisc(section, size = 32.dp)
-                    Spacer(Modifier.width(10.dp))
+    // The section sits in a soft translucent panel of the header, its handle at the bottom; tapping
+    // the panel opens the day. The panel stays put while its content slides to another section.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+            .clip(SectionPanelShape)
+            .recessed(SectionPanelShape)
+            .clickable(onClickLabel = stringResource(R.string.sections_show), onClick = onOpenList),
+    ) {
+        AnimatedContent(
+            targetState = sections[shownIndex],
+            contentKey = { it.id },
+            transitionSpec = {
+                // The next section comes in from the end side, as the pager's page does.
+                val forward = sections.indexOfFirst { it.id == targetState.id } >
+                    sections.indexOfFirst { it.id == initialState.id }
+                val sign = (if (forward) 1 else -1) * (if (rtl) -1 else 1)
+                (slideInHorizontally(tween(320, easing = EmphasizedDecelerate)) { sign * it / 6 } + fadeIn(tween(220, 60))) togetherWith
+                    (slideOutHorizontally(tween(220)) { -sign * it / 6 } + fadeOut(tween(120)))
+            },
+            label = "currentSection",
+        ) { section ->
+            val total = section.trackableItems.size
+            val done = state.completedIn(section)
+            val nextStep = section.items.firstOrNull { it.type.isTrackable && !state.isComplete(it) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SectionDisc(section, size = 32.dp)
+                Spacer(Modifier.width(10.dp))
+                // Title, bell and "now" keep together; the play button stays at the end.
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = section.title,
                         style = MaterialTheme.typography.titleMedium,
@@ -377,18 +410,12 @@ private fun CurrentSection(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Icon(
-                        Icons.Filled.ArrowDropDown,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(20.dp),
-                    )
                     section.reminderMinutes?.let { minutes ->
                         Icon(
                             Icons.Outlined.Notifications,
                             contentDescription = formatTimeArabic(minutes),
                             tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(start = 4.dp).size(15.dp),
+                            modifier = Modifier.padding(start = 6.dp).size(15.dp),
                         )
                     }
                     if (section.id == state.nowSectionId) NowChip()
@@ -399,57 +426,8 @@ private fun CurrentSection(
                     total > 0 -> DoneMark()
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            StepProgressBar(done = done, total = total)
         }
-    }
-}
-
-/**
- * The section's progress as one bar split into a segment per step: finished steps in mustard,
- * the rest as a faint track. A section with too many steps for the dividers to read gets one
- * continuous bar instead.
- */
-@Composable
-private fun StepProgressBar(done: Int, total: Int, modifier: Modifier = Modifier) {
-    val target = if (total == 0) 0f else done.toFloat() / total
-    val progress by animateFloatAsState(target, tween(500), label = "sectionProgress")
-    val description = stringResource(R.string.steps_done, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total))
-    val fill = Mustard
-    val track = Color.White.copy(alpha = 0.18f)
-    Canvas(
-        modifier
-            .fillMaxWidth()
-            .height(5.dp)
-            .semantics {
-                contentDescription = description
-                progressBarRangeInfo = ProgressBarRangeInfo(done.toFloat(), 0f..total.coerceAtLeast(1).toFloat())
-            },
-    ) {
-        val h = size.height
-        val radius = CornerRadius(h / 2f)
-        val gap = 2.dp.toPx()
-        val rtl = layoutDirection == LayoutDirection.Rtl
-        // Draws [from, to) along the bar, measured from its reading start.
-        fun bar(from: Float, to: Float, color: Color) {
-            if (to <= from) return
-            val left = if (rtl) size.width - to else from
-            drawRoundRect(color, Offset(left, 0f), Size(to - from, h), radius)
-        }
-        val segments = total.coerceAtLeast(1)
-        val segment = (size.width - gap * (segments - 1)) / segments
-        if (segments == 1 || segment < 6.dp.toPx()) {
-            bar(0f, size.width, track)
-            bar(0f, size.width * progress, fill)
-            return@Canvas
-        }
-        val filled = progress * segments
-        for (i in 0 until segments) {
-            val start = i * (segment + gap)
-            bar(start, start + segment, track)
-            val part = (filled - i).coerceIn(0f, 1f)
-            if (part > 0f) bar(start, start + segment * part, fill)
-        }
+        handle()
     }
 }
 
@@ -486,7 +464,7 @@ private fun SectionMeta(section: ProgramSection, done: Int, total: Int) {
 
 /** "الآن": the section whose time of day it is. */
 @Composable
-private fun NowChip() {
+internal fun NowChip() {
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondary,
@@ -661,7 +639,7 @@ private fun Handle(expanded: Boolean, fraction: Float, onToggle: () -> Unit) {
  * and the action that adds a new program.
  */
 @Composable
-private fun ProgramSwitcher(
+internal fun ProgramSwitcher(
     programs: List<Program>,
     active: Program,
     onSelect: (String) -> Unit,
@@ -716,7 +694,7 @@ private fun ProgramSwitcher(
 }
 
 @Composable
-private fun OverflowMenu(actions: HomeActions) {
+internal fun OverflowMenu(actions: HomeActions) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {

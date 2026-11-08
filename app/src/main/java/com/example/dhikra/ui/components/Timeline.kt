@@ -1,9 +1,8 @@
 package com.example.dhikra.ui.components
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -12,12 +11,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -41,7 +39,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -72,9 +69,8 @@ enum class TimelineSide { Start, End }
 
 /** Width of the timeline column. */
 val TimelineGutter = 40.dp
-val StepNodeSize = 28.dp
-/** A finished step's check circle: smaller than the numbered ones, so the steps still to read stand out. */
-private val DoneNodeSize = 22.dp
+/** A step's circle on the timeline, numbered or checked: one size, so the timeline stays even. */
+val StepNodeSize = 22.dp
 private val LineWidth = 2.dp
 private val NodeGap = 5.dp
 private val RowSpacing = 14.dp
@@ -143,9 +139,9 @@ fun TimelineRow(
 }
 
 /**
- * Numbered circle of a step: an outlined number while upcoming, a tinted ring with a soft
- * breathing halo for the current step, and a smaller filled check once done. The node keeps its
- * full [StepNodeSize] slot either way, so the timeline does not move when a step is finished.
+ * A step's circle on the timeline: an empty ring in the theme's green while still to do (with a
+ * soft breathing halo on the current step), filled with a check once done — the checked and
+ * unchecked states of one round check box. [number] is only read out by screen readers.
  */
 @Composable
 fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
@@ -153,21 +149,9 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
     val container by animateColorAsState(
         targetValue = when (state) {
             StepState.Done -> scheme.primary
-            StepState.Current -> scheme.primaryContainer
-            StepState.Upcoming -> scheme.surface
+            else -> scheme.surface
         },
         label = "nodeContainer",
-    )
-    val border by animateColorAsState(
-        targetValue = when (state) {
-            StepState.Upcoming -> scheme.outline.copy(alpha = 0.55f)
-            else -> scheme.primary
-        },
-        label = "nodeBorder",
-    )
-    val circle by animateDpAsState(
-        targetValue = if (state == StepState.Done) DoneNodeSize else StepNodeSize,
-        label = "nodeSize",
     )
     val description = stringResource(R.string.step_label, ArabicText.toArabicDigits(number)) +
         when (state) {
@@ -184,36 +168,23 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
         if (state == StepState.Current) Halo(scheme.primary)
         Box(
             modifier = Modifier
-                .size(circle)
+                .fillMaxSize()
                 .clip(CircleShape)
                 .background(container)
-                .border(if (state == StepState.Current) 2.dp else 1.5.dp, border, CircleShape),
+                .border(if (state == StepState.Current) 2.dp else 1.5.dp, scheme.primary, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            AnimatedContent(
-                targetState = state == StepState.Done,
-                transitionSpec = {
-                    (scaleIn(initialScale = 0.3f) + fadeIn()) togetherWith
-                        (scaleOut(targetScale = 0.3f) + fadeOut())
-                },
-                label = "nodeContent",
-            ) { done ->
-                if (done) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint = scheme.onPrimary,
-                        modifier = Modifier.size(13.dp),
-                    )
-                } else {
-                    Text(
-                        text = ArabicText.toArabicDigits(number),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (state == StepState.Current) scheme.onPrimaryContainer
-                        else scheme.onSurfaceVariant,
-                    )
-                }
+            AnimatedVisibility(
+                visible = state == StepState.Done,
+                enter = scaleIn(initialScale = 0.3f) + fadeIn(),
+                exit = scaleOut(targetScale = 0.3f) + fadeOut(),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = scheme.onPrimary,
+                    modifier = Modifier.size(13.dp),
+                )
             }
         }
     }
@@ -248,24 +219,4 @@ fun HeadingNode(modifier: Modifier = Modifier) {
         tint = LocalDhikraPalette.current.ornament.copy(alpha = 0.55f),
         modifier = modifier.size(HeadingNodeSize),
     )
-}
-
-/** Gold medal that closes a finished schedule. */
-@Composable
-fun FinishNode(modifier: Modifier = Modifier) {
-    val palette = LocalDhikraPalette.current
-    Box(
-        modifier = modifier
-            .size(StepNodeSize)
-            .clip(CircleShape)
-            .background(palette.ornament),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = StarOrnamentIcon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(16.dp),
-        )
-    }
 }

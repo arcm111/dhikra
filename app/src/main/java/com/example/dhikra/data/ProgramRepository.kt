@@ -147,6 +147,42 @@ class ProgramRepository(
 
     fun savePrayerCity(cityId: String) = prefs.edit { putString(KEY_PRAYER_CITY, cityId) }
 
+    // ---- Reminder sounds ----
+
+    /** The sound of the sections' reminders; [ReminderSound.Default] until one is chosen. */
+    fun loadSectionSound(): ReminderSound = ReminderSound.fromKey(prefs.getString(KEY_SECTION_SOUND, null))
+
+    fun saveSectionSound(sound: ReminderSound) = prefs.edit { putString(KEY_SECTION_SOUND, sound.key) }
+
+    /** The alert of each of the five prayers (sunrise has none); all off until turned on. */
+    fun loadPrayerAlerts(): Map<Prayer, PrayerAlert> =
+        Prayer.entries.filter { it.isPrayer }.associateWith { PrayerAlert.decode(prefs.getString(prayerAlertKey(it), null)) }
+
+    fun savePrayerAlert(prayer: Prayer, alert: PrayerAlert) =
+        prefs.edit { putString(prayerAlertKey(prayer), alert.encode()) }
+
+    private fun prayerAlertKey(prayer: Prayer) = KEY_PRAYER_ALERT_PREFIX + prayer.name
+
+    // ---- Prayer-time calculation ----
+
+    /** The method, Asr school and per-prayer adjustments the user chose (none: the country's defaults). */
+    fun loadPrayerSettings(): PrayerSettings = PrayerSettings(
+        method = PrayerMethod.fromName(prefs.getString(KEY_PRAYER_METHOD, null)),
+        madhab = AsrMadhab.fromName(prefs.getString(KEY_PRAYER_MADHAB, null)),
+        adjustments = Prayer.entries.associateWith { prefs.getInt(KEY_PRAYER_ADJUST_PREFIX + it.name, 0) }
+            .filterValues { it != 0 },
+    )
+
+    fun savePrayerSettings(settings: PrayerSettings) = prefs.edit {
+        settings.method?.let { putString(KEY_PRAYER_METHOD, it.name) } ?: remove(KEY_PRAYER_METHOD)
+        settings.madhab?.let { putString(KEY_PRAYER_MADHAB, it.name) } ?: remove(KEY_PRAYER_MADHAB)
+        Prayer.entries.forEach { prayer ->
+            val minutes = settings.adjustment(prayer)
+            if (minutes == 0) remove(KEY_PRAYER_ADJUST_PREFIX + prayer.name)
+            else putInt(KEY_PRAYER_ADJUST_PREFIX + prayer.name, minutes)
+        }
+    }
+
     private fun decodeIntMap(json: String): Map<String, Int> = runCatching {
         val obj = JSONObject(json)
         obj.keys().asSequence().associateWith { obj.getInt(it) }
@@ -163,6 +199,11 @@ class ProgramRepository(
         private const val KEY_DEFAULT_SPEED = "default_reading_speed"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_PRAYER_CITY = "prayer_city"
+        private const val KEY_SECTION_SOUND = "section_reminder_sound"
+        private const val KEY_PRAYER_ALERT_PREFIX = "prayer_alert_"
+        private const val KEY_PRAYER_METHOD = "prayer_method"
+        private const val KEY_PRAYER_MADHAB = "prayer_madhab"
+        private const val KEY_PRAYER_ADJUST_PREFIX = "prayer_adjust_"
         /** [DefaultProgram.VERSION] the stored program was seeded with. */
         private const val KEY_DEFAULTS_VERSION = "defaults_version"
 

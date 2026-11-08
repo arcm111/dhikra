@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 
 /** Flat top (it runs under the status bar), generously rounded bottom. */
-private val HeaderShape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+private val HeaderShape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)
 
 /**
  * The branded header shared by every screen: a dark green gradient with a faint geometric star

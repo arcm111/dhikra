@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
@@ -180,34 +182,48 @@ private fun HeadingItem(item: ProgramItem, modifier: Modifier) {
     }
 }
 
-/** Card container shared by every step; the focused card is lifted (and outlined if bordered). */
+/**
+ * The colors of every step card on the schedule, whatever its type: a white card outlined in the
+ * theme's green, with the dhikr card's slate blue for the icons, labels and counts and its ink for
+ * the text — the same whether the step is still to do or done (its check says which). The type
+ * still shows in each card's icon and label.
+ */
+@Composable
+private fun stepColors(): ElementColors {
+    val palette = LocalDhikraPalette.current
+    return palette.dhikr.copy(
+        container = palette.task.container,
+        border = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+    )
+}
+
+/**
+ * Card container shared by every step: lifted with a shadow while still to do (the current one a
+ * little more) with a firmer outline, flat and with the lighter outline once finished.
+ */
 @Composable
 private fun StepSurface(
     colors: ElementColors,
+    complete: Boolean,
     focused: Boolean,
     modifier: Modifier,
     shape: Shape = MaterialTheme.shapes.large,
     content: @Composable () -> Unit,
 ) {
-    val bordered = colors.border.alpha > 0f
-    val border by animateColorAsState(
-        targetValue = if (focused) colors.accent.copy(alpha = 0.55f) else colors.border,
-        label = "stepBorder",
-    )
     val elevation by animateDpAsState(
         targetValue = when {
-            focused && bordered -> 4.dp
-            focused -> 8.dp
-            bordered -> 0.dp
-            else -> 2.dp
+            complete -> 0.dp
+            focused -> 6.dp
+            else -> 4.dp
         },
+        animationSpec = tween(400),
         label = "stepElevation",
     )
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
         color = colors.container,
-        border = if (bordered) BorderStroke(if (focused) 1.5.dp else 1.dp, border) else null,
+        border = BorderStroke(if (complete) 1.5.dp else 2.dp, colors.border),
         shadowElevation = elevation,
         content = content,
     )
@@ -222,9 +238,9 @@ private fun TaskItem(
     onSetComplete: (Boolean) -> Unit,
     modifier: Modifier,
 ) {
-    val colors = ItemType.TASK.colors()
+    val colors = stepColors()
     val haptic = LocalHapticFeedback.current
-    StepSurface(colors, current, modifier) {
+    StepSurface(colors, complete, current, modifier) {
         Row(
             modifier = Modifier
                 .toggleable(
@@ -247,35 +263,35 @@ private fun TaskItem(
                 Text(
                     text = item.text,
                     style = ReadingStyles.task(textScale),
-                    color = colors.ink.copy(alpha = if (complete) 0.6f else 1f),
+                    color = colors.ink,
                     textDecoration = if (complete) TextDecoration.LineThrough else null,
                 )
                 if (item.note.isNotBlank()) NoteLine(item.note, colors)
             }
             Spacer(Modifier.width(12.dp))
-            CheckMark(checked = complete, colors = colors)
+            CheckMark(checked = complete)
         }
     }
 }
 
-/** Round check box that fills with the accent color when checked. */
+/**
+ * Round check box in the theme's green, like the timeline's circles: an empty ring, filled with a
+ * check when [checked].
+ */
 @Composable
-private fun CheckMark(checked: Boolean, colors: ElementColors) {
-    val fill by animateColorAsState(if (checked) colors.accent else Color.Transparent, label = "checkFill")
-    val outline by animateColorAsState(
-        targetValue = if (checked) colors.accent else MaterialTheme.colorScheme.outline,
-        label = "checkOutline",
-    )
+private fun CheckMark(checked: Boolean, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val fill by animateColorAsState(if (checked) scheme.primary else Color.Transparent, label = "checkFill")
     Box(
-        modifier = Modifier
-            .size(24.dp)
+        modifier = modifier
+            .size(22.dp)
             .clip(CircleShape)
             .background(fill)
-            .border(2.dp, outline, CircleShape),
+            .border(1.5.dp, scheme.primary, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(visible = checked, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-            Icon(Icons.Filled.Check, null, tint = colors.onAccent, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.Check, null, tint = scheme.onPrimary, modifier = Modifier.size(13.dp))
         }
     }
 }
@@ -289,24 +305,13 @@ private fun ReadingCard(
     onOpen: () -> Unit,
     modifier: Modifier,
 ) {
-    val colors = item.type.colors()
     val complete = done >= item.target
-    StepSurface(colors = colors, focused = current, modifier = modifier) {
+    val colors = stepColors()
+    StepSurface(colors = colors, complete = complete, focused = current, modifier = modifier) {
         Column(Modifier.clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)) {
             StepHeader(item, colors, done, complete)
         }
     }
-}
-
-/** Colors of a group's own card: a light sheet that holds its texts' colored cards. */
-@Composable
-private fun ItemType.groupColors(): ElementColors {
-    val colors = colors()
-    val scheme = MaterialTheme.colorScheme
-    return colors.copy(
-        container = scheme.surfaceContainerLowest,
-        ink = scheme.onSurface,
-    )
 }
 
 /**
@@ -323,19 +328,19 @@ private fun GroupCard(
     textDone: (ProgramItem) -> Int,
     modifier: Modifier,
 ) {
-    val colors = item.type.groupColors()
     val total = item.members.size
     val complete = total > 0 && done >= total
+    val colors = stepColors()
     // Kept while the step scrolls out of view: the list items are keyed by step id.
     var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
     // The sheets stand for the texts underneath: unfolded, the texts themselves are shown.
     val stack by animateDpAsState(if (expanded) 0.dp else 8.dp, label = "groupStack")
     Box(modifier.fillMaxWidth().padding(bottom = stack)) {
         if (stack > 0.dp) {
-            StackSheet(item.type.colors(), inset = 18.dp, drop = stack)
-            StackSheet(item.type.colors(), inset = 9.dp, drop = stack / 2)
+            StackSheet(colors, inset = 18.dp, drop = stack)
+            StackSheet(colors, inset = 9.dp, drop = stack / 2)
         }
-        StepSurface(colors = colors, focused = current, modifier = Modifier) {
+        StepSurface(colors = colors, complete = complete, focused = current, modifier = Modifier) {
             Column {
                 GroupHeader(item, colors, done, total, complete, expanded, onToggle = { expanded = !expanded })
                 AnimatedVisibility(
@@ -344,9 +349,8 @@ private fun GroupCard(
                     exit = shrinkVertically() + fadeOut(),
                 ) {
                     Column {
-                        item.members.forEachIndexed { index, member ->
+                        item.members.forEach { member ->
                             GroupText(
-                                number = index + 1,
                                 text = member,
                                 done = textDone(member),
                                 colors = colors,
@@ -360,10 +364,9 @@ private fun GroupCard(
     }
 }
 
-/** One text of an unfolded group: its number (a check once done), title and count; opens the reader. */
+/** One text of an unfolded group: its check circle, title and count; opens the reader. */
 @Composable
 private fun GroupText(
-    number: Int,
     text: ProgramItem,
     done: Int,
     colors: ElementColors,
@@ -382,28 +385,11 @@ private fun GroupText(
                 .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(if (complete) colors.accent else colors.accent.copy(alpha = 0.10f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (complete) {
-                    Icon(
-                        Icons.Filled.Check,
-                        contentDescription = stringResource(R.string.step_state_done),
-                        tint = colors.onAccent,
-                        modifier = Modifier.size(16.dp),
-                    )
-                } else {
-                    Text(
-                        text = ArabicText.toArabicDigits(number),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accent,
-                    )
-                }
-            }
+            val doneLabel = stringResource(R.string.step_state_done)
+            CheckMark(
+                checked = complete,
+                modifier = Modifier.semantics { if (complete) contentDescription = doneLabel },
+            )
             Spacer(Modifier.width(12.dp))
             Text(
                 text = text.title.ifBlank { stringResource(text.type.label) },
@@ -460,7 +446,7 @@ private fun GroupHeader(
             .padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GroupBadge(item.type, total)
+        GroupBadge(item.type, total, colors = colors)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -490,8 +476,13 @@ private fun GroupHeader(
  * bubble overlapping the corner (outside the circle's bounds, so the badge keeps its [size]).
  */
 @Composable
-fun GroupBadge(type: ItemType, count: Int, modifier: Modifier = Modifier, size: Dp = 36.dp) {
-    val colors = type.colors()
+fun GroupBadge(
+    type: ItemType,
+    count: Int,
+    modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
+    colors: ElementColors = type.colors(),
+) {
     Box(modifier.size(size)) {
         Box(
             modifier = Modifier

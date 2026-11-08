@@ -217,6 +217,65 @@
     <string name="reminder_channel">تذكير الأوراد</string>
     <string name="reminder_channel_desc">تنبيه عند بدء وقت كل قسم من البرنامج اليومي</string>
     <string name="reminder_text">حان وقت وردك • %1$s عناصر</string>
+    <string name="channel_with_sound">%1$s — %2$s</string>
+    <string name="settings_reminders">التذكير</string>
+    <string name="section_sound">صوت تذكير الأوراد</string>
+    <string name="sound_title">صوت التنبيه</string>
+    <string name="sound_default">الافتراضي</string>
+    <string name="sound_default_note">صوت إشعارات الهاتف</string>
+    <string name="sound_silent">صامت</string>
+    <string name="sound_azan">الأذان</string>
+    <string name="sound_azan_note">تسجيل كامل للأذان (دقيقتان ونصف تقريبًا)</string>
+    <string name="sound_device">صوت من الهاتف…</string>
+    <string name="sound_device_fallback">صوت من الهاتف</string>
+    <string name="sound_play">تشغيل</string>
+    <string name="sound_stop">إيقاف</string>
+    <string name="prayer_alerts">تنبيهات الصلاة</string>
+    <string name="prayer_alerts_note">تنبيه عند دخول وقت كل صلاة، بالصوت الذي تختاره.</string>
+    <string name="prayer_alert_sound">الصوت: %1$s</string>
+    <string name="prayer_channel">تنبيهات الصلاة</string>
+    <string name="prayer_channel_desc">تنبيه عند دخول وقت كل صلاة</string>
+    <string name="prayer_alert_title">حان الآن وقت صلاة %1$s</string>
+    <string name="prayer_alert_text">%1$s • %2$s</string>
+    <string name="stop_azan">إيقاف الأذان</string>
+    <string name="prayer_calculation">طريقة الحساب</string>
+    <string name="prayer_calculation_note">تُحسب المواقيت على الجهاز دون اتصال، لموقع المدينة وبتوقيتها المحلي.</string>
+    <string name="prayer_method">طريقة الحساب</string>
+    <string name="prayer_madhab">وقت العصر</string>
+    <string name="prayer_adjust">تعديل المواقيت يدويًا</string>
+    <string name="prayer_adjust_none">بلا تعديل</string>
+    <string name="prayer_adjust_value">%1$s %2$s د</string>
+    <string name="prayer_auto">تلقائي — %1$s</string>
+    <string name="prayer_auto_note">حسب المعتمد في دولة المدينة</string>
+    <string name="prayer_reset">إعادة الضبط</string>
+    <string name="prayer_minus_minute">تقديم دقيقة</string>
+    <string name="prayer_plus_minute">تأخير دقيقة</string>
+    <string name="madhab_shafi">الجمهور (الشافعي والمالكي والحنبلي)</string>
+    <string name="madhab_hanafi">الحنفي</string>
+    <string name="method_mwl">رابطة العالم الإسلامي</string>
+    <string name="method_umm_al_qura">أم القرى (مكة المكرمة)</string>
+    <string name="method_egyptian">الهيئة المصرية العامة للمساحة</string>
+    <string name="method_karachi">جامعة العلوم الإسلامية بكراتشي</string>
+    <string name="method_dubai">دبي</string>
+    <string name="method_kuwait">الكويت</string>
+    <string name="method_qatar">قطر</string>
+    <string name="method_turkey">رئاسة الشؤون الدينية التركية</string>
+    <string name="method_singapore">سنغافورة وماليزيا وإندونيسيا</string>
+    <string name="method_north_america">الجمعية الإسلامية لأمريكا الشمالية</string>
+    <string name="method_moonsighting">لجنة رؤية الهلال</string>
+    <string name="method_morocco">وزارة الأوقاف المغربية</string>
+    <string name="geonames_source">بيانات المدن</string>
+    <string name="geonames_source_details">GeoNames (geonames.org)، بترخيص المشاع الإبداعي CC BY 4.0</string>
+    <string name="geonames_source_url" translatable="false">https://www.geonames.org</string>
+    <string name="adhan_source">حساب مواقيت الصلاة</string>
+    <string name="adhan_source_details">مكتبة Adhan من Batoul Apps، بترخيص MIT</string>
+    <string name="adhan_source_url" translatable="false">https://github.com/batoulapps/adhan-kotlin</string>
+    <string name="prayer_alert_sound_title">صوت تنبيه %1$s</string>
+    <string name="exact_alarm_note">ليأتي التنبيه في وقت الصلاة تمامًا، اسمح للتطبيق بضبط «المنبّهات والتذكيرات»؛ وإلا فقد يتأخر بضع دقائق.</string>
+    <string name="exact_alarm_allow">السماح</string>
+    <string name="azan_source">تسجيل الأذان</string>
+    <string name="azan_source_details">«Beautiful adhan» من ويكيميديا كومنز، ملكية عامة (CC0)</string>
+    <string name="azan_source_url" translatable="false">https://commons.wikimedia.org/wiki/File:Beautiful_adhan.ogg</string>
 
     <!-- Play button of a task: visible label, then its spoken description -->
     <string name="start_now_section">ابدأ %1$s</string>
@@ -247,5 +306,9 @@
     <string name="prayer_pick_city_note">تُعرض المواقيت حسب المدينة التي تختارها، دون الحاجة إلى إذن الموقع.</string>
     <string name="prayer_search_city">ابحث عن مدينة أو دولة</string>
     <string name="prayer_no_city">لا توجد مدينة بهذا الاسم</string>
+    <string name="day_all_day">طوال اليوم</string>
+    <string name="day_pick_city">اختر مدينتك لعرض أوقات الصلاة</string>
+    <string name="day_time_range">%1$s – %2$s</string>
+    <string name="day_now_at">الآن · %1$s</string>
     <string name="prayer_mock_note">مواقيت تجريبية تقريبية للعرض فقط، لا يُعتمد عليها بعد.</string>
 </resources>

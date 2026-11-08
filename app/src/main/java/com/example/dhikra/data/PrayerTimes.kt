@@ -1,5 +1,7 @@
 package com.example.dhikra.data
 
+import android.content.Context
+
 /** The five prayers of the day, plus sunrise (shown in the timetable, never "the next prayer"). */
 enum class Prayer {
     FAJR, SUNRISE, DHUHR, ASR, MAGHRIB, ISHA;
@@ -7,10 +9,24 @@ enum class Prayer {
     val isPrayer: Boolean get() = this != SUNRISE
 }
 
-/** A place the user can pick for their prayer times: no GPS, only a name from the list. */
-data class PrayerCity(val id: String, val name: String, val country: String)
+/**
+ * A place the user can pick for their prayer times: no GPS, only a name from the list. The
+ * [countryCode] (ISO 3166), [region] (state / province) and IANA [timeZone] are known for the
+ * cities of the bundled database; the times of a city are always in its own time zone.
+ */
+data class PrayerCity(
+    val id: String,
+    val name: String,
+    val country: String,
+    val countryCode: String = "",
+    val region: String = "",
+    val timeZone: String? = null,
+)
 
-/** One day of prayer times for [city], each as minutes after midnight (local time). */
+/**
+ * One day of prayer times for [city], each as minutes after midnight in the city's time zone (a
+ * time that falls after the next midnight, as Isha far north in summer, counts past 1440).
+ */
 data class PrayerTimetable(val city: PrayerCity, val times: Map<Prayer, Int>) {
 
     fun at(prayer: Prayer): Int = times.getValue(prayer)
@@ -57,9 +73,14 @@ interface PrayerTimesSource {
 }
 
 /**
- * Placeholder prayer times: one fixed, approximate timetable per city, the same every day. It
- * only stands in until the real source (a calculation library or an online API) is chosen, so
- * the screens can be built and tried; do not rely on these times.
+ * The prayer times the app shows and alerts at: calculated on the device for the bundled cities
+ * ([DevicePrayerTimes]).
+ */
+fun appPrayerTimes(context: Context): PrayerTimesSource = DevicePrayerTimes.get(context)
+
+/**
+ * Fixed sample prayer times — one approximate timetable per city, the same every day — for the
+ * previews and the tests only; the app uses [appPrayerTimes].
  */
 object MockPrayerTimes : PrayerTimesSource {
 
