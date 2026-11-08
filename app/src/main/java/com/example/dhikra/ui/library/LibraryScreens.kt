@@ -59,6 +59,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.LocationOn
+import com.example.dhikra.data.ReminderSound
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -100,6 +103,10 @@ import com.example.dhikra.data.groupUsages
 import com.example.dhikra.data.reads
 import com.example.dhikra.data.usages
 import com.example.dhikra.ui.components.DhikraHeader
+import com.example.dhikra.ui.components.MosqueIcon
+import com.example.dhikra.ui.components.PrayerIcon
+import com.example.dhikra.ui.components.ReminderSoundDialog
+import com.example.dhikra.ui.components.reminderSoundLabel
 import com.example.dhikra.ui.components.HeaderTab
 import com.example.dhikra.ui.components.Pill
 import com.example.dhikra.ui.components.QuranIcon
@@ -206,7 +213,22 @@ fun LibraryScreen(library: Library, onBack: () -> Unit, onOpenCollection: (ItemT
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    actions: SettingsActions,
+    sectionSound: ReminderSound = ReminderSound.Default,
+    onSectionSound: (ReminderSound) -> Unit = {},
+) {
+    var choosingSound by rememberSaveable { mutableStateOf(false) }
+    if (choosingSound) {
+        ReminderSoundDialog(
+            current = sectionSound,
+            allowAzan = false,
+            title = stringResource(R.string.section_sound),
+            onSelect = { onSectionSound(it); choosingSound = false },
+            onDismiss = { choosingSound = false },
+        )
+    }
     Scaffold(
         topBar = { ScreenHeader(stringResource(R.string.settings), onBack) },
         containerColor = MaterialTheme.colorScheme.background,
@@ -229,6 +251,18 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
                         title = stringResource(R.string.action_text_size),
                         leading = { RowIcon { Text("أ", style = MaterialTheme.typography.titleMedium) } },
                         onClick = actions.onTextSize,
+                    )
+                }
+            }
+            item { GroupTitle(R.string.settings_reminders) }
+            item {
+                SettingsGroup {
+                    SettingsRow(
+                        title = stringResource(R.string.section_sound),
+                        subtitle = reminderSoundLabel(sectionSound),
+                        leading = { RowIcon(Icons.Outlined.Notifications) },
+                        onClick = { choosingSound = true },
+                        chevron = true,
                     )
                 }
             }
@@ -265,6 +299,31 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
                         subtitle = stringResource(R.string.quran_source_details),
                         leading = { RowIcon(QuranIcon) },
                         onClick = { uriHandler.openUri(url) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val azanUrl = stringResource(R.string.azan_source_url)
+                    SettingsRow(
+                        title = stringResource(R.string.azan_source),
+                        subtitle = stringResource(R.string.azan_source_details),
+                        leading = { RowIcon(MosqueIcon) },
+                        onClick = { uriHandler.openUri(azanUrl) },
+                    )
+                    // GeoNames' licence (CC BY 4.0) asks for this credit.
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val geonamesUrl = stringResource(R.string.geonames_source_url)
+                    SettingsRow(
+                        title = stringResource(R.string.geonames_source),
+                        subtitle = stringResource(R.string.geonames_source_details),
+                        leading = { RowIcon(Icons.Outlined.LocationOn) },
+                        onClick = { uriHandler.openUri(geonamesUrl) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val adhanUrl = stringResource(R.string.adhan_source_url)
+                    SettingsRow(
+                        title = stringResource(R.string.adhan_source),
+                        subtitle = stringResource(R.string.adhan_source_details),
+                        leading = { RowIcon(PrayerIcon) },
+                        onClick = { uriHandler.openUri(adhanUrl) },
                     )
                 }
             }

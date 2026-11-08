@@ -64,6 +64,7 @@ import com.example.dhikra.ui.library.LibraryScreen
 import com.example.dhikra.ui.library.SettingsActions
 import com.example.dhikra.ui.library.SettingsScreen
 import com.example.dhikra.ui.prayer.PrayerTimesScreen
+import com.example.dhikra.ui.today.TodayScreen
 import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
@@ -74,6 +75,10 @@ private enum class AppDialog { RestoreDefault, ResetToday, TextSize, NewProgram,
 
 /** Screens of the app. Saved as plain strings so the current screen survives recreation. */
 private object Route {
+    /** The start screen: the day's prayer times and sections. */
+    const val TODAY = "today"
+
+    /** The section view: one section's steps, a page per section. */
     const val HOME = "home"
     const val EDITOR = "editor"
     const val SETTINGS = "settings"
@@ -81,16 +86,17 @@ private object Route {
     const val PRAYER = "prayer"
     const val COLLECTION = "collection/"
 
-    fun collection(type: ItemType) = COLLECTION + type.key
+    /** Separates the screens of the saved back stack. */
+    const val SEPARATOR = "|"
 
-    /** Where back leads from [route]. */
-    fun parent(route: String) = if (route.startsWith(COLLECTION)) LIBRARY else HOME
+    fun collection(type: ItemType) = COLLECTION + type.key
 
     /** How deep [route] is, to slide forwards or backwards. */
     fun depth(route: String) = when {
-        route == HOME -> 0
-        route.startsWith(COLLECTION) -> 2
-        else -> 1
+        route == TODAY -> 0
+        route == HOME -> 1
+        route.startsWith(COLLECTION) -> 3
+        else -> 2
     }
 }
 
@@ -101,7 +107,12 @@ fun DhikraApp(viewModel: MainViewModel) {
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var route by rememberSaveable { mutableStateOf(Route.HOME) }
+    // The screens back leads through, the shown one last ("today|home|settings"): a plain string,
+    // so it survives recreation. Each screen goes back to the one it was opened from.
+    var backStack by rememberSaveable { mutableStateOf(Route.TODAY) }
+    val route = backStack.substringAfterLast(Route.SEPARATOR)
+    val navigate = { to: String -> backStack += Route.SEPARATOR + to }
+    val back = { backStack = backStack.substringBeforeLast(Route.SEPARATOR, Route.TODAY) }
     var dialog by rememberSaveable { mutableStateOf<AppDialog?>(null) }
 
     LaunchedEffect(viewModel) {
@@ -148,9 +159,9 @@ fun DhikraApp(viewModel: MainViewModel) {
         onSelectSection = viewModel::selectSection,
         onSelectProgram = viewModel::selectProgram,
         onCreateProgram = { dialog = AppDialog.NewProgram },
-        onEdit = { route = Route.EDITOR },
-        onOpenLibrary = { route = Route.LIBRARY },
-        onOpenSettings = { route = Route.SETTINGS },
+        onEdit = { navigate(Route.EDITOR) },
+        onOpenLibrary = { navigate(Route.LIBRARY) },
+        onOpenSettings = { navigate(Route.SETTINGS) },
         onTextSize = { dialog = AppDialog.TextSize },
         onResetToday = { dialog = AppDialog.ResetToday },
         onIncrement = viewModel::increment,
@@ -158,7 +169,7 @@ fun DhikraApp(viewModel: MainViewModel) {
         onRepetitionRead = viewModel::onRepetitionRead,
         onSetComplete = viewModel::setComplete,
         onResetItem = viewModel::resetItem,
-        onOpenPrayerTimes = { route = Route.PRAYER },
+        onOpenPrayerTimes = { navigate(Route.PRAYER) },
     )
     val settingsActions = SettingsActions(
         onTextSize = { dialog = AppDialog.TextSize },
@@ -184,9 +195,17 @@ fun DhikraApp(viewModel: MainViewModel) {
         onRestoreDefault = { dialog = AppDialog.RestoreDefault },
     )
 
-    BackHandler(enabled = route != Route.HOME) { route = Route.parent(route) }
+    BackHandler(enabled = route != Route.TODAY) { back() }
     // Keeps each screen's scroll positions while the other one is shown.
     val screenStates = rememberSaveableStateHolder()
+    // A section was tapped on the day view, or in a reminder: show it in the section view, with
+    // the day view to go back to. The section view starts afresh on it, unless it is the one shown.
+    LaunchedEffect(state.openSectionRequest) {
+        if (state.openSectionRequest == null) return@LaunchedEffect
+        if (route != Route.HOME) screenStates.removeState(Route.HOME)
+        backStack = Route.TODAY + Route.SEPARATOR + Route.HOME
+        viewModel.consumeOpenSection()
+    }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     AnimatedContent(
         targetState = route,
@@ -206,36 +225,47 @@ fun DhikraApp(viewModel: MainViewModel) {
                 current == Route.EDITOR -> EditorScreen(
                     program = state.program,
                     library = state.library,
-                    onBack = { route = Route.HOME },
+                    onBack = back,
                     onEdit = viewModel::editProgram,
                     onSaveEntry = viewModel::saveEntry,
                     onSaveGroup = viewModel::saveGroup,
                     onDelete = if (state.programs.size > 1) ({ dialog = AppDialog.DeleteProgram }) else null,
                 )
                 current == Route.SETTINGS -> SettingsScreen(
-                    onBack = { route = Route.HOME },
+                    onBack = back,
                     actions = settingsActions,
+                    sectionSound = state.sectionSound,
+                    onSectionSound = viewModel::setSectionSound,
                 )
                 current == Route.PRAYER -> PrayerTimesScreen(
                     timetable = state.prayerTimes,
                     source = viewModel.prayerSource,
                     onSelectCity = viewModel::setPrayerCity,
-                    onBack = { route = Route.HOME },
+                    onBack = back,
+                    alerts = state.prayerAlerts,
+                    onAlertChange = viewModel::setPrayerAlert,
+                    settings = state.prayerSettings,
+                    onSettingsChange = viewModel::setPrayerSettings,
                 )
                 current == Route.LIBRARY -> LibraryScreen(
                     library = state.library,
-                    onBack = { route = Route.HOME },
-                    onOpenCollection = { route = Route.collection(it) },
+                    onBack = back,
+                    onOpenCollection = { navigate(Route.collection(it)) },
                 )
                 current.startsWith(Route.COLLECTION) -> CollectionScreen(
                     type = ItemType.fromKey(current.removePrefix(Route.COLLECTION)),
                     library = state.library,
                     programs = state.programs,
-                    onBack = { route = Route.LIBRARY },
+                    onBack = back,
                     onSave = viewModel::saveEntry,
                     onDelete = viewModel::deleteEntry,
                     onSaveGroup = viewModel::saveGroup,
                     onDeleteGroup = viewModel::deleteGroup,
+                )
+                current == Route.TODAY -> TodayScreen(
+                    state = state,
+                    actions = homeActions,
+                    onOpenSection = viewModel::openSection,
                 )
                 else -> HomeScreen(
                     state = state,
@@ -296,7 +326,7 @@ fun DhikraApp(viewModel: MainViewModel) {
             onConfirm = {
                 viewModel.deleteProgram(state.program.id)
                 dialog = null
-                route = Route.HOME
+                backStack = Route.TODAY
             },
             onDismiss = { dialog = null },
         )

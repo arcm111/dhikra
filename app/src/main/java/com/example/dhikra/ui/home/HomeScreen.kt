@@ -12,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -47,12 +46,12 @@ import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -73,6 +72,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,7 +93,6 @@ import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.ui.UiState
 import com.example.dhikra.ui.components.DhikraLogo
-import com.example.dhikra.ui.components.FinishNode
 import com.example.dhikra.ui.components.HeadingNode
 import com.example.dhikra.ui.components.HeadingNodeSize
 import com.example.dhikra.ui.components.StepNode
@@ -106,8 +106,6 @@ import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import kotlin.math.absoluteValue
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** Everything the home screen can ask for. */
 class HomeActions(
@@ -169,7 +167,7 @@ private fun ProgramHome(
     val density = LocalDensity.current
     val statusBar = WindowInsets.statusBars.getTop(density)
     var headerHeight by remember {
-        mutableIntStateOf(statusBar + with(density) { (if (sections.isEmpty()) 60.dp else 124.dp).roundToPx() })
+        mutableIntStateOf(statusBar + with(density) { (if (sections.isEmpty()) 60.dp else 130.dp).roundToPx() })
     }
     BackHandler(enabled = expansion.expanded) { expansion.close() }
 
@@ -385,7 +383,7 @@ private fun SectionPage(
         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
             val segments = TimelineSegments(
                 hasTop = index > 0,
-                hasBottom = index < items.lastIndex || allDone,
+                hasBottom = index < items.lastIndex,
                 topReached = index <= currentIndex,
                 bottomReached = index + 1 <= currentIndex,
             )
@@ -417,16 +415,7 @@ private fun SectionPage(
         }
         if (allDone) {
             item(key = KEY_COMPLETE) {
-                TimelineRow(
-                    segments = TimelineSegments(hasTop = true, hasBottom = false, topReached = true, bottomReached = true),
-                    nodeCenter = 40.dp,
-                    nodeSize = StepNodeSize,
-                    node = { FinishNode() },
-                    modifier = Modifier.animateItem(),
-                    side = ScheduleTimelineSide,
-                ) {
-                    SectionComplete(section, nextSection, onGoTo = actions.onSelectSection)
-                }
+                SectionComplete(section, nextSection, onGoTo = actions.onSelectSection, modifier = Modifier.animateItem())
             }
         }
     }
@@ -460,76 +449,100 @@ private fun SectionNote(note: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Celebration that closes a finished task, with a shortcut to the next unfinished one. */
+/**
+ * Closes a finished task under its last step: a mustard star with a check, the blessing and the
+ * shortcut to the next unfinished task, centred on the page without a card around them, so it
+ * reads as the schedule's quiet ending rather than one more step.
+ */
 @Composable
-private fun SectionComplete(section: ProgramSection, next: ProgramSection?, onGoTo: (String) -> Unit) {
+private fun SectionComplete(
+    section: ProgramSection,
+    next: ProgramSection?,
+    onGoTo: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val palette = LocalDhikraPalette.current
     val scheme = MaterialTheme.colorScheme
     val appear = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { appear.animateTo(1f, tween(700, easing = EmphasizedDecelerate)) }
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = scheme.tertiaryContainer.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, palette.ornament.copy(alpha = 0.45f)),
-        modifier = Modifier
+    LaunchedEffect(Unit) { appear.animateTo(1f, tween(800, easing = EmphasizedDecelerate)) }
+    Column(
+        modifier = modifier
             .fillMaxWidth()
+            .padding(top = 28.dp, bottom = 8.dp)
             .graphicsLayer {
-                alpha = appear.value
-                val scale = 0.92f + 0.08f * appear.value
-                scaleX = scale
-                scaleY = scale
+                alpha = (appear.value * 1.6f).coerceAtMost(1f)
+                translationY = (1f - appear.value) * 12.dp.toPx()
             },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            CelebrationStar(progress = appear.value, color = palette.ornament)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = stringResource(R.string.section_complete),
-                style = MaterialTheme.typography.headlineSmall,
-                color = palette.ornamentText,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.section_complete_message, section.title),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            if (next != null) {
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { onGoTo(next.id) }, shape = CircleShape) {
-                    Text(stringResource(R.string.next_section, next.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
-                }
+        CompletionMark(progress = appear.value, color = palette.ornament, ink = palette.ornamentText)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.section_complete),
+            style = MaterialTheme.typography.titleMedium,
+            color = palette.ornamentText,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.section_complete_message, section.title),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant.copy(alpha = FaintTextAlpha),
+            textAlign = TextAlign.Center,
+        )
+        if (next != null) {
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(
+                onClick = { onGoTo(next.id) },
+                shape = CircleShape,
+                contentPadding = PaddingValues(start = 18.dp, end = 14.dp),
+                modifier = Modifier.height(38.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.next_section, next.title),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(16.dp))
             }
         }
     }
 }
 
-/** Gold eight-pointed star with rays, turning into place as the celebration appears. */
+/**
+ * An eight-pointed star outlined in mustard with a soft fill, turning into place while its check
+ * is drawn in, stroke by stroke, as the ending appears.
+ */
 @Composable
-private fun CelebrationStar(progress: Float, color: Color) {
-    Canvas(Modifier.size(64.dp)) {
+private fun CompletionMark(progress: Float, color: Color, ink: Color) {
+    Canvas(Modifier.size(44.dp)) {
         val radius = size.minDimension / 2f
+        val star = Path().apply { addEightPointStar(center, radius * 0.96f, innerRatio = 0.8f) }
         rotate(degrees = -45f * (1f - progress)) {
-            for (i in 0 until 12) {
-                val angle = Math.toRadians(i * 30.0)
-                val inner = radius * 0.66f
-                val outer = radius * (0.66f + 0.32f * progress)
-                drawLine(
-                    color = color.copy(alpha = 0.55f),
-                    start = Offset(center.x + inner * cos(angle).toFloat(), center.y + inner * sin(angle).toFloat()),
-                    end = Offset(center.x + outer * cos(angle).toFloat(), center.y + outer * sin(angle).toFloat()),
-                    strokeWidth = 2.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
+            drawPath(star, color.copy(alpha = 0.16f))
+            drawPath(star, color, style = Stroke(width = 1.5.dp.toPx(), join = StrokeJoin.Round))
+        }
+        // The check, drawn from its short stroke to the end of its long one.
+        val a = Offset(center.x - radius * 0.30f, center.y + radius * 0.02f)
+        val b = Offset(center.x - radius * 0.08f, center.y + radius * 0.24f)
+        val c = Offset(center.x + radius * 0.32f, center.y - radius * 0.22f)
+        val first = (a - b).getDistance()
+        val second = (c - b).getDistance()
+        val drawn = ((progress - 0.35f) / 0.65f).coerceIn(0f, 1f) * (first + second)
+        val check = Path().apply {
+            moveTo(a.x, a.y)
+            if (drawn <= first) {
+                val t = drawn / first
+                lineTo(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+            } else {
+                lineTo(b.x, b.y)
+                val t = (drawn - first) / second
+                lineTo(b.x + (c.x - b.x) * t, b.y + (c.y - b.y) * t)
             }
-            drawPath(Path().apply { addEightPointStar(center, radius * 0.56f) }, color)
-            drawCircle(Color.White.copy(alpha = 0.85f), radius = radius * 0.16f)
+        }
+        if (drawn > 0f) {
+            drawPath(check, ink, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
 }

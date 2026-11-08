@@ -598,7 +598,7 @@ private fun CountEditor(
 private fun OutlinedIconStep(symbol: String, description: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .size(48.dp)
             .semantics { contentDescription = description },

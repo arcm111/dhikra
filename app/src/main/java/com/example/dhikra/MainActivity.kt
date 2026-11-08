@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
 
     /** Handles reminder taps (open a section) and shared/opened program files (import). */
     private fun handleIntent(intent: Intent) {
-        intent.getStringExtra(ReminderScheduler.EXTRA_SECTION_ID)?.let(viewModel::selectSection)
+        intent.getStringExtra(ReminderScheduler.EXTRA_SECTION_ID)?.let(viewModel::openSection)
 
         val programUri: Uri? = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme == "content" }

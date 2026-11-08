@@ -12,7 +12,10 @@ import com.example.dhikra.data.DefaultProgram
 import com.example.dhikra.data.Library
 import com.example.dhikra.data.LibraryEntry
 import com.example.dhikra.data.LibraryGroup
-import com.example.dhikra.data.MockPrayerTimes
+import com.example.dhikra.data.PrayerSettings
+import com.example.dhikra.data.appPrayerTimes
+import com.example.dhikra.data.Prayer
+import com.example.dhikra.data.PrayerAlert
 import com.example.dhikra.data.PrayerTimesSource
 import com.example.dhikra.data.PrayerTimetable
 import com.example.dhikra.data.Program
@@ -24,6 +27,7 @@ import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.ProgramStore
 import com.example.dhikra.data.QuranDatabase
 import com.example.dhikra.data.QuranLookup
+import com.example.dhikra.data.ReminderSound
 import com.example.dhikra.data.newId
 import com.example.dhikra.reminder.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +67,14 @@ data class UiState(
     val pendingImport: ProgramBundle? = null,
     /** Today's prayer times in the city the user picked; null until a city is picked. */
     val prayerTimes: PrayerTimetable? = null,
+    /** How the prayer times are calculated (method, Asr school, minutes added). */
+    val prayerSettings: PrayerSettings = PrayerSettings(),
+    /** The sound of the sections' reminders. */
+    val sectionSound: ReminderSound = ReminderSound.Default,
+    /** The alert of each of the five prayers. */
+    val prayerAlerts: Map<Prayer, PrayerAlert> = emptyMap(),
+    /** A section to show in the section view at once (a reminder was tapped); cleared once shown. */
+    val openSectionRequest: String? = null,
 ) {
     /** What is stored: every program, the one being followed and the library. */
     val store: ProgramStore get() = ProgramStore(programs.ifEmpty { listOf(program) }, program.id, library)
@@ -89,7 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val quran: QuranLookup = QuranDatabase.get(application).lookup
 
     /** Where prayer times come from: a mock timetable until the real source is chosen. */
-    val prayerSource: PrayerTimesSource = MockPrayerTimes
+    val prayerSource: PrayerTimesSource = appPrayerTimes(application)
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
@@ -117,14 +129,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     defaultSpeed = repository.loadDefaultSpeed(),
                     textScale = repository.loadTextScale(),
                     prayerTimes = repository.loadPrayerCity()?.let { prayerSource.timetable(it, today) },
+                    sectionSound = repository.loadSectionSound(),
+                    prayerAlerts = repository.loadPrayerAlerts(),
+                    prayerSettings = repository.loadPrayerSettings(),
                 )
             }
             val now = currentSectionByTime(loaded.program)
             val selected = pendingSectionSelection?.takeIf { loaded.program.section(it) != null } ?: now
             _state.update {
-                loaded.copy(selectedSectionId = selected, nowSectionId = now, pendingImport = it.pendingImport)
+                loaded.copy(
+                    selectedSectionId = selected,
+                    nowSectionId = now,
+                    pendingImport = it.pendingImport,
+                    openSectionRequest = it.openSectionRequest,
+                )
             }
-            withContext(Dispatchers.IO) { ReminderScheduler.scheduleAll(application, loaded.program) }
+            withContext(Dispatchers.IO) {
+                ReminderScheduler.scheduleAll(application, loaded.program)
+                ReminderScheduler.schedulePrayers(application)
+            }
         }
     }
 
@@ -135,6 +158,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         else if (_state.value.selectedSectionId != sectionId) {
             _state.update { it.copy(selectedSectionId = sectionId) }
         }
+    }
+
+    /** Selects [sectionId] and asks for the section view to show it (a reminder was tapped). */
+    fun openSection(sectionId: String) {
+        selectSection(sectionId)
+        _state.update { it.copy(openSectionRequest = sectionId) }
+    }
+
+    /** The section view was opened for [UiState.openSectionRequest]. */
+    fun consumeOpenSection() {
+        _state.update { it.copy(openSectionRequest = null) }
     }
 
     /**
@@ -236,9 +270,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Shows the prayer times of [cityId] and remembers it as the user's city. */
     fun setPrayerCity(cityId: String) {
-        val timetable = prayerSource.timetable(cityId, _state.value.day.ifEmpty { ProgramRepository.today() }) ?: return
-        _state.update { it.copy(prayerTimes = timetable) }
-        viewModelScope.launch(Dispatchers.IO) { repository.savePrayerCity(cityId) }
+        val day = _state.value.day.ifEmpty { ProgramRepository.today() }
+        viewModelScope.launch {
+            // The city is read from the bundled database: off the main thread.
+            val timetable = withContext(Dispatchers.IO) { prayerSource.timetable(cityId, day) } ?: return@launch
+            _state.update { it.copy(prayerTimes = timetable) }
+            withContext(Dispatchers.IO) {
+                repository.savePrayerCity(cityId)
+                ReminderScheduler.schedulePrayers(getApplication())
+            }
+        }
+    }
+
+    /** Changes how the prayer times are calculated; the day's times and the alerts follow. */
+    fun setPrayerSettings(settings: PrayerSettings) {
+        _state.update { it.copy(prayerSettings = settings) }
+        val cityId = _state.value.prayerTimes?.city?.id
+        val day = _state.value.day.ifEmpty { ProgramRepository.today() }
+        viewModelScope.launch {
+            val timetable = withContext(Dispatchers.IO) {
+                repository.savePrayerSettings(settings)
+                ReminderScheduler.schedulePrayers(getApplication())
+                cityId?.let { prayerSource.timetable(it, day) }
+            }
+            if (timetable != null) _state.update { it.copy(prayerTimes = timetable) }
+        }
+    }
+
+    // ---------------------------------------------------------------- Reminder sounds
+
+    fun setSectionSound(sound: ReminderSound) {
+        _state.update { it.copy(sectionSound = sound) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveSectionSound(sound)
+            ReminderScheduler.removeUnusedChannels(getApplication())
+        }
+    }
+
+    /** Turns a prayer's alert on or off or changes its sound, and reschedules the alerts. */
+    fun setPrayerAlert(prayer: Prayer, alert: PrayerAlert) {
+        _state.update { it.copy(prayerAlerts = it.prayerAlerts + (prayer to alert)) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.savePrayerAlert(prayer, alert)
+            ReminderScheduler.schedulePrayers(getApplication())
+            ReminderScheduler.removeUnusedChannels(getApplication())
+        }
     }
 
     // ---------------------------------------------------------------- Editing

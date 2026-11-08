@@ -1,5 +1,37 @@
 package com.example.dhikra.ui.prayer
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.contentDescription
+import com.example.dhikra.data.ArabicText
+import com.example.dhikra.data.AsrMadhab
+import com.example.dhikra.data.PrayerDefaults
+import com.example.dhikra.data.PrayerMethod
+import com.example.dhikra.data.PrayerSettings
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.provider.Settings
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import com.example.dhikra.data.PrayerAlert
+import com.example.dhikra.reminder.ReminderScheduler
+import com.example.dhikra.ui.components.ReminderSoundDialog
+import com.example.dhikra.ui.components.reminderSoundLabel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +77,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,7 +86,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -65,24 +95,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.dhikra.R
-import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.Prayer
 import com.example.dhikra.data.PrayerCity
 import com.example.dhikra.data.PrayerTimesSource
 import com.example.dhikra.data.PrayerTimetable
 import com.example.dhikra.data.UpcomingPrayer
 import com.example.dhikra.ui.components.DhikraHeader
-import com.example.dhikra.ui.components.FajrIcon
-import com.example.dhikra.ui.components.MoonStarIcon
 import com.example.dhikra.ui.components.PrayerIcon
-import com.example.dhikra.ui.components.SunIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.starLattice
 import com.example.dhikra.ui.formatTimeArabic
 import com.example.dhikra.ui.theme.MustardLight
 import com.example.dhikra.ui.theme.LocalDhikraPalette
-import kotlinx.coroutines.delay
-import java.util.Calendar
 
 /**
  * Prayer times, opened from the main menu: the next prayer and the countdown to it, then the
@@ -96,9 +120,13 @@ fun PrayerTimesScreen(
     source: PrayerTimesSource,
     onSelectCity: (String) -> Unit,
     onBack: () -> Unit,
+    alerts: Map<Prayer, PrayerAlert> = emptyMap(),
+    onAlertChange: (Prayer, PrayerAlert) -> Unit = { _, _ -> },
+    settings: PrayerSettings = PrayerSettings(),
+    onSettingsChange: (PrayerSettings) -> Unit = {},
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
-    val nowMinutes = rememberMinuteOfDay()
+    val nowMinutes = rememberMinuteOfDay(timetable?.city?.timeZone)
     Scaffold(
         topBar = {
             DhikraHeader(bottomPadding = 4.dp) {
@@ -155,13 +183,46 @@ fun PrayerTimesScreen(
                 item { DayTimes(timetable, next, nowMinutes) }
                 item {
                     Text(
-                        text = stringResource(R.string.prayer_mock_note),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.widthIn(max = MaxWidth).padding(top = 16.dp, start = 8.dp, end = 8.dp),
+                        text = stringResource(R.string.prayer_alerts),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .widthIn(max = MaxWidth)
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, top = 24.dp, bottom = 2.dp)
+                            .semantics { heading() },
                     )
                 }
+                item {
+                    Text(
+                        text = stringResource(R.string.prayer_alerts_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, bottom = 8.dp),
+                    )
+                }
+                item { PrayerAlertsCard(alerts, onAlertChange) }
+                item {
+                    Text(
+                        text = stringResource(R.string.prayer_calculation),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .widthIn(max = MaxWidth)
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, top = 24.dp, bottom = 2.dp)
+                            .semantics { heading() },
+                    )
+                }
+                item {
+                    Text(
+                        text = stringResource(R.string.prayer_calculation_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, bottom = 8.dp),
+                    )
+                }
+                item { CalculationCard(timetable.city.countryCode, settings, onSettingsChange) }
             }
         }
     }
@@ -180,51 +241,6 @@ fun PrayerTimesScreen(
 }
 
 private val MaxWidth = 560.dp
-
-/** The current time as minutes after midnight, updated every minute while shown. */
-@Composable
-private fun rememberMinuteOfDay(): Int {
-    var minute by remember { mutableIntStateOf(minuteOfDay()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay((60 - Calendar.getInstance().get(Calendar.SECOND)) * 1000L)
-            minute = minuteOfDay()
-        }
-    }
-    return minute
-}
-
-private fun minuteOfDay(): Int =
-    Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
-
-private val Prayer.label: Int
-    get() = when (this) {
-        Prayer.FAJR -> R.string.prayer_fajr
-        Prayer.SUNRISE -> R.string.prayer_sunrise
-        Prayer.DHUHR -> R.string.prayer_dhuhr
-        Prayer.ASR -> R.string.prayer_asr
-        Prayer.MAGHRIB -> R.string.prayer_maghrib
-        Prayer.ISHA -> R.string.prayer_isha
-    }
-
-private val Prayer.icon: ImageVector
-    get() = when (this) {
-        Prayer.FAJR, Prayer.SUNRISE, Prayer.MAGHRIB -> FajrIcon
-        Prayer.DHUHR, Prayer.ASR -> SunIcon
-        Prayer.ISHA -> MoonStarIcon
-    }
-
-/** "بعد ١ س ٢٠ د" / "بعد ٢٠ د". */
-@Composable
-private fun untilText(minutes: Int): String {
-    val h = minutes / 60
-    val m = minutes % 60
-    return if (h > 0) {
-        stringResource(R.string.prayer_in_hours, ArabicText.toArabicDigits(h), ArabicText.toArabicDigits(m))
-    } else {
-        stringResource(R.string.prayer_in_minutes, ArabicText.toArabicDigits(m))
-    }
-}
 
 /** The next prayer, large, on the brand's dark green with the countdown and the city. */
 @Composable
@@ -363,6 +379,316 @@ private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinute
     }
 }
 
+/**
+ * The five prayers' alerts: a switch for each, and its sound («الافتراضي» until another is
+ * chosen; the azan is one of the choices). Turning one on asks for the notification permission
+ * when it was not granted yet.
+ */
+@Composable
+private fun PrayerAlertsCard(alerts: Map<Prayer, PrayerAlert>, onChange: (Prayer, PrayerAlert) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val palette = LocalDhikraPalette.current
+    val context = LocalContext.current
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    var choosingFor by rememberSaveable { mutableStateOf<Prayer?>(null) }
+    val prayers = Prayer.entries.filter { it.isPrayer }
+    // Without the exact-alarm permission Android may deliver an alert minutes late: say so while
+    // an alert is on, and re-check when the user comes back from the system setting.
+    var exact by remember { mutableStateOf(ReminderScheduler.canScheduleExactAlarms(context)) }
+    LifecycleResumeEffect(Unit) {
+        exact = ReminderScheduler.canScheduleExactAlarms(context)
+        onPauseOrDispose { }
+    }
+    if (!exact && alerts.values.any { it.enabled } && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = scheme.tertiaryContainer,
+            contentColor = scheme.onTertiaryContainer,
+            modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(bottom = 8.dp),
+        ) {
+            Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.exact_alarm_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:${context.packageName}".toUri())
+                    )
+                }) { Text(stringResource(R.string.exact_alarm_allow)) }
+            }
+        }
+    }
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = scheme.surfaceContainerLowest,
+        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            prayers.forEachIndexed { index, prayer ->
+                val alert = alerts[prayer] ?: PrayerAlert()
+                val toggle = { on: Boolean ->
+                    if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !ReminderScheduler.hasNotificationPermission(context)
+                    ) {
+                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    onChange(prayer, alert.copy(enabled = on))
+                }
+                if (index > 0) {
+                    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 12.dp))
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(value = alert.enabled, role = Role.Switch, onValueChange = toggle)
+                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(palette.ornament.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(prayer.icon, null, tint = palette.ornamentText, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(prayer.label), style = MaterialTheme.typography.titleMedium)
+                        // The sound, as a small button of its own: it opens the sound choices.
+                        Surface(
+                            onClick = { choosingFor = prayer },
+                            shape = CircleShape,
+                            color = scheme.secondaryContainer.copy(alpha = if (alert.enabled) 1f else 0.5f),
+                            contentColor = scheme.onSecondaryContainer,
+                            modifier = Modifier.padding(top = 4.dp),
+                        ) {
+                            Row(Modifier.padding(start = 10.dp, end = 6.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Notifications, null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = stringResource(R.string.prayer_alert_sound, reminderSoundLabel(alert.sound)),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                                Icon(Icons.Filled.ArrowDropDown, null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                    Switch(checked = alert.enabled, onCheckedChange = null)
+                }
+            }
+        }
+    }
+    choosingFor?.let { prayer ->
+        val alert = alerts[prayer] ?: PrayerAlert()
+        ReminderSoundDialog(
+            current = alert.sound,
+            allowAzan = true,
+            title = stringResource(R.string.prayer_alert_sound_title, stringResource(prayer.label)),
+            onSelect = { sound ->
+                // Choosing a sound turns the alert on: that is what the user is setting up.
+                if (!alert.enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    !ReminderScheduler.hasNotificationPermission(context)
+                ) {
+                    permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                onChange(prayer, PrayerAlert(enabled = true, sound = sound))
+                choosingFor = null
+            },
+            onDismiss = { choosingFor = null },
+        )
+    }
+}
+
+private val PrayerMethod.label: Int
+    get() = when (this) {
+        PrayerMethod.MUSLIM_WORLD_LEAGUE -> R.string.method_mwl
+        PrayerMethod.UMM_AL_QURA -> R.string.method_umm_al_qura
+        PrayerMethod.EGYPTIAN -> R.string.method_egyptian
+        PrayerMethod.KARACHI -> R.string.method_karachi
+        PrayerMethod.DUBAI -> R.string.method_dubai
+        PrayerMethod.KUWAIT -> R.string.method_kuwait
+        PrayerMethod.QATAR -> R.string.method_qatar
+        PrayerMethod.TURKEY -> R.string.method_turkey
+        PrayerMethod.SINGAPORE -> R.string.method_singapore
+        PrayerMethod.NORTH_AMERICA -> R.string.method_north_america
+        PrayerMethod.MOON_SIGHTING_COMMITTEE -> R.string.method_moonsighting
+        PrayerMethod.MOROCCO -> R.string.method_morocco
+    }
+
+private val AsrMadhab.label: Int
+    get() = if (this == AsrMadhab.HANAFI) R.string.madhab_hanafi else R.string.madhab_shafi
+
+private enum class CalculationDialog { Method, Madhab, Adjust }
+
+/**
+ * How the times are calculated: the method and the Asr school (by default those of the city's
+ * country, [countryCode]) and the minutes added to or taken from each time. Each row opens its
+ * choices.
+ */
+@Composable
+private fun CalculationCard(countryCode: String, settings: PrayerSettings, onChange: (PrayerSettings) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    var dialog by rememberSaveable { mutableStateOf<CalculationDialog?>(null) }
+    val defaultMethod = PrayerDefaults.method(countryCode)
+    val defaultMadhab = PrayerDefaults.madhab(countryCode)
+
+    @Composable
+    fun row(title: Int, value: String, onClick: () -> Unit) {
+        Surface(onClick = onClick, color = Color.Transparent) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
+                    Text(value, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                }
+                Icon(Icons.Filled.ArrowDropDown, null, tint = scheme.onSurfaceVariant)
+            }
+        }
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = scheme.surfaceContainerLowest,
+        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            row(
+                R.string.prayer_method,
+                settings.method?.let { stringResource(it.label) }
+                    ?: stringResource(R.string.prayer_auto, stringResource(defaultMethod.label)),
+            ) { dialog = CalculationDialog.Method }
+            HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 12.dp))
+            row(
+                R.string.prayer_madhab,
+                settings.madhab?.let { stringResource(it.label) }
+                    ?: stringResource(R.string.prayer_auto, stringResource(defaultMadhab.label)),
+            ) { dialog = CalculationDialog.Madhab }
+            HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 12.dp))
+            val adjusted = Prayer.entries.filter { settings.adjustment(it) != 0 }
+            row(
+                R.string.prayer_adjust,
+                if (adjusted.isEmpty()) stringResource(R.string.prayer_adjust_none)
+                else adjusted.map { prayer -> stringResource(R.string.prayer_adjust_value, stringResource(prayer.label), signedMinutes(settings.adjustment(prayer))) }
+                    .joinToString("، "),
+            ) { dialog = CalculationDialog.Adjust }
+        }
+    }
+
+    when (dialog) {
+        CalculationDialog.Method -> ChoiceDialog(
+            title = stringResource(R.string.prayer_method),
+            options = listOf<PrayerMethod?>(null) + PrayerMethod.entries,
+            selected = settings.method,
+            label = { it?.let { method -> stringResource(method.label) } ?: stringResource(R.string.prayer_auto, stringResource(defaultMethod.label)) },
+            note = { if (it == null) stringResource(R.string.prayer_auto_note) else null },
+            onSelect = { onChange(settings.copy(method = it)); dialog = null },
+            onDismiss = { dialog = null },
+        )
+        CalculationDialog.Madhab -> ChoiceDialog(
+            title = stringResource(R.string.prayer_madhab),
+            options = listOf<AsrMadhab?>(null) + AsrMadhab.entries,
+            selected = settings.madhab,
+            label = { it?.let { madhab -> stringResource(madhab.label) } ?: stringResource(R.string.prayer_auto, stringResource(defaultMadhab.label)) },
+            note = { if (it == null) stringResource(R.string.prayer_auto_note) else null },
+            onSelect = { onChange(settings.copy(madhab = it)); dialog = null },
+            onDismiss = { dialog = null },
+        )
+        CalculationDialog.Adjust -> AdjustDialog(settings, onChange, onDismiss = { dialog = null })
+        null -> Unit
+    }
+}
+
+/** "+٢" / "−٣": minutes added to or taken from a time. */
+private fun signedMinutes(minutes: Int): String =
+    (if (minutes > 0) "+" else "−") + ArabicText.toArabicDigits(kotlin.math.abs(minutes))
+
+@Composable
+private fun <T> ChoiceDialog(
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    note: @Composable (T) -> String?,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            LazyColumn(Modifier.selectableGroup().heightIn(max = 460.dp)) {
+                items(options) { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = option == selected, onClick = { onSelect(option) }, role = Role.RadioButton)
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = option == selected, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(label(option), style = MaterialTheme.typography.bodyLarge)
+                            note(option)?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Moves each time by whole minutes, up to [PrayerSettings.MAX_ADJUSTMENT] either way. */
+@Composable
+private fun AdjustDialog(settings: PrayerSettings, onChange: (PrayerSettings) -> Unit, onDismiss: () -> Unit) {
+    var adjustments by remember { mutableStateOf(settings.adjustments) }
+    val limit = PrayerSettings.MAX_ADJUSTMENT
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.prayer_adjust)) },
+        text = {
+            Column {
+                Prayer.entries.forEach { prayer ->
+                    val value = adjustments[prayer] ?: 0
+                    fun set(minutes: Int) {
+                        adjustments = (adjustments + (prayer to minutes.coerceIn(-limit, limit))).filterValues { it != 0 }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(prayer.label), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        val earlier = stringResource(R.string.prayer_minus_minute)
+                        IconButton(
+                            onClick = { set(value - 1) },
+                            enabled = value > -limit,
+                            modifier = Modifier.semantics { contentDescription = earlier },
+                        ) {
+                            Text("−", style = MaterialTheme.typography.titleLarge)
+                        }
+                        Text(
+                            text = if (value == 0) ArabicText.toArabicDigits(0) else signedMinutes(value),
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.width(44.dp),
+                        )
+                        IconButton(onClick = { set(value + 1) }, enabled = value < limit) {
+                            Icon(Icons.Filled.Add, stringResource(R.string.prayer_plus_minute))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onChange(settings.copy(adjustments = adjustments)); onDismiss() }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { adjustments = emptyMap() }) { Text(stringResource(R.string.prayer_reset)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
+}
+
 /** Before a city is picked: what the screen shows and the button that opens the city list. */
 @Composable
 private fun NoCity(onPick: () -> Unit, modifier: Modifier) {
@@ -411,7 +737,10 @@ private fun CityPickerSheet(
 ) {
     val scheme = MaterialTheme.colorScheme
     var query by rememberSaveable { mutableStateOf("") }
-    val cities = remember(query, source) { source.search(query) }
+    // The search reads the bundled database: off the main thread.
+    val cities by produceState(initialValue = emptyList<PrayerCity>(), query, source) {
+        value = withContext(Dispatchers.IO) { source.search(query) }
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(
             text = stringResource(R.string.prayer_pick_city),
@@ -459,7 +788,12 @@ private fun CityPickerSheet(
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(city.name, style = MaterialTheme.typography.titleSmall)
-                            Text(city.country, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                            // Many cities share a name: the state / province tells them apart.
+                            Text(
+                                text = listOf(city.region, city.country).filter { it.isNotBlank() }.distinct().joinToString("، "),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = scheme.onSurfaceVariant,
+                            )
                         }
                         if (selected) Icon(Icons.Filled.Check, null, tint = scheme.primary)
                     }

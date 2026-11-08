@@ -124,6 +124,22 @@ val StarOrnamentIcon: ImageVector = materialIcon("DhikraStar") {
     }
 }
 
+/** Filled rounded square: stops a sound being played. */
+val StopIcon: ImageVector = materialIcon("DhikraStop") {
+    materialPath {
+        moveTo(8f, 6f)
+        horizontalLineTo(16f)
+        quadTo(18f, 6f, 18f, 8f)
+        verticalLineTo(16f)
+        quadTo(18f, 18f, 16f, 18f)
+        horizontalLineTo(8f)
+        quadTo(6f, 18f, 6f, 16f)
+        verticalLineTo(8f)
+        quadTo(6f, 6f, 8f, 6f)
+        close()
+    }
+}
+
 /** Open mushaf with ayah marks. */
 val QuranIcon: ImageVector = lineIcon(
     "DhikraQuran",

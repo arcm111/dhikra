@@ -15,6 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.dhikra.data.DefaultProgram
 import com.example.dhikra.data.ItemType
+import com.example.dhikra.data.MockPrayerTimes
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.Quran
 import com.example.dhikra.data.QuranRef
@@ -32,6 +33,7 @@ import com.example.dhikra.ui.library.QuranPassagePicker
 import com.example.dhikra.ui.library.SettingsActions
 import com.example.dhikra.ui.library.SettingsScreen
 import com.example.dhikra.ui.theme.DhikraTheme
+import com.example.dhikra.ui.today.TodayScreen
 
 /**
  * The ayat the previews show, verbatim from the bundled Quran text (previews can't open its
@@ -131,6 +133,33 @@ private fun HomePreview() {
             snackbarHostState = SnackbarHostState(),
             actions = noHomeActions,
         )
+    }
+}
+
+@Preview(name = "Today", showSystemUi = true, locale = "ar")
+@Preview(
+    name = "Today (dark)",
+    showSystemUi = true,
+    locale = "ar",
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun TodayPreview() {
+    DhikraTheme {
+        TodayScreen(
+            state = previewState.copy(prayerTimes = MockPrayerTimes.timetable("riyadh", previewState.day)),
+            actions = noHomeActions,
+            onOpenSection = {},
+            nowMinutes = 7 * 60 + 40,
+        )
+    }
+}
+
+@Preview(name = "Today, no city", showSystemUi = true, locale = "ar")
+@Composable
+private fun TodayNoCityPreview() {
+    DhikraTheme {
+        TodayScreen(state = previewState, actions = noHomeActions, onOpenSection = {}, nowMinutes = 7 * 60 + 40)
     }
 }
 
