@@ -21,6 +21,10 @@ data class PrayerCity(
     val countryCode: String = "",
     val region: String = "",
     val timeZone: String? = null,
+    /** The names in English, for the English interface (empty when unknown). */
+    val nameEn: String = "",
+    val countryEn: String = "",
+    val regionEn: String = "",
 )
 
 /**

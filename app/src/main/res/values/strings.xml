@@ -336,6 +336,13 @@
     <string name="progress_percent">%1$s٪</string>
     <string name="program_current">البرنامج الحالي</string>
     <string name="program_change">تغيير البرنامج</string>
+    <string name="list_separator">"، "</string>
+    <string name="text_size_glyph">أ</string>
+    <string name="language_title">اللغة · Language</string>
+    <string name="language_glyph">A</string>
+    <string name="language_arabic">العربية</string>
+    <string name="language_english">English</string>
+    <string name="language_note">لغة واجهة التطبيق فقط؛ تبقى نصوص القرآن والأذكار وبرامجك كما كُتبت.</string>
     <string name="tab_day">اليوم</string>
     <string name="day_title">اليوم</string>
     <string name="program_summary">%1$s أقسام · %2$s خطوة</string>

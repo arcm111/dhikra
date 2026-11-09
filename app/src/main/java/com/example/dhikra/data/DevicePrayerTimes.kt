@@ -65,6 +65,9 @@ class DevicePrayerTimes(
         countryCode = record.countryCode,
         region = record.region,
         timeZone = record.timeZone,
+        nameEn = record.nameEn,
+        countryEn = record.countryEn,
+        regionEn = record.regionEn,
     )
 
     companion object {

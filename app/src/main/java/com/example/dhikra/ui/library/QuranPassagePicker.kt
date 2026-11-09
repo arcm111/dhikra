@@ -47,6 +47,7 @@ import com.example.dhikra.data.Surah
 import com.example.dhikra.ui.components.ReaderText
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.theme.ReadingStyles
+import com.example.dhikra.ui.uiDigits
 
 /** The bundled Quran text, for the screens that pick passages; null where it can't be read (previews). */
 val LocalQuranLookup = staticCompositionLocalOf<QuranLookup?> { null }
@@ -68,9 +69,9 @@ fun quranTitle(resources: Resources, surah: Surah): String =
 /** The default description of [ref]: the whole surah, «الآية ٢٥٥» or «الآيات ١٩٠ - ٢٠٠». */
 fun quranRangeDescription(resources: Resources, ref: QuranRef): String = when {
     ref.from == 1 && ref.to == Quran.ayahCount(ref.sura) -> resources.getString(R.string.quran_whole_surah)
-    ref.from == ref.to -> resources.getString(R.string.quran_ayah, ArabicText.toArabicDigits(ref.from))
+    ref.from == ref.to -> resources.getString(R.string.quran_ayah, uiDigits(ref.from))
     else -> resources.getString(
-        R.string.quran_ayat, ArabicText.toArabicDigits(ref.from), ArabicText.toArabicDigits(ref.to),
+        R.string.quran_ayat, uiDigits(ref.from), uiDigits(ref.to),
     )
 }
 
@@ -152,7 +153,7 @@ fun QuranPassagePicker(
                             expanded = false
                             query = ""
                             // A new surah is read whole until a range is chosen.
-                            onPick(surah.number, ArabicText.toArabicDigits(1), ArabicText.toArabicDigits(surah.ayahCount))
+                            onPick(surah.number, uiDigits(1), uiDigits(surah.ayahCount))
                         },
                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                     )
@@ -164,7 +165,7 @@ fun QuranPassagePicker(
             val count = selected.ayahCount
             val first = ArabicText.toLatinDigits(from).trim().toIntOrNull()
             val last = ArabicText.toLatinDigits(to).trim().toIntOrNull()
-            val rangeError = stringResource(R.string.quran_range_error, ArabicText.toArabicDigits(count))
+            val rangeError = stringResource(R.string.quran_range_error, uiDigits(count))
             val fromError = if (first == null || first !in 1..count) rangeError else null
             val toError = when {
                 last == null || last !in 1..count -> rangeError
@@ -181,7 +182,7 @@ fun QuranPassagePicker(
             }
             FilterChip(
                 selected = first == 1 && last == count,
-                onClick = { onPick(sura, ArabicText.toArabicDigits(1), ArabicText.toArabicDigits(count)) },
+                onClick = { onPick(sura, uiDigits(1), uiDigits(count)) },
                 label = { Text(stringResource(R.string.quran_whole_surah)) },
             )
             when {
@@ -225,11 +226,11 @@ fun QuranSourceNote(modifier: Modifier = Modifier) {
 
 @Composable
 private fun surahLabel(surah: Surah): String =
-    stringResource(R.string.quran_surah_item, ArabicText.toArabicDigits(surah.number), surah.name)
+    stringResource(R.string.quran_surah_item, uiDigits(surah.number), surah.name)
 
 @Composable
 private fun ayahCount(count: Int): String =
-    pluralStringResource(R.plurals.quran_ayah_count, count, ArabicText.toArabicDigits(count))
+    pluralStringResource(R.plurals.quran_ayah_count, count, uiDigits(count))
 
 @Composable
 private fun AyahField(label: Int, value: String, error: String?, modifier: Modifier, onValueChange: (String) -> Unit) {
@@ -271,7 +272,7 @@ private fun PassagePreview(passage: QuranPassage) {
             )
             if (shown.size < passage.ayat.size) {
                 Text(
-                    text = stringResource(R.string.quran_preview_more, ArabicText.toArabicDigits(passage.ref.to)),
+                    text = stringResource(R.string.quran_preview_more, uiDigits(passage.ref.to)),
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.ink.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,

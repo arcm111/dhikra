@@ -10,7 +10,10 @@ import java.util.TimeZone
 
 class DevicePrayerTimesTest {
 
-    private val makkah = CityRecord(104515, "مكة المكرمة", "Makkah", "SA", "السعودية", "مكة المكرمة", 21.42664, 39.82563, "Asia/Riyadh")
+    private val makkah = CityRecord(
+        104515, "مكة المكرمة", "Makkah", "SA", "السعودية", "مكة المكرمة", 21.42664, 39.82563, "Asia/Riyadh",
+        countryEn = "Saudi Arabia", regionEn = "Makkah Region",
+    )
     private val karachi = CityRecord(1174872, "كراتشي", "Karachi", "PK", "باكستان", "السند", 24.8608, 67.0104, "Asia/Karachi")
     private val london = CityRecord(2643743, "لندن", "London", "GB", "المملكة المتحدة", "إنجلترا", 51.50853, -0.12574, "Europe/London")
 
@@ -30,7 +33,14 @@ class DevicePrayerTimesTest {
     @Test
     fun aCityIsItsGeoNamesRecord_withItsTimeZone() {
         val city = source.city("104515")
-        assertEquals(PrayerCity("104515", "مكة المكرمة", "السعودية", "SA", "مكة المكرمة", "Asia/Riyadh"), city)
+        assertEquals(
+            PrayerCity(
+                "104515", "مكة المكرمة", "السعودية", "SA", "مكة المكرمة", "Asia/Riyadh",
+                // The English names, for the English interface.
+                nameEn = "Makkah", countryEn = "Saudi Arabia", regionEn = "Makkah Region",
+            ),
+            city,
+        )
         assertNull(source.city("999"))
         assertNull(source.city("atlantis"))
     }

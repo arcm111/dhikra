@@ -11,6 +11,8 @@ import androidx.compose.ui.res.stringResource
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.Prayer
+import com.example.dhikra.data.PrayerCity
+import com.example.dhikra.ui.AppLanguage
 import com.example.dhikra.data.SectionAnchor
 import com.example.dhikra.ui.components.FajrIcon
 import com.example.dhikra.ui.components.MoonStarIcon
@@ -18,6 +20,7 @@ import com.example.dhikra.ui.components.SunIcon
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.TimeZone
+import com.example.dhikra.ui.uiDigits
 
 // Prayer bits shared by the prayer-times screen and the day view.
 
@@ -64,17 +67,17 @@ internal fun untilText(minutes: Int): String {
     val h = minutes / 60
     val m = minutes % 60
     return if (h > 0) {
-        stringResource(R.string.prayer_in_hours, ArabicText.toArabicDigits(h), ArabicText.toArabicDigits(m))
+        stringResource(R.string.prayer_in_hours, uiDigits(h), uiDigits(m))
     } else {
-        stringResource(R.string.prayer_in_minutes, ArabicText.toArabicDigits(m))
+        stringResource(R.string.prayer_in_minutes, uiDigits(m))
     }
 }
 
 /** "عند دخول الوقت" / "بعد ١٥ د" / "قبل ١٠ د": a section's time from its prayer's. */
 @Composable
 internal fun anchorOffsetText(offset: Int): String = when {
-    offset > 0 -> stringResource(R.string.anchor_after, ArabicText.toArabicDigits(offset))
-    offset < 0 -> stringResource(R.string.anchor_before, ArabicText.toArabicDigits(-offset))
+    offset > 0 -> stringResource(R.string.anchor_after, uiDigits(offset))
+    offset < 0 -> stringResource(R.string.anchor_before, uiDigits(-offset))
     else -> stringResource(R.string.anchor_at)
 }
 
@@ -82,3 +85,10 @@ internal fun anchorOffsetText(offset: Int): String = when {
 @Composable
 internal fun anchorLabel(anchor: SectionAnchor): String =
     stringResource(R.string.anchor_label, stringResource(anchor.prayer.label), anchorOffsetText(anchor.offsetMinutes))
+
+/** The city's name in the app's language (Arabic, or English when the database has it). */
+val PrayerCity.shownName: String get() = english(nameEn) ?: name
+val PrayerCity.shownCountry: String get() = english(countryEn) ?: country
+val PrayerCity.shownRegion: String get() = english(regionEn) ?: region
+
+private fun english(value: String): String? = value.takeIf { AppLanguage.current == AppLanguage.EN && it.isNotBlank() }

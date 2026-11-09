@@ -96,7 +96,7 @@ import com.example.dhikra.ui.components.LibraryIcon
 import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.sectionIcon
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.MustardLight
@@ -105,6 +105,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import com.example.dhikra.ui.uiDigits
 
 /**
  * How far the home header is pulled open: 0 shows the current section, 1 the list of every
@@ -419,7 +420,7 @@ private fun CurrentSection(
                     section.reminderMinutes?.let { minutes ->
                         Icon(
                             Icons.Outlined.Notifications,
-                            contentDescription = formatTimeArabic(minutes),
+                            contentDescription = formatTime(minutes),
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.padding(start = 6.dp).size(15.dp),
                         )
@@ -456,11 +457,11 @@ private fun SectionMeta(section: ProgramSection, done: Int, total: Int) {
         section.reminderMinutes?.let { minutes ->
             Icon(Icons.Outlined.Notifications, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
-            Text(formatTimeArabic(minutes), style = MaterialTheme.typography.labelMedium, color = color)
+            Text(formatTime(minutes), style = MaterialTheme.typography.labelMedium, color = color)
             Text("  •  ", style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.5f))
         }
         Text(
-            text = stringResource(R.string.steps_done, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total)),
+            text = stringResource(R.string.steps_done, uiDigits(done), uiDigits(total)),
             style = MaterialTheme.typography.labelMedium,
             color = color,
             maxLines = 1,
@@ -723,7 +724,7 @@ internal fun OverflowMenu(actions: HomeActions, editSection: (() -> Unit)? = nul
             entry(R.string.library, { Icon(LibraryIcon, null) }, actions.onOpenLibrary)
             entry(R.string.settings, { Icon(Icons.Outlined.Settings, null) }, actions.onOpenSettings)
             HorizontalDivider()
-            entry(R.string.action_text_size, { Text("أ", style = MaterialTheme.typography.titleMedium) }, actions.onTextSize)
+            entry(R.string.action_text_size, { Text(stringResource(R.string.text_size_glyph), style = MaterialTheme.typography.titleMedium) }, actions.onTextSize)
             entry(R.string.action_reset_today, { Icon(Icons.Outlined.Refresh, null) }, actions.onResetToday)
         }
     }

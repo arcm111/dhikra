@@ -1,5 +1,6 @@
 package com.example.dhikra
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -13,12 +14,16 @@ import androidx.core.content.IntentCompat
 import com.example.dhikra.reminder.ReminderScheduler
 import com.example.dhikra.ui.DhikraApp
 import com.example.dhikra.ui.MainViewModel
+import com.example.dhikra.ui.localized
 import com.example.dhikra.ui.library.LocalQuranLookup
 import com.example.dhikra.ui.theme.DhikraTheme
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+
+    /** The app's own language (Arabic or English), whatever the device's, see [AppLanguage]. */
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(newBase.localized())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

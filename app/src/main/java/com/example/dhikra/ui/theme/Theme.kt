@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import com.example.dhikra.ui.AppLanguage
 import androidx.compose.ui.unit.dp
 
 /**
@@ -121,8 +122,9 @@ fun DhikraTheme(
     ) {
         CompositionLocalProvider(
             LocalDhikraPalette provides if (darkTheme) DarkPalette else LightPalette,
-            // The whole app is Arabic: always lay it out right-to-left, whatever the device language.
-            LocalLayoutDirection provides LayoutDirection.Rtl,
+            // The app's language decides the direction, whatever the device language: right-to-left
+            // in Arabic, left-to-right in English.
+            LocalLayoutDirection provides if (AppLanguage.current.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
             content = content,
         )
     }

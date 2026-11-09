@@ -1,6 +1,11 @@
 package com.example.dhikra.ui.library
 
 import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.Role
+import com.example.dhikra.ui.AppLanguage
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -122,6 +127,7 @@ import com.example.dhikra.ui.components.icon
 import com.example.dhikra.ui.home.GroupBadge
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.theme.ReadingStyles
+import com.example.dhikra.ui.uiDigits
 
 /** Name of the library collection holding entries of this type. */
 val ItemType.collectionName: Int
@@ -197,8 +203,8 @@ fun LibraryScreen(library: Library, onBack: () -> Unit, onOpenCollection: (ItemT
                             title = stringResource(type.collectionName),
                             subtitle = stringResource(
                                 R.string.collection_counts,
-                                ArabicText.toArabicDigits(library.ofType(type).size),
-                                ArabicText.toArabicDigits(library.groupsOfType(type).size),
+                                uiDigits(library.ofType(type).size),
+                                uiDigits(library.groupsOfType(type).size),
                             ),
                             leading = {
                                 Box(
@@ -226,6 +232,22 @@ fun SettingsScreen(
     onSectionSound: (ReminderSound) -> Unit = {},
 ) {
     var choosingSound by rememberSaveable { mutableStateOf(false) }
+    var choosingLanguage by rememberSaveable { mutableStateOf(false) }
+    val activity = LocalActivity.current
+    if (choosingLanguage) {
+        LanguageDialog(
+            current = AppLanguage.current,
+            onSelect = { language ->
+                choosingLanguage = false
+                if (language != AppLanguage.current && activity != null) {
+                    // The screen is rebuilt in the new language (and direction).
+                    AppLanguage.save(activity, language)
+                    activity.recreate()
+                }
+            },
+            onDismiss = { choosingLanguage = false },
+        )
+    }
     if (choosingSound) {
         ReminderSoundDialog(
             current = sectionSound,
@@ -255,8 +277,14 @@ fun SettingsScreen(
                 SettingsGroup {
                     SettingsRow(
                         title = stringResource(R.string.action_text_size),
-                        leading = { RowIcon { Text("أ", style = MaterialTheme.typography.titleMedium) } },
+                        leading = { RowIcon { Text(stringResource(R.string.text_size_glyph), style = MaterialTheme.typography.titleMedium) } },
                         onClick = actions.onTextSize,
+                    )
+                    SettingsRow(
+                        title = stringResource(R.string.language_title),
+                        leading = { RowIcon { Text(stringResource(R.string.language_glyph), style = MaterialTheme.typography.titleMedium) } },
+                        subtitle = stringResource(AppLanguage.current.label),
+                        onClick = { choosingLanguage = true },
                     )
                 }
             }
@@ -371,6 +399,45 @@ private fun RowIcon(content: @Composable () -> Unit) {
         )
     }
 }
+
+/** The interface language: the app's own interface only, the texts stay as they are written. */
+@Composable
+private fun LanguageDialog(current: AppLanguage, onSelect: (AppLanguage) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.language_title)) },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                AppLanguage.entries.forEach { language ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = language == current, role = Role.RadioButton) { onSelect(language) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = language == current, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(language.label), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.language_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+private val AppLanguage.label: Int
+    get() = when (this) {
+        AppLanguage.AR -> R.string.language_arabic
+        AppLanguage.EN -> R.string.language_english
+    }
 
 @Composable
 private fun SettingsRow(
@@ -571,7 +638,7 @@ private fun CollectionTab(label: Int, count: Int, selected: Boolean, onClick: ()
     HeaderTab(selected = selected, onClick = onClick) {
         Text(stringResource(label), style = MaterialTheme.typography.labelLarge, maxLines = 1)
         Spacer(Modifier.width(8.dp))
-        Text(ArabicText.toArabicDigits(count), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        Text(uiDigits(count), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -604,7 +671,7 @@ private fun EmptyText(text: Int) {
 
 /** The entry's text as previewed in the lists: a Quran text's ayah numbers in Arabic digits. */
 private val LibraryEntry.previewText: String
-    get() = if (type == ItemType.QURAN) ArabicText.toArabicDigits(text) else text
+    get() = if (type == ItemType.QURAN) uiDigits(text) else text
 
 /** Whether the entry's title, description or text contains the search [key] (see [ArabicText.searchKey]). */
 private fun LibraryEntry.matches(key: String): Boolean =
@@ -701,8 +768,8 @@ fun EntryEditorDialog(
         if (isQuran) value = quranLookup?.surahs().orEmpty()
     }
     var sura by rememberSaveable { mutableIntStateOf(initial?.quran?.sura ?: 0) }
-    var fromAya by rememberSaveable { mutableStateOf(initial?.quran?.from?.let(ArabicText::toArabicDigits).orEmpty()) }
-    var toAya by rememberSaveable { mutableStateOf(initial?.quran?.to?.let(ArabicText::toArabicDigits).orEmpty()) }
+    var fromAya by rememberSaveable { mutableStateOf(initial?.quran?.from?.let { uiDigits(it) }.orEmpty()) }
+    var toAya by rememberSaveable { mutableStateOf(initial?.quran?.to?.let { uiDigits(it) }.orEmpty()) }
     val ref = if (isQuran) quranRefOf(sura, fromAya, toAya) else null
     var loaded by remember { mutableStateOf<Pair<QuranRef, QuranPassage?>?>(null) }
     LaunchedEffect(ref, quranLookup) {
@@ -861,12 +928,12 @@ fun EntryEditorDialog(
             icon = { Icon(Icons.Filled.Delete, null) },
             text = {
                 val message = if (usages > 0) {
-                    stringResource(R.string.delete_entry_used_message, initial.title, ArabicText.toArabicDigits(usages))
+                    stringResource(R.string.delete_entry_used_message, initial.title, uiDigits(usages))
                 } else {
                     stringResource(R.string.delete_entry_message, initial.title)
                 }
                 val groupsNote = if (groups > 0) {
-                    " " + stringResource(R.string.delete_entry_groups_note, ArabicText.toArabicDigits(groups))
+                    " " + stringResource(R.string.delete_entry_groups_note, uiDigits(groups))
                 } else ""
                 Text(message + groupsNote)
             },
@@ -921,7 +988,7 @@ fun GroupEntryCard(
     val border = group.type.colors().border
     val titles = group.items.mapNotNull { item ->
         library.entry(item.entryId)?.let { entry ->
-            if (item.count > 1) entry.title + " " + stringResource(R.string.times_count, ArabicText.toArabicDigits(item.count))
+            if (item.count > 1) entry.title + " " + stringResource(R.string.times_count, uiDigits(item.count))
             else entry.title
         }
     }
@@ -950,9 +1017,9 @@ fun GroupEntryCard(
                 }
                 Text(
                     text = listOf(
-                        stringResource(R.string.group_texts_count, ArabicText.toArabicDigits(titles.size)),
+                        stringResource(R.string.group_texts_count, uiDigits(titles.size)),
                         if (group.isChoice) {
-                            stringResource(R.string.group_required_short, ArabicText.toArabicDigits(group.required))
+                            stringResource(R.string.group_required_short, uiDigits(group.required))
                         } else "",
                         group.description,
                     ).filter { it.isNotBlank() }.joinToString(" • "),
@@ -962,7 +1029,7 @@ fun GroupEntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = titles.joinToString("، "),
+                    text = titles.joinToString(stringResource(R.string.list_separator)),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                     maxLines = 2,
@@ -1099,7 +1166,7 @@ fun GroupEditorDialog(
                         val missing = showErrors && items.isEmpty()
                         Column(Modifier.padding(top = 6.dp)) {
                             Text(
-                                text = stringResource(R.string.group_items) + " (" + ArabicText.toArabicDigits(items.size) + ")",
+                                text = stringResource(R.string.group_items) + " (" + uiDigits(items.size) + ")",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = if (missing) MaterialTheme.colorScheme.error else Color.Unspecified,
                             )
@@ -1187,7 +1254,7 @@ fun GroupEditorDialog(
             icon = { Icon(Icons.Filled.Delete, null) },
             text = {
                 Text(
-                    if (usages > 0) stringResource(R.string.delete_group_used_message, initial.title, ArabicText.toArabicDigits(usages))
+                    if (usages > 0) stringResource(R.string.delete_group_used_message, initial.title, uiDigits(usages))
                     else stringResource(R.string.delete_group_message, initial.title)
                 )
             },
@@ -1228,7 +1295,7 @@ private fun RequiredEditor(required: Int, size: Int, accent: Color, onChange: (I
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StepButton("−", stringResource(R.string.decrease), enabled = required > 1) { onChange(required - 1) }
                 Text(
-                    text = stringResource(R.string.choose_of, ArabicText.toArabicDigits(required), ArabicText.toArabicDigits(size)),
+                    text = stringResource(R.string.choose_of, uiDigits(required), uiDigits(size)),
                     style = MaterialTheme.typography.titleMedium,
                     color = accent,
                     textAlign = TextAlign.Center,
@@ -1240,8 +1307,8 @@ private fun RequiredEditor(required: Int, size: Int, accent: Color, onChange: (I
         Text(
             text = when {
                 size < 2 -> stringResource(R.string.required_needs_two)
-                custom -> stringResource(R.string.required_custom_hint, ArabicText.toArabicDigits(required))
-                else -> stringResource(R.string.choose_all, ArabicText.toArabicDigits(size))
+                custom -> stringResource(R.string.required_custom_hint, uiDigits(required))
+                else -> stringResource(R.string.choose_all, uiDigits(size))
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1286,7 +1353,7 @@ private fun GroupItemRow(
     ) {
         Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = ArabicText.toArabicDigits(number),
+                text = uiDigits(number),
                 style = MaterialTheme.typography.titleSmall,
                 color = type.surfaceAccent(),
                 modifier = Modifier.width(28.dp),
@@ -1322,7 +1389,7 @@ private fun CountButton(count: Int, accent: Color, onCountChange: (Int) -> Unit)
     var open by remember { mutableStateOf(false) }
     Box {
         TextButton(onClick = { open = true }) {
-            Text(stringResource(R.string.times_count, ArabicText.toArabicDigits(count)), color = accent)
+            Text(stringResource(R.string.times_count, uiDigits(count)), color = accent)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             val decrease = stringResource(R.string.decrease)
@@ -1334,7 +1401,7 @@ private fun CountButton(count: Int, accent: Color, onCountChange: (Int) -> Unit)
                     modifier = Modifier.semantics { contentDescription = decrease },
                 ) { Text("−", fontSize = 20.sp) }
                 Text(
-                    text = ArabicText.toArabicDigits(count),
+                    text = uiDigits(count),
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(min = 40.dp),
@@ -1347,7 +1414,7 @@ private fun CountButton(count: Int, accent: Color, onCountChange: (Int) -> Unit)
             HorizontalDivider()
             CountPresets.forEach { preset ->
                 DropdownMenuItem(
-                    text = { Text("×" + ArabicText.toArabicDigits(preset)) },
+                    text = { Text("×" + uiDigits(preset)) },
                     trailingIcon = if (preset == count) {
                         { Icon(Icons.Filled.Check, null, tint = accent) }
                     } else null,

@@ -95,7 +95,7 @@ import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.DhikraLogo
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.sectionIcon
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
 import com.example.dhikra.ui.home.HomeActions
 import com.example.dhikra.ui.home.NowChip
 import com.example.dhikra.ui.home.OverflowMenu
@@ -105,6 +105,9 @@ import com.example.dhikra.ui.prayer.rememberMinuteOfDay
 import com.example.dhikra.ui.prayer.untilText
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.MustardLight
+import com.example.dhikra.ui.uiDigits
+import com.example.dhikra.ui.prayer.shownName
+import com.example.dhikra.ui.AppLanguage
 
 /** Test tag of the day view's list. */
 const val DayTimelineTag = "day"
@@ -376,7 +379,7 @@ private fun ProgressCard(sections: List<ProgramSection>, state: UiState, modifie
                     gapSize = 0.dp,
                 )
                 Text(
-                    text = stringResource(R.string.progress_percent, ArabicText.toArabicDigits(Math.round(fraction * 100))),
+                    text = stringResource(R.string.progress_percent, uiDigits(Math.round(fraction * 100))),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = scheme.primary,
@@ -386,12 +389,12 @@ private fun ProgressCard(sections: List<ProgramSection>, state: UiState, modifie
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.today_progress), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = stringResource(R.string.progress_steps, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total)),
+                    text = stringResource(R.string.progress_steps, uiDigits(done), uiDigits(total)),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
                 Text(
-                    text = stringResource(R.string.progress_sections, ArabicText.toArabicDigits(complete), ArabicText.toArabicDigits(withSteps.size)),
+                    text = stringResource(R.string.progress_sections, uiDigits(complete), uiDigits(withSteps.size)),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
@@ -446,8 +449,8 @@ private fun ProgramCard(
                     Text(
                         text = stringResource(
                             R.string.program_summary,
-                            ArabicText.toArabicDigits(program.sections.size),
-                            ArabicText.toArabicDigits(program.itemCount),
+                            uiDigits(program.sections.size),
+                            uiDigits(program.itemCount),
                         ),
                         style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant,
@@ -522,9 +525,9 @@ private fun SectionListRow(
                 Text(
                     text = listOfNotNull(
                         section.anchor?.let { anchorLabel(it) },
-                        section.reminderMinutes?.let(::formatTimeArabic) ?: stringResource(R.string.no_reminder),
-                        stringResource(R.string.section_steps_count, ArabicText.toArabicDigits(total)),
-                        stringResource(R.string.steps_done, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total)),
+                        section.reminderMinutes?.let(::formatTime) ?: stringResource(R.string.no_reminder),
+                        stringResource(R.string.section_steps_count, uiDigits(total)),
+                        stringResource(R.string.steps_done, uiDigits(done), uiDigits(total)),
                     ).joinToString("  ·  "),
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant,
@@ -586,7 +589,7 @@ private fun NextPrayerPanel(timetable: PrayerTimetable?, nowMinutes: Int, onClic
                     Text(stringResource(next.prayer.label), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = formatTimeArabic(next.atMinutes),
+                        text = formatTime(next.atMinutes),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -605,7 +608,7 @@ private fun NextPrayerPanel(timetable: PrayerTimetable?, nowMinutes: Int, onClic
                     Icon(Icons.Outlined.LocationOn, null, tint = faint, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
                     Text(
-                        text = timetable.city.name,
+                        text = timetable.city.shownName,
                         style = MaterialTheme.typography.labelMedium,
                         color = faint,
                         maxLines = 1,
@@ -669,8 +672,11 @@ private fun scheduleRows(timeline: DayTimeline): List<ScheduleItem> = buildList 
     }
 }
 
-/** Width of the time column on the start side; the rail runs [RailInset] from its inner edge. */
-private val GutterWidth = 64.dp
+/**
+ * Width of the time column on the start side; the rail runs [RailInset] from its inner edge. English
+ * times («11:54 AM») are wider than Arabic ones («١١:٥٤ ص»).
+ */
+private val GutterWidth get() = if (AppLanguage.current == AppLanguage.EN) 84.dp else 64.dp
 private val RailInset = 9.dp
 private val RailWidth = 3.dp
 
@@ -725,7 +731,7 @@ private fun GutterTime(
 ) {
     val scheme = MaterialTheme.colorScheme
     Text(
-        text = formatTimeArabic(minutes),
+        text = formatTime(minutes),
         style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
         fontWeight = if (current || color != null) FontWeight.SemiBold else null,
         color = color ?: when {
@@ -782,7 +788,7 @@ private fun PrayerBand(period: DayPeriod) {
             Spacer(Modifier.width(8.dp))
         }
         Text(
-            text = stringResource(R.string.day_until, formatTimeArabic(period.end)),
+            text = stringResource(R.string.day_until, formatTime(period.end)),
             style = MaterialTheme.typography.labelMedium,
             color = ink.copy(alpha = 0.72f),
             maxLines = 1,
@@ -838,8 +844,8 @@ private fun SectionChip(
     val palette = LocalDhikraPalette.current
     val accent = if (finished) palette.done else colors.accent
     val meta = listOfNotNull(
-        section.reminderMinutes?.let(::formatTimeArabic),
-        stringResource(R.string.steps_done, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total)),
+        section.reminderMinutes?.let(::formatTime),
+        stringResource(R.string.steps_done, uiDigits(done), uiDigits(total)),
     ).joinToString("  ·  ")
     Surface(
         onClick = onClick,
@@ -937,7 +943,7 @@ private fun NowLine() {
     }
 }
 
-/** Today's Gregorian date (with the weekday) and Hijri (Umm al-Qura) date, in Arabic, in [timeZone]. */
+/** Today's Gregorian date (with the weekday) and Hijri (Umm al-Qura) date, in the app's language, in [timeZone]. */
 private fun todayDates(timeZone: String?): Pair<String, String> {
     val zone = android.icu.util.TimeZone.getTimeZone(timeZone ?: java.util.TimeZone.getDefault().id)
     val now = java.util.Date()
@@ -946,8 +952,13 @@ private fun todayDates(timeZone: String?): Pair<String, String> {
             .apply { this.timeZone = zone }
             .format(now)
     return runCatching {
-        format(android.icu.text.DateFormat.FULL, "ar@numbers=arab") to
-            format(android.icu.text.DateFormat.LONG, "ar@calendar=islamic-umalqura;numbers=arab")
+        if (AppLanguage.current == AppLanguage.AR) {
+            format(android.icu.text.DateFormat.FULL, "ar@numbers=arab") to
+                format(android.icu.text.DateFormat.LONG, "ar@calendar=islamic-umalqura;numbers=arab")
+        } else {
+            format(android.icu.text.DateFormat.FULL, "en") to
+                format(android.icu.text.DateFormat.LONG, "en@calendar=islamic-umalqura")
+        }
     }.getOrDefault("" to "")
 }
 

@@ -82,6 +82,7 @@ import com.example.dhikra.ui.theme.ForestLight
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.example.dhikra.ui.uiDigits
 
 // The pieces of the night-time look shared by the full-screen reader: a misbaha-like counter dial,
 // the buttons and the dark palette of the texts.
@@ -155,8 +156,8 @@ internal fun CounterDial(
 
     val description = stringResource(
         R.string.counter_description,
-        ArabicText.toArabicDigits(done),
-        ArabicText.toArabicDigits(target),
+        uiDigits(done),
+        uiDigits(target),
     )
     val countLabel = stringResource(R.string.reader_waiting)
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
@@ -307,7 +308,7 @@ private fun Pearl(done: Int, target: Int, complete: Boolean, modifier: Modifier 
                 label = "pearlCount",
             ) { value ->
                 Text(
-                    text = ArabicText.toArabicDigits(value),
+                    text = uiDigits(value),
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = ink,
@@ -322,7 +323,7 @@ private fun Pearl(done: Int, target: Int, complete: Boolean, modifier: Modifier 
                     }
                     Text(
                         text = if (finished) stringResource(R.string.counter_done)
-                        else stringResource(R.string.counter_of, ArabicText.toArabicDigits(target)),
+                        else stringResource(R.string.counter_of, uiDigits(target)),
                         style = MaterialTheme.typography.titleSmall,
                         color = ink.copy(alpha = 0.75f),
                     )

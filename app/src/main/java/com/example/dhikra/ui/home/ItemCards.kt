@@ -74,6 +74,7 @@ import com.example.dhikra.ui.components.icon
 import com.example.dhikra.ui.theme.ElementColors
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
+import com.example.dhikra.ui.uiDigits
 
 /**
  * One step of the schedule, as a card with only its header (type and title). Tapping a text opens
@@ -441,9 +442,9 @@ private fun GroupHeader(
     // A choice group: the reader picks the texts; its progress counts toward the number needed.
     val needed = if (item.isChoice) item.choose else total
     val progress = if (complete) stringResource(R.string.step_state_done)
-    else stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(needed))
+    else stringResource(R.string.group_progress, uiDigits(done), uiDigits(needed))
     val kind = if (item.isChoice) {
-        stringResource(R.string.group_choose, ArabicText.toArabicDigits(item.choose), ArabicText.toArabicDigits(total))
+        stringResource(R.string.group_choose, uiDigits(item.choose), uiDigits(total))
     } else {
         stringResource(R.string.group_label)
     }
@@ -513,7 +514,7 @@ fun GroupBadge(
             modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 4.dp),
         ) {
             Text(
-                text = ArabicText.toArabicDigits(count),
+                text = uiDigits(count),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(horizontal = 5.dp),
             )
@@ -525,9 +526,9 @@ fun GroupBadge(
 @Composable
 private fun repetitions(done: Int, target: Int): String =
     if (done in 1 until target) {
-        stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(target))
+        stringResource(R.string.group_progress, uiDigits(done), uiDigits(target))
     } else {
-        stringResource(R.string.times_count, ArabicText.toArabicDigits(target))
+        stringResource(R.string.times_count, uiDigits(target))
     }
 
 /** The hint at the end of a header that the card opens full screen. */

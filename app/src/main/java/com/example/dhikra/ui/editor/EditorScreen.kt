@@ -84,12 +84,13 @@ import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.PrayerTimetable
 import com.example.dhikra.ui.prayer.anchorLabel
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.icon
 import com.example.dhikra.ui.components.sectionIcon
+import com.example.dhikra.ui.uiDigits
 
 private sealed interface EditorDialog {
     data class Section(val section: ProgramSection?) : EditorDialog
@@ -446,9 +447,9 @@ private fun SectionHeaderRow(
                     }
                     Text(
                         text = (section.anchor?.let { anchorLabel(it) }
-                            ?: section.reminderMinutes?.let(::formatTimeArabic)
+                            ?: section.reminderMinutes?.let(::formatTime)
                             ?: stringResource(R.string.no_reminder)) +
-                            "  ·  " + stringResource(R.string.section_steps_count, ArabicText.toArabicDigits(section.trackableItems.size)),
+                            "  ·  " + stringResource(R.string.section_steps_count, uiDigits(section.trackableItems.size)),
                         style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant,
                     )
@@ -511,9 +512,9 @@ private fun ItemRow(
             modifier = Modifier.weight(1f),
         )
         val badge = when {
-            item.isChoice -> stringResource(R.string.group_choose, ArabicText.toArabicDigits(item.choose), ArabicText.toArabicDigits(item.members.size))
-            item.isGroup -> stringResource(R.string.group_count, ArabicText.toArabicDigits(item.members.size))
-            item.target > 1 -> stringResource(R.string.times_count, ArabicText.toArabicDigits(item.target))
+            item.isChoice -> stringResource(R.string.group_choose, uiDigits(item.choose), uiDigits(item.members.size))
+            item.isGroup -> stringResource(R.string.group_count, uiDigits(item.members.size))
+            item.target > 1 -> stringResource(R.string.times_count, uiDigits(item.target))
             else -> null
         }
         if (badge != null) {

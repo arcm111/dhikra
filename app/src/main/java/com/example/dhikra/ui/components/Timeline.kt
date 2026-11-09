@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.ui.theme.LocalDhikraPalette
+import com.example.dhikra.ui.uiDigits
 
 /** Progress of one step in the schedule. */
 enum class StepState { Done, Current, Upcoming }
@@ -153,10 +154,10 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
         },
         label = "nodeContainer",
     )
-    val description = stringResource(R.string.step_label, ArabicText.toArabicDigits(number)) +
+    val description = stringResource(R.string.step_label, uiDigits(number)) +
         when (state) {
-            StepState.Done -> "، " + stringResource(R.string.step_state_done)
-            StepState.Current -> "، " + stringResource(R.string.step_state_current)
+            StepState.Done -> stringResource(R.string.list_separator) + stringResource(R.string.step_state_done)
+            StepState.Current -> stringResource(R.string.list_separator) + stringResource(R.string.step_state_current)
             StepState.Upcoming -> ""
         }
     Box(

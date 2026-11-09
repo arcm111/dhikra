@@ -89,7 +89,7 @@ import com.example.dhikra.data.newId
 import com.example.dhikra.reminder.ReminderScheduler
 import com.example.dhikra.ui.components.SectionIconChoices
 import com.example.dhikra.ui.components.icon
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.home.label
 import com.example.dhikra.ui.library.EntryCard
@@ -97,6 +97,7 @@ import com.example.dhikra.ui.library.EntryEditorDialog
 import com.example.dhikra.ui.library.GroupEditorDialog
 import com.example.dhikra.ui.library.GroupEntryCard
 import com.example.dhikra.ui.theme.ReadingStyles
+import com.example.dhikra.ui.uiDigits
 
 private val SectionIcons = SectionIconChoices.map { it.first }
 
@@ -204,7 +205,7 @@ fun SectionEditorDialog(
                         )
                     } else {
                         OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(formatTimeArabic(minutes), style = MaterialTheme.typography.titleMedium)
+                            Text(formatTime(minutes), style = MaterialTheme.typography.titleMedium)
                         }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -304,7 +305,7 @@ private fun PrayerAnchorEditor(
     }
     Text(
         text = timetable?.let {
-            stringResource(R.string.anchor_today, formatTimeArabic(Math.floorMod(it.at(prayer) + offset, 24 * 60)))
+            stringResource(R.string.anchor_today, formatTime(Math.floorMod(it.at(prayer) + offset, 24 * 60)))
         } ?: stringResource(R.string.anchor_no_city),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -663,7 +664,7 @@ private fun CountEditor(
                 onClick = { onCountTextChange(preset.toString()) },
                 label = {
                     Text(
-                        text = "×" + ArabicText.toArabicDigits(preset),
+                        text = "×" + uiDigits(preset),
                         color = if (count == preset) accent else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },

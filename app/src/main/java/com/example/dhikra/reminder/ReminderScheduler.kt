@@ -27,12 +27,15 @@ import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramRepository
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.ReminderSound
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.localized
+import com.example.dhikra.ui.prayer.shownName
 import com.example.dhikra.ui.prayer.label
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import com.example.dhikra.ui.uiDigits
 
 /**
  * Schedules one daily alarm per program section that has a reminder time, and one per prayer
@@ -202,6 +205,7 @@ object ReminderScheduler {
 
     /** Creates (if needed) the channel of [sound] for [base] and returns its id. */
     private fun ensureChannel(context: Context, base: String, sound: ReminderSound): String {
+        @Suppress("NAME_SHADOWING") val context = context.localized() // in the app's language
         val id = channelId(base, sound)
         val (name, description) = when (base) {
             PRAYER_CHANNEL_ID -> R.string.prayer_channel to R.string.prayer_channel_desc
@@ -269,6 +273,7 @@ object ReminderScheduler {
     // Permission is verified by hasNotificationPermission() (POST_NOTIFICATIONS only exists on 33+).
     @SuppressLint("MissingPermission")
     fun showNotification(context: Context, section: ProgramSection, sound: ReminderSound = ReminderSound.Default) {
+        @Suppress("NAME_SHADOWING") val context = context.localized() // in the app's language
         if (!hasNotificationPermission(context)) return
 
         val channel = ensureChannel(context, CHANNEL_ID, sound)
@@ -279,7 +284,7 @@ object ReminderScheduler {
             .setColor(ContextCompat.getColor(context, R.color.brand_primary))
             .setContentTitle("${section.icon} ${section.title}")
             .setContentText(
-                context.getString(R.string.reminder_text, ArabicText.toArabicDigits(items.size))
+                context.getString(R.string.reminder_text, uiDigits(items.size))
             )
             .setStyle(NotificationCompat.BigTextStyle().bigText(preview))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -296,6 +301,7 @@ object ReminderScheduler {
      */
     @SuppressLint("MissingPermission")
     fun showPrayerNotification(context: Context, prayer: Prayer, timetable: PrayerTimetable, sound: ReminderSound) {
+        @Suppress("NAME_SHADOWING") val context = context.localized() // in the app's language
         if (!hasNotificationPermission(context)) return
 
         val channel = ensureChannel(context, PRAYER_CHANNEL_ID, sound)
@@ -306,7 +312,7 @@ object ReminderScheduler {
             .setColor(ContextCompat.getColor(context, R.color.brand_primary))
             .setContentTitle(context.getString(R.string.prayer_alert_title, name))
             .setContentText(
-                context.getString(R.string.prayer_alert_text, formatTimeArabic(timetable.at(prayer)), timetable.city.name)
+                context.getString(R.string.prayer_alert_text, formatTime(timetable.at(prayer)), timetable.city.shownName)
             )
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

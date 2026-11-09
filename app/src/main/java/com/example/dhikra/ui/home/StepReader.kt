@@ -103,6 +103,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import com.example.dhikra.ui.uiDigits
 
 /** What the reader can do on its screens; the screens themselves keep no progress of their own. */
 internal class ReaderActions(
@@ -228,15 +229,15 @@ private fun pageSubtitle(section: ProgramSection, page: ReaderPage): String {
         return stringResource(
             R.string.reader_group_position,
             page.step.title.ifBlank { stringResource(R.string.group_label) },
-            ArabicText.toArabicDigits(page.indexInGroup + 1),
-            ArabicText.toArabicDigits(page.step.members.size),
+            uiDigits(page.indexInGroup + 1),
+            uiDigits(page.step.members.size),
         )
     }
     val steps = section.trackableItems
     return stringResource(
         R.string.reader_position,
-        ArabicText.toArabicDigits(steps.indexOfFirst { it.id == page.step.id } + 1),
-        ArabicText.toArabicDigits(steps.size),
+        uiDigits(steps.indexOfFirst { it.id == page.step.id } + 1),
+        uiDigits(steps.size),
     )
 }
 

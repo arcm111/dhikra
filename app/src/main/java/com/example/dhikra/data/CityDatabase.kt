@@ -19,6 +19,8 @@ data class CityRecord(
     val latitude: Double,
     val longitude: Double,
     val timeZone: String,
+    val countryEn: String = "",
+    val regionEn: String = "",
 )
 
 /** What the prayer times read of the city database (an interface, so they can be tested on the JVM). */
@@ -110,6 +112,8 @@ class CityDatabase private constructor(context: Context) : CityLookup {
             latitude = cursor.getDouble(6),
             longitude = cursor.getDouble(7),
             timeZone = cursor.getString(8),
+            countryEn = cursor.getString(9) ?: "",
+            regionEn = cursor.getString(10) ?: "",
         )
     }
 
@@ -152,7 +156,7 @@ class CityDatabase private constructor(context: Context) : CityLookup {
         private const val FILE_NAME = "$FILE_PREFIX$VERSION.db"
 
         private const val CITY_SELECT =
-            "SELECT c.id, c.name, c.name_en, c.country, co.name, r.name, c.lat, c.lon, t.name " +
+            "SELECT c.id, c.name, c.name_en, c.country, co.name, r.name, c.lat, c.lon, t.name, co.name_en, r.name_en " +
                 "FROM city c JOIN country co ON co.code = c.country " +
                 "LEFT JOIN region r ON r.id = c.region JOIN timezone t ON t.id = c.timezone"
 

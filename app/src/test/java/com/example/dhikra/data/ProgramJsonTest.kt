@@ -42,15 +42,19 @@ class ProgramJsonTest {
     }
 
     @Test
-    fun defaultBundle_hasUniqueIdsAndUsesEveryTextAndGroup() {
+    fun defaultBundle_hasUniqueIds_andEveryStepFindsItsText() {
         val (program, library) = DefaultProgram.bundle()
         // Sections and steps share one id space: progress is stored per step id.
         val ids = program.sections.map { it.id } + program.sections.flatMap { s -> s.items.map { it.id } }
         assertEquals(ids.size, ids.toSet().size)
         assertEquals(library.entries.size, library.entries.map { it.id }.toSet().size)
         assertEquals(library.groups.size, library.groups.map { it.id }.toSet().size)
-        assertTrue(library.entries.all { program.reads(it.id, library) })
-        assertTrue(library.groups.all { program.groupUsages(it.id) > 0 })
+        // The default is the user's own program and library: the library may hold texts no step
+        // reads yet, but every step must find what it reads.
+        val resolved = program.resolvedWith(library)
+        program.sections.zip(resolved.sections).forEach { (section, withTexts) ->
+            assertEquals(section.title, section.items.size, withTexts.items.size)
+        }
         assertTrue(ItemType.CONTENT.all { library.ofType(it).isNotEmpty() })
         // A group lists texts of its own collection, each once.
         library.groups.forEach { group ->

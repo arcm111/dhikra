@@ -506,6 +506,38 @@
       "description": "السورة كاملة",
       "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
       "quran": "109:1-6"
+    },
+    {
+      "id": "ac02a8ab22ac",
+      "type": "quran",
+      "title": "سورة الإسراء",
+      "description": "السورة كاملة",
+      "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+      "quran": "17:1-111"
+    },
+    {
+      "id": "edd04c4d4872",
+      "type": "quran",
+      "title": "سورة الزمر",
+      "description": "السورة كاملة",
+      "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+      "quran": "39:1-75"
+    },
+    {
+      "id": "0527b39228d1",
+      "type": "quran",
+      "title": "سورة الملك",
+      "description": "السورة كاملة",
+      "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+      "quran": "67:1-30"
+    },
+    {
+      "id": "f132a082b4a4",
+      "type": "quran",
+      "title": "سورة السجدة",
+      "description": "السورة كاملة",
+      "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+      "quran": "32:1-30"
     }
   ],
   "groups": [
@@ -604,6 +636,39 @@
       "id": "group_baad_salat",
       "type": "dua",
       "title": "أدعية بعد الصلوات",
+      "description": "المأثورة عن النبي ﷺ",
+      "items": [
+        {
+          "entry": "dua_ajirni",
+          "count": 7
+        },
+        {
+          "entry": "dua_jubn"
+        },
+        {
+          "entry": "dua_aini"
+        },
+        {
+          "entry": "dua_khataya"
+        },
+        {
+          "entry": "dua_kufr_faqr"
+        },
+        {
+          "entry": "dua_qini_tabath"
+        },
+        {
+          "entry": "dua_ma_qaddamtu"
+        },
+        {
+          "entry": "dua_rabbi_aini"
+        }
+      ]
+    },
+    {
+      "id": "8f36c63fa770",
+      "type": "dua",
+      "title": "أدعية بعد الصلوات (الفجر)",
       "description": "المأثورة عن النبي ﷺ",
       "items": [
         {
@@ -975,7 +1040,8 @@
           "id": "fajr",
           "title": "اوراد صلاة الفجر",
           "icon": "🕌",
-          "reminder": "05:30",
+          "reminder": "05:22",
+          "prayer": "fajr",
           "note": "أذكار بعد الصلاة تقرأ بعد جميع الصلوات المفروضة",
           "items": [
             {
@@ -1019,7 +1085,7 @@
             {
               "id": "fajr_adiya",
               "type": "dua",
-              "group": "group_baad_salat"
+              "group": "8f36c63fa770"
             },
             {
               "id": "fajr_istighfar_hayy",
@@ -1038,7 +1104,8 @@
           "id": "51e91518cae0",
           "title": "اوراد صلاة الظهر",
           "icon": "🕌",
-          "reminder": "12:00",
+          "reminder": "11:54",
+          "prayer": "dhuhr",
           "items": [
             {
               "id": "4733ed5b3688",
@@ -1100,7 +1167,8 @@
           "id": "shurooq",
           "title": "بعد فترة الشروق",
           "icon": "☀️",
-          "reminder": "08:00",
+          "reminder": "07:23",
+          "prayer": "sunrise",
           "items": [
             {
               "id": "shurooq_adiya",
@@ -1147,7 +1215,9 @@
           "id": "duha",
           "title": "وقت الضحى",
           "icon": "🌕",
-          "reminder": "08:00",
+          "reminder": "07:43",
+          "prayer": "sunrise",
+          "offset": 20,
           "note": "يبدأ وقت صلاة الضحى بعد الشروق بـ20 دقيقة وينتهي قبل الظهر، وأفضل وقت: قبيل الظهر",
           "items": [
             {

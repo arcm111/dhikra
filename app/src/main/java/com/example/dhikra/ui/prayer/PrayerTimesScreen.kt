@@ -104,9 +104,10 @@ import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.starLattice
-import com.example.dhikra.ui.formatTimeArabic
+import com.example.dhikra.ui.formatTime
 import com.example.dhikra.ui.theme.MustardLight
 import com.example.dhikra.ui.theme.LocalDhikraPalette
+import com.example.dhikra.ui.uiDigits
 
 /**
  * Prayer times, opened from the main menu: the next prayer and the countdown to it, then the
@@ -275,7 +276,7 @@ private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onC
                 )
             }
             Text(
-                text = formatTimeArabic(next.atMinutes),
+                text = formatTime(next.atMinutes),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
@@ -293,7 +294,7 @@ private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onC
                 Icon(Icons.Outlined.LocationOn, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = timetable.city.name + "، " + timetable.city.country,
+                    text = timetable.city.shownName + stringResource(R.string.list_separator) + timetable.city.shownCountry,
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White.copy(alpha = 0.85f),
                 )
@@ -364,7 +365,7 @@ private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinute
                         )
                     }
                     Text(
-                        text = formatTimeArabic(timetable.at(prayer)),
+                        text = formatTime(timetable.at(prayer)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (isNext) FontWeight.SemiBold else null,
                         color = when {
@@ -596,7 +597,7 @@ private fun CalculationCard(countryCode: String, settings: PrayerSettings, onCha
 
 /** "+٢" / "−٣": minutes added to or taken from a time. */
 private fun signedMinutes(minutes: Int): String =
-    (if (minutes > 0) "+" else "−") + ArabicText.toArabicDigits(kotlin.math.abs(minutes))
+    (if (minutes > 0) "+" else "−") + uiDigits(kotlin.math.abs(minutes))
 
 @Composable
 private fun <T> ChoiceDialog(
@@ -663,7 +664,7 @@ private fun AdjustDialog(settings: PrayerSettings, onChange: (PrayerSettings) ->
                             Text("−", style = MaterialTheme.typography.titleLarge)
                         }
                         Text(
-                            text = if (value == 0) ArabicText.toArabicDigits(0) else signedMinutes(value),
+                            text = if (value == 0) uiDigits(0) else signedMinutes(value),
                             style = MaterialTheme.typography.titleMedium,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.width(44.dp),
@@ -787,10 +788,11 @@ private fun CityPickerSheet(
                 ) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(city.name, style = MaterialTheme.typography.titleSmall)
+                            Text(city.shownName, style = MaterialTheme.typography.titleSmall)
                             // Many cities share a name: the state / province tells them apart.
                             Text(
-                                text = listOf(city.region, city.country).filter { it.isNotBlank() }.distinct().joinToString("، "),
+                                text = listOf(city.shownRegion, city.shownCountry).filter { it.isNotBlank() }.distinct()
+                                    .joinToString(stringResource(R.string.list_separator)),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = scheme.onSurfaceVariant,
                             )

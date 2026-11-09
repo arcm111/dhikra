@@ -302,8 +302,8 @@ fun DhikraApp(viewModel: MainViewModel) {
             message = stringResource(
                 R.string.import_message,
                 program.name.ifBlank { stringResource(R.string.default_program_name) },
-                ArabicText.toArabicDigits(program.sections.size),
-                ArabicText.toArabicDigits(program.itemCount),
+                uiDigits(program.sections.size),
+                uiDigits(program.itemCount),
             ),
             confirm = stringResource(R.string.import_confirm),
             onConfirm = viewModel::confirmImport,
