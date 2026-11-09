@@ -1,6 +1,12 @@
 package com.example.dhikra.ui.library
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -419,9 +425,12 @@ fun CollectionScreen(
     onSaveGroup: (LibraryGroup) -> Unit,
     onDeleteGroup: (String) -> Unit,
     initialTab: Int = 0,
+    /** Saves a copy of a group (the copy, the original's id), placed right after the original. */
+    onSaveGroupCopy: (LibraryGroup, String) -> Unit = { copy, _ -> onSaveGroup(copy) },
 ) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     var query by rememberSaveable { mutableStateOf("") }
+    val resources = LocalResources.current
     var editing by remember { mutableStateOf<LibraryEntry?>(null) }
     var editingGroup by remember { mutableStateOf<LibraryGroup?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -486,6 +495,13 @@ fun CollectionScreen(
                         library = library,
                         inProgram = programs.groupUsages(group.id) > 0,
                         onClick = { editingGroup = group },
+                        onDuplicate = {
+                            // The copy is saved at once, right after the original, and opened to rename it.
+                            library.duplicateGroup(group.id) { resources.getString(R.string.section_copy, it) }?.let { (_, copy) ->
+                                onSaveGroupCopy(copy, group.id)
+                                editingGroup = copy
+                            }
+                        },
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -897,6 +913,8 @@ fun GroupEntryCard(
     modifier: Modifier = Modifier,
     inProgram: Boolean = false,
     selected: Boolean = false,
+    /** Adds a menu to the card with «تعديل» ([onClick]) and «تكرار» (this). */
+    onDuplicate: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = group.type.surfaceAccent()
@@ -928,10 +946,14 @@ fun GroupEntryCard(
                         modifier = Modifier.weight(1f),
                     )
                     if (inProgram) Pill(stringResource(R.string.entry_in_program), accent)
+                    if (onDuplicate != null) GroupCardMenu(onEdit = onClick, onDuplicate = onDuplicate)
                 }
                 Text(
                     text = listOf(
                         stringResource(R.string.group_texts_count, ArabicText.toArabicDigits(titles.size)),
+                        if (group.isChoice) {
+                            stringResource(R.string.group_required_short, ArabicText.toArabicDigits(group.required))
+                        } else "",
                         group.description,
                     ).filter { it.isNotBlank() }.joinToString(" • "),
                     style = MaterialTheme.typography.labelMedium,
@@ -948,6 +970,29 @@ fun GroupEntryCard(
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
+        }
+    }
+}
+
+/** A library group's menu: edit it, or make a copy of it. */
+@Composable
+private fun GroupCardMenu(onEdit: () -> Unit, onDuplicate: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.edit_group)) },
+                leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                onClick = { open = false; onEdit() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.duplicate)) },
+                leadingIcon = { Icon(Icons.Filled.Add, null) },
+                onClick = { open = false; onDuplicate() },
+            )
         }
     }
 }
@@ -980,6 +1025,8 @@ fun GroupEditorDialog(
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var description by rememberSaveable { mutableStateOf(initial?.description.orEmpty()) }
     var items by rememberSaveable(stateSaver = GroupItemsSaver) { mutableStateOf(initial?.items.orEmpty()) }
+    // All the texts required (0), or a minimum the reader chooses them to.
+    var required by rememberSaveable { mutableIntStateOf(initial?.required ?: 0) }
     var query by rememberSaveable { mutableStateOf("") }
     var showErrors by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -999,6 +1046,7 @@ fun GroupEditorDialog(
                 title = title.trim(),
                 description = description.trim(),
                 items = items,
+                required = required.takeIf { it in 1 until items.size } ?: 0,
             )
         )
     }
@@ -1043,6 +1091,9 @@ fun GroupEditorDialog(
                             maxLines = 4,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                    item(key = "required") {
+                        RequiredEditor(required = required, size = items.size, accent = accent, onChange = { required = it })
                     }
                     item(key = "items") {
                         val missing = showErrors && items.isEmpty()
@@ -1147,6 +1198,67 @@ fun GroupEditorDialog(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+/**
+ * How many of the group's texts are required: all of them, or a custom minimum (1 up to one less
+ * than the texts), the reader choosing which.
+ */
+@Composable
+private fun RequiredEditor(required: Int, size: Int, accent: Color, onChange: (Int) -> Unit) {
+    // A minimum needs at least two texts; one at or over the texts' number is "all".
+    val custom = required in 1 until size
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.choose_title), style = MaterialTheme.typography.labelLarge)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = !custom,
+                onClick = { onChange(0) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+            ) { Text(stringResource(R.string.required_all)) }
+            SegmentedButton(
+                selected = custom,
+                enabled = size > 1,
+                onClick = { if (!custom) onChange((size - 1).coerceAtLeast(1)) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+            ) { Text(stringResource(R.string.required_custom)) }
+        }
+        if (custom) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StepButton("−", stringResource(R.string.decrease), enabled = required > 1) { onChange(required - 1) }
+                Text(
+                    text = stringResource(R.string.choose_of, ArabicText.toArabicDigits(required), ArabicText.toArabicDigits(size)),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = accent,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                StepButton("+", stringResource(R.string.increase), enabled = required < size - 1) { onChange(required + 1) }
+            }
+        }
+        Text(
+            text = when {
+                size < 2 -> stringResource(R.string.required_needs_two)
+                custom -> stringResource(R.string.required_custom_hint, ArabicText.toArabicDigits(required))
+                else -> stringResource(R.string.choose_all, ArabicText.toArabicDigits(size))
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun StepButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.size(48.dp).semantics { contentDescription = description },
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Text(symbol, fontSize = 22.sp)
     }
 }
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -219,11 +220,14 @@ private fun StepSurface(
         animationSpec = tween(400),
         label = "stepElevation",
     )
+    // A finished step turns golden: its outline in the "done" amber, over a faint warm tint.
+    val done = LocalDhikraPalette.current.done
+    val border by animateColorAsState(if (complete) done else colors.border, tween(400), label = "stepBorder")
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
-        color = colors.container,
-        border = BorderStroke(if (complete) 1.5.dp else 2.dp, colors.border),
+        color = if (complete) done.copy(alpha = 0.07f).compositeOver(colors.container) else colors.container,
+        border = BorderStroke(if (complete) 1.5.dp else 2.dp, border),
         shadowElevation = elevation,
         content = content,
     )
@@ -329,7 +333,8 @@ private fun GroupCard(
     modifier: Modifier,
 ) {
     val total = item.members.size
-    val complete = total > 0 && done >= total
+    // Done once the texts needed are read: all of them, or the number of a choice group.
+    val complete = item.target > 0 && done >= item.target
     val colors = stepColors()
     // Kept while the step scrolls out of view: the list items are keyed by step id.
     var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
@@ -433,8 +438,15 @@ private fun GroupHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
+    // A choice group: the reader picks the texts; its progress counts toward the number needed.
+    val needed = if (item.isChoice) item.choose else total
     val progress = if (complete) stringResource(R.string.step_state_done)
-    else stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(total))
+    else stringResource(R.string.group_progress, ArabicText.toArabicDigits(done), ArabicText.toArabicDigits(needed))
+    val kind = if (item.isChoice) {
+        stringResource(R.string.group_choose, ArabicText.toArabicDigits(item.choose), ArabicText.toArabicDigits(total))
+    } else {
+        stringResource(R.string.group_label)
+    }
     val turn by animateFloatAsState(if (expanded) 180f else 0f, label = "groupChevron")
     Row(
         modifier = Modifier
@@ -457,7 +469,7 @@ private fun GroupHeader(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.group_label) + " • " + progress,
+                text = "$kind • $progress",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.accent,
             )

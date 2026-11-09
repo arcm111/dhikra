@@ -87,6 +87,40 @@ class DayTimelineTest {
     }
 
     @Test
+    fun periodsOverEarlierToday_arePassed_theNightIsNot() {
+        val periods = buildDayTimeline(sections, makkah, nowMinutes = 16 * 60).periods.associateBy { it.prayer }
+        assertEquals(true, periods.getValue(Prayer.FAJR).passed)
+        assertEquals(true, periods.getValue(Prayer.DHUHR).passed)
+        assertEquals(false, periods.getValue(Prayer.ASR).passed) // the current one
+        assertEquals(false, periods.getValue(Prayer.MAGHRIB).passed)
+        assertEquals(false, periods.getValue(Prayer.ISHA).passed)
+        // Its sections are passed with it.
+        val sunriseEntries = periods.getValue(Prayer.SUNRISE).entries.filterIsInstance<PeriodEntry.Section>()
+        assertEquals(listOf(true, true), sunriseEntries.map { it.passed })
+    }
+
+    @Test
+    fun afterMidnight_nothingOfTheComingDayIsPassed() {
+        val periods = buildDayTimeline(sections, makkah, nowMinutes = 2 * 60).periods
+        assertEquals(emptyList<Prayer?>(), periods.filter { it.passed }.map { it.prayer })
+    }
+
+    /** The current section is read on the city's clock, like the periods: the last one started. */
+    @Test
+    fun nowSection_isTheLastStartedInTheCurrentPeriod() {
+        // 23:00 in the city: «sleep» (22:30) has started, «night» (04:00) not yet.
+        val late = buildDayTimeline(sections, makkah, nowMinutes = 23 * 60)
+        assertEquals("sleep", late.nowSectionId)
+        // 05:00: both night sections have started; the earlier one is passed.
+        val early = buildDayTimeline(sections, makkah, nowMinutes = 5 * 60)
+        assertEquals("night", early.nowSectionId)
+        val isha = early.periods.last().entries.filterIsInstance<PeriodEntry.Section>()
+        assertEquals(listOf("sleep" to true, "night" to false), isha.map { it.section.id to it.passed })
+        // 13:00: the Dhuhr period has no section yet.
+        assertEquals(null, buildDayTimeline(sections, makkah, nowMinutes = 13 * 60).nowSectionId)
+    }
+
+    @Test
     fun withoutCity_onePeriodHoldsTheDay() {
         val timeline = buildDayTimeline(sections, timetable = null, nowMinutes = 5 * 60)
         assertEquals(listOf(null), timeline.periods.map { it.prayer })

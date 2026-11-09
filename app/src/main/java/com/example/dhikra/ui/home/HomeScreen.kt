@@ -123,6 +123,8 @@ class HomeActions(
     val onSetComplete: (ProgramItem, Boolean) -> Unit,
     val onResetItem: (ProgramItem) -> Unit,
     val onOpenPrayerTimes: () -> Unit = {},
+    /** Opens the editor on one section only. */
+    val onEditSection: (String) -> Unit = {},
 )
 
 private const val KEY_NOTE = "note"

@@ -81,7 +81,7 @@ data class UiState(
 
     /** Repetitions done today; for a group, how many of its texts are done. */
     fun doneCount(item: ProgramItem): Int =
-        if (item.isGroup) item.members.count(::isComplete)
+        if (item.isGroup) item.members.count(::isComplete).coerceAtMost(item.target)
         else (progress[item.id] ?: 0).coerceAtMost(item.target)
 
     fun isComplete(item: ProgramItem): Boolean = item.target > 0 && doneCount(item) >= item.target
@@ -117,24 +117,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val today = ProgramRepository.today()
             val loaded = withContext(Dispatchers.IO) {
                 val store = repository.load()
+                val timetable = repository.loadPrayerCity()?.let { prayerSource.timetable(it, today) }
                 UiState(
                     loading = false,
                     program = store.active,
                     programs = store.programs,
                     library = store.library,
-                    schedule = store.active.resolvedWith(store.library),
+                    schedule = store.active.resolvedWith(store.library).withPrayerTimes(timetable),
                     day = today,
                     progress = repository.loadProgress(today),
                     speeds = repository.loadSpeeds(),
                     defaultSpeed = repository.loadDefaultSpeed(),
                     textScale = repository.loadTextScale(),
-                    prayerTimes = repository.loadPrayerCity()?.let { prayerSource.timetable(it, today) },
+                    prayerTimes = timetable,
                     sectionSound = repository.loadSectionSound(),
                     prayerAlerts = repository.loadPrayerAlerts(),
                     prayerSettings = repository.loadPrayerSettings(),
                 )
             }
-            val now = currentSectionByTime(loaded.program)
+            val now = currentSectionByTime(loaded.schedule)
             val selected = pendingSectionSelection?.takeIf { loaded.program.section(it) != null } ?: now
             _state.update {
                 loaded.copy(
@@ -180,14 +181,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val current = _state.value
         if (current.loading) return
         val today = ProgramRepository.today()
-        val now = currentSectionByTime(current.program)
         val newDay = current.day != today
+        // A new day has its own prayer times, and the sections tied to them move with them.
+        val prayerTimes = if (newDay) current.prayerTimes?.let { t -> prayerSource.timetable(t.city.id, today) } else current.prayerTimes
+        val schedule = if (newDay) current.program.resolvedWith(current.library).withPrayerTimes(prayerTimes) else current.schedule
+        val now = currentSectionByTime(schedule)
         if (!newDay && now == current.nowSectionId) return
         _state.update {
             it.copy(
                 day = today,
                 progress = if (newDay) emptyMap() else it.progress,
-                prayerTimes = if (newDay) it.prayerTimes?.let { t -> prayerSource.timetable(t.city.id, today) } else it.prayerTimes,
+                prayerTimes = prayerTimes,
+                schedule = schedule,
                 nowSectionId = now,
                 selectedSectionId = now ?: it.selectedSectionId,
             )
@@ -274,11 +279,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             // The city is read from the bundled database: off the main thread.
             val timetable = withContext(Dispatchers.IO) { prayerSource.timetable(cityId, day) } ?: return@launch
-            _state.update { it.copy(prayerTimes = timetable) }
+            withPrayerTimes(timetable)
             withContext(Dispatchers.IO) {
                 repository.savePrayerCity(cityId)
                 ReminderScheduler.schedulePrayers(getApplication())
+                // Sections tied to a prayer follow the new city's times.
+                ReminderScheduler.scheduleAll(getApplication(), _state.value.program)
             }
+        }
+    }
+
+    /** Shows [timetable]'s prayer times, with the sections tied to a prayer at their times. */
+    private fun withPrayerTimes(timetable: PrayerTimetable) {
+        _state.update {
+            val schedule = it.program.resolvedWith(it.library).withPrayerTimes(timetable)
+            it.copy(prayerTimes = timetable, schedule = schedule, nowSectionId = currentSectionByTime(schedule))
         }
     }
 
@@ -291,9 +306,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val timetable = withContext(Dispatchers.IO) {
                 repository.savePrayerSettings(settings)
                 ReminderScheduler.schedulePrayers(getApplication())
+                ReminderScheduler.scheduleAll(getApplication(), _state.value.program)
                 cityId?.let { prayerSource.timetable(it, day) }
             }
-            if (timetable != null) _state.update { it.copy(prayerTimes = timetable) }
+            if (timetable != null) withPrayerTimes(timetable)
         }
     }
 
@@ -331,6 +347,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Adds or updates a group of library texts. */
     fun saveGroup(group: LibraryGroup) = edit { it.copy(library = it.library.upsertGroup(group)) }
 
+    /** Saves [copy], a copy of the group [originalId], right after it in the library. */
+    fun saveGroupCopy(copy: LibraryGroup, originalId: String) =
+        edit { it.copy(library = it.library.upsertGroup(copy, after = originalId)) }
+
     /** Deletes a group, together with the steps of every program that read it; its texts stay in the library. */
     fun deleteGroup(groupId: String) = editStore { it.withoutGroup(groupId) }
 
@@ -361,15 +381,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun apply(store: ProgramStore, reselect: Boolean = false) {
         val program = store.active
         _state.update { state ->
+            val schedule = program.resolvedWith(store.library).withPrayerTimes(state.prayerTimes)
             state.copy(
                 program = program,
                 programs = store.programs,
                 library = store.library,
-                schedule = program.resolvedWith(store.library),
-                selectedSectionId = if (reselect) currentSectionByTime(program)
+                schedule = schedule,
+                selectedSectionId = if (reselect) currentSectionByTime(schedule)
                 else state.selectedSectionId?.takeIf { program.section(it) != null }
                     ?: program.sections.firstOrNull()?.id,
-                nowSectionId = currentSectionByTime(program),
+                nowSectionId = currentSectionByTime(schedule),
             )
         }
     }

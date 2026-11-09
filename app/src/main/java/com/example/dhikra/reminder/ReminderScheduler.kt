@@ -59,9 +59,20 @@ object ReminderScheduler {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val previous = prefs.getStringSet(KEY_SCHEDULED, emptySet()).orEmpty()
 
+        // Sections tied to a prayer are reminded at that prayer's time each day, in the city's time.
+        val city = ProgramRepository(context).loadPrayerCity()
+        val source = appPrayerTimes(context)
+        val zone = city?.let { source.city(it)?.timeZone }?.let(TimeZone::getTimeZone) ?: TimeZone.getDefault()
         val scheduled = program.sections.mapNotNull { section ->
-            val minutes = section.reminderMinutes ?: return@mapNotNull null
-            schedule(context, alarmManager, alarmIntent(context, section.id), nextTrigger(minutes))
+            val anchor = section.anchor
+            val trigger = if (anchor != null && city != null) {
+                nextPrayerTrigger(Calendar.getInstance(zone)) { day ->
+                    source.timetable(city, day)?.at(anchor.prayer)?.plus(anchor.offsetMinutes)
+                }
+            } else {
+                null
+            } ?: section.reminderMinutes?.let(::nextTrigger) ?: return@mapNotNull null
+            schedule(context, alarmManager, alarmIntent(context, section.id), trigger)
             section.id
         }.toSet()
 

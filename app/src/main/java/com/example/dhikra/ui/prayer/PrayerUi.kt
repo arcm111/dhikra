@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.Prayer
+import com.example.dhikra.data.SectionAnchor
 import com.example.dhikra.ui.components.FajrIcon
 import com.example.dhikra.ui.components.MoonStarIcon
 import com.example.dhikra.ui.components.SunIcon
@@ -68,3 +69,16 @@ internal fun untilText(minutes: Int): String {
         stringResource(R.string.prayer_in_minutes, ArabicText.toArabicDigits(m))
     }
 }
+
+/** "عند دخول الوقت" / "بعد ١٥ د" / "قبل ١٠ د": a section's time from its prayer's. */
+@Composable
+internal fun anchorOffsetText(offset: Int): String = when {
+    offset > 0 -> stringResource(R.string.anchor_after, ArabicText.toArabicDigits(offset))
+    offset < 0 -> stringResource(R.string.anchor_before, ArabicText.toArabicDigits(-offset))
+    else -> stringResource(R.string.anchor_at)
+}
+
+/** "الفجر · بعد ١٥ د": the prayer a section's time follows. */
+@Composable
+internal fun anchorLabel(anchor: SectionAnchor): String =
+    stringResource(R.string.anchor_label, stringResource(anchor.prayer.label), anchorOffsetText(anchor.offsetMinutes))

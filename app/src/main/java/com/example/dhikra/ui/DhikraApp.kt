@@ -86,6 +86,11 @@ private object Route {
     const val PRAYER = "prayer"
     const val COLLECTION = "collection/"
 
+    /** The editor on one section only. */
+    const val EDITOR_SECTION = "editor-section/"
+
+    fun editorSection(sectionId: String) = EDITOR_SECTION + sectionId
+
     /** Separates the screens of the saved back stack. */
     const val SEPARATOR = "|"
 
@@ -170,6 +175,7 @@ fun DhikraApp(viewModel: MainViewModel) {
         onSetComplete = viewModel::setComplete,
         onResetItem = viewModel::resetItem,
         onOpenPrayerTimes = { navigate(Route.PRAYER) },
+        onEditSection = { sectionId -> navigate(Route.editorSection(sectionId)) },
     )
     val settingsActions = SettingsActions(
         onTextSize = { dialog = AppDialog.TextSize },
@@ -230,6 +236,7 @@ fun DhikraApp(viewModel: MainViewModel) {
                     onSaveEntry = viewModel::saveEntry,
                     onSaveGroup = viewModel::saveGroup,
                     onDelete = if (state.programs.size > 1) ({ dialog = AppDialog.DeleteProgram }) else null,
+                    prayerTimes = state.prayerTimes,
                 )
                 current == Route.SETTINGS -> SettingsScreen(
                     onBack = back,
@@ -261,11 +268,23 @@ fun DhikraApp(viewModel: MainViewModel) {
                     onDelete = viewModel::deleteEntry,
                     onSaveGroup = viewModel::saveGroup,
                     onDeleteGroup = viewModel::deleteGroup,
+                    onSaveGroupCopy = viewModel::saveGroupCopy,
                 )
                 current == Route.TODAY -> TodayScreen(
                     state = state,
                     actions = homeActions,
                     onOpenSection = viewModel::openSection,
+                    onEditProgram = viewModel::editProgram,
+                )
+                current.startsWith(Route.EDITOR_SECTION) -> EditorScreen(
+                    program = state.program,
+                    library = state.library,
+                    onBack = back,
+                    onEdit = viewModel::editProgram,
+                    onSaveEntry = viewModel::saveEntry,
+                    onSaveGroup = viewModel::saveGroup,
+                    sectionId = current.removePrefix(Route.EDITOR_SECTION),
+                    prayerTimes = state.prayerTimes,
                 )
                 else -> HomeScreen(
                     state = state,

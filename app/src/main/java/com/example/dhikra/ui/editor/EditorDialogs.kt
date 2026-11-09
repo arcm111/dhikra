@@ -72,6 +72,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.example.dhikra.R
+import com.example.dhikra.data.Prayer
+import com.example.dhikra.data.PrayerTimetable
+import com.example.dhikra.data.SectionAnchor
+import com.example.dhikra.ui.prayer.anchorOffsetText
+import com.example.dhikra.ui.prayer.label
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.data.ItemType
 import com.example.dhikra.data.Library
@@ -103,6 +108,8 @@ fun SectionEditorDialog(
     initial: ProgramSection?,
     onDismiss: () -> Unit,
     onSave: (ProgramSection) -> Unit,
+    /** Today's prayer times, to show what a time tied to a prayer comes to. */
+    timetable: PrayerTimetable? = null,
 ) {
     val context = LocalContext.current
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
@@ -110,6 +117,10 @@ fun SectionEditorDialog(
     var reminder by rememberSaveable { mutableStateOf(initial?.reminderMinutes) }
     var lastReminder by rememberSaveable { mutableIntStateOf(initial?.reminderMinutes ?: (5 * 60)) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
+    // A time tied to a prayer: the prayer, and the minutes after (or before) it.
+    var byPrayer by rememberSaveable { mutableStateOf(initial?.anchor != null) }
+    var anchorPrayer by rememberSaveable { mutableStateOf(initial?.anchor?.prayer ?: Prayer.FAJR) }
+    var offset by rememberSaveable { mutableIntStateOf(initial?.anchor?.offsetMinutes ?: 0) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
 
@@ -171,8 +182,30 @@ fun SectionEditorDialog(
                     )
                 }
                 reminder?.let { minutes ->
-                    OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(formatTimeArabic(minutes), style = MaterialTheme.typography.titleMedium)
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = !byPrayer,
+                            onClick = { byPrayer = false },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) { Text(stringResource(R.string.section_time_fixed)) }
+                        SegmentedButton(
+                            selected = byPrayer,
+                            onClick = { byPrayer = true },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) { Text(stringResource(R.string.section_time_prayer)) }
+                    }
+                    if (byPrayer) {
+                        PrayerAnchorEditor(
+                            prayer = anchorPrayer,
+                            offset = offset,
+                            timetable = timetable,
+                            onPrayer = { anchorPrayer = it },
+                            onOffset = { offset = it },
+                        )
+                    } else {
+                        OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(formatTimeArabic(minutes), style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                         !ReminderScheduler.canScheduleExactAlarms(context)
@@ -207,13 +240,15 @@ fun SectionEditorDialog(
                 if (title.isBlank()) {
                     showError = true
                 } else {
+                    val anchor = if (reminder != null && byPrayer) SectionAnchor(anchorPrayer, offset) else null
                     onSave(
                         (initial ?: ProgramSection(title = "")).copy(
                             title = title.trim(),
                             icon = icon,
                             reminderMinutes = reminder,
                             note = note.trim(),
-                        )
+                            anchor = anchor,
+                        ).withPrayerTimes(timetable)
                     )
                 }
             }) { Text(stringResource(R.string.save)) }
@@ -232,6 +267,48 @@ fun SectionEditorDialog(
             },
         )
     }
+}
+
+/**
+ * A section's time tied to a prayer: the prayer (the six times of the day) and how many minutes
+ * after — or before — it, with what that comes to today.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PrayerAnchorEditor(
+    prayer: Prayer,
+    offset: Int,
+    timetable: PrayerTimetable?,
+    onPrayer: (Prayer) -> Unit,
+    onOffset: (Int) -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Prayer.entries.forEach { option ->
+            FilterChip(
+                selected = option == prayer,
+                onClick = { onPrayer(option) },
+                label = { Text(stringResource(option.label)) },
+            )
+        }
+    }
+    val limit = ProgramJson.MAX_OFFSET
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedIconStep("−", stringResource(R.string.anchor_earlier)) { onOffset((offset - 5).coerceAtLeast(-limit)) }
+        Text(
+            text = anchorOffsetText(offset),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedIconStep("+", stringResource(R.string.anchor_later)) { onOffset((offset + 5).coerceAtMost(limit)) }
+    }
+    Text(
+        text = timetable?.let {
+            stringResource(R.string.anchor_today, formatTimeArabic(Math.floorMod(it.at(prayer) + offset, 24 * 60)))
+        } ?: stringResource(R.string.anchor_no_city),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -428,6 +505,7 @@ fun ItemEditorDialog(
                                 onClick = { groupId = group.id; showError = false },
                             )
                         }
+
                     } else if (isContent) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(

@@ -10,8 +10,11 @@ private const val MINUTES_PER_DAY = 24 * 60
 sealed interface PeriodEntry {
     val minutes: Int
 
-    /** A section of the program, at its reminder time. */
-    data class Section(val section: ProgramSection, override val minutes: Int) : PeriodEntry
+    /**
+     * A section of the program, at its reminder time; [passed] once a later section of the
+     * current period has started, or its period is over.
+     */
+    data class Section(val section: ProgramSection, override val minutes: Int, val passed: Boolean = false) : PeriodEntry
 
     /** The current time. */
     data class Now(override val minutes: Int) : PeriodEntry
@@ -32,12 +35,41 @@ data class DayPeriod(
     /** Minutes until [prayer] when it is the coming prayer, else null. */
     val untilPrayer: Int?,
     val entries: List<PeriodEntry>,
+    /** The period ended earlier today. */
+    val passed: Boolean = false,
 )
 
 /** The day at a glance: its prayer [periods] in order, and the sections with no time ([untimed]). */
 data class DayTimeline(val periods: List<DayPeriod>, val untimed: List<ProgramSection>) {
     /** Position of the period the current time falls in. */
     val currentIndex: Int get() = periods.indexOfFirst { it.current }
+
+    /**
+     * The section whose time it is: the last one to have started in the current period, read on
+     * the city's clock like the periods (so it always agrees with them). Null before the period's
+     * first section.
+     */
+    val nowSectionId: String?
+        get() = periods.firstOrNull { it.current }?.entries
+            ?.takeWhile { it !is PeriodEntry.Now }
+            ?.filterIsInstance<PeriodEntry.Section>()
+            ?.lastOrNull()?.section?.id
+}
+
+/** Marks what the current time has left behind: the sections before the current one, and [period]'s
+ * own sections when the whole period is over. */
+private fun markPassed(period: DayPeriod): DayPeriod {
+    if (period.passed) {
+        return period.copy(entries = period.entries.map { if (it is PeriodEntry.Section) it.copy(passed = true) else it })
+    }
+    if (!period.current) return period
+    val nowAt = period.entries.indexOfFirst { it is PeriodEntry.Now }
+    val lastStarted = period.entries.subList(0, nowAt.coerceAtLeast(0)).indexOfLast { it is PeriodEntry.Section }
+    return period.copy(
+        entries = period.entries.mapIndexed { index, entry ->
+            if (entry is PeriodEntry.Section && index < lastStarted) entry.copy(passed = true) else entry
+        }
+    )
 }
 
 /**
@@ -65,7 +97,7 @@ fun buildDayTimeline(
 
     if (timetable == null) {
         return DayTimeline(
-            listOf(DayPeriod(null, 0, MINUTES_PER_DAY, current = true, untilPrayer = null, ordered(timed + now, 0))),
+            listOf(markPassed(DayPeriod(null, 0, MINUTES_PER_DAY, current = true, untilPrayer = null, ordered(timed + now, 0)))),
             untimed,
         )
     }
@@ -75,13 +107,19 @@ fun buildDayTimeline(
         val start = timetable.at(prayer)
         val end = timetable.at(prayers[(index + 1) % prayers.size])
         fun within(minutes: Int) = offset(minutes, start) < offset(end, start)
-        DayPeriod(
-            prayer = prayer,
-            start = start,
-            end = end,
-            current = within(nowMinutes),
-            untilPrayer = next.inMinutes.takeIf { prayer == next.prayer },
-            entries = ordered(timed.filter { within(it.minutes) } + listOfNotNull(now.takeIf { within(nowMinutes) }), start),
+        val current = within(nowMinutes)
+        markPassed(
+            DayPeriod(
+                prayer = prayer,
+                start = start,
+                end = end,
+                current = current,
+                untilPrayer = next.inMinutes.takeIf { prayer == next.prayer },
+                entries = ordered(timed.filter { within(it.minutes) } + listOfNotNull(now.takeIf { current }), start),
+                // Over earlier today: it ended before now (the night period, which runs past
+                // midnight, is never "earlier today" unless it is the one going on).
+                passed = !current && start < end && end <= nowMinutes,
+            )
         )
     }
     return DayTimeline(periods, untimed)

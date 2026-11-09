@@ -48,6 +48,9 @@ object ProgramJson {
     const val FILE_EXTENSION = ".dhikra.json"
     const val MIME_TYPE = "application/json"
     const val MAX_COUNT = 100_000
+
+    /** How far (in minutes) a section's time can be set from its prayer's. */
+    const val MAX_OFFSET = 6 * 60
     private const val STORE_FORMAT = "dhikra.store"
     private const val STORE_VERSION = 1
 
@@ -211,6 +214,7 @@ object ProgramJson {
                 })
             }
         })
+        if (group.isChoice) put("required", group.required)
     }
 
     /** A group of known entries (each read once at most); groups without a title are dropped. */
@@ -230,6 +234,8 @@ object ProgramJson {
             title = title,
             description = json.optString("description").trim(),
             items = items,
+            // Some of the texts, or (0) all of them.
+            required = json.optInt("required", 0).takeIf { it in 1 until items.size } ?: 0,
         )
     }
 
@@ -238,6 +244,10 @@ object ProgramJson {
         put("title", section.title)
         putIfNotBlank("icon", section.icon)
         section.reminderMinutes?.let { put("reminder", formatTime24(it)) }
+        section.anchor?.let { anchor ->
+            put("prayer", anchor.prayer.name.lowercase())
+            if (anchor.offsetMinutes != 0) put("offset", anchor.offsetMinutes)
+        }
         putIfNotBlank("note", section.note)
         put("items", JSONArray().apply { section.items.forEach { put(encodeItem(it)) } })
     }
@@ -277,6 +287,8 @@ object ProgramJson {
             icon = json.optString("icon").ifBlank { "🕌" },
             reminderMinutes = parseTime24(json.optString("reminder")),
             note = json.optString("note").trim(),
+            anchor = Prayer.entries.firstOrNull { it.name.equals(json.optString("prayer"), ignoreCase = true) }
+                ?.let { SectionAnchor(it, json.optInt("offset", 0).coerceIn(-MAX_OFFSET, MAX_OFFSET)) },
             items = (0 until itemsJson.length()).mapNotNull { i ->
                 decodeItem(itemsJson.getJSONObject(i), context)
             },
@@ -301,7 +313,12 @@ object ProgramJson {
         if (groupId.isNotEmpty()) {
             // A group step takes its group's collection; its texts carry their own counts.
             val groupType = context.groups[groupId]?.type ?: type
-            return ProgramItem(id = id, type = groupType, note = note, groupId = groupId)
+            return ProgramItem(
+                id = id,
+                type = groupType,
+                note = note,
+                groupId = groupId,
+            )
         }
         val entryId = json.optString("entry").trim().ifEmpty {
             // Version 1: the text is embedded in the step. Move it into the library.

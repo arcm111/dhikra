@@ -203,7 +203,13 @@ internal fun HomeHeader(
                     onCreate = actions.onCreateProgram,
                 )
             },
-            actions = { OverflowMenu(actions) },
+            // The section view edits the section shown, not the whole program.
+            actions = {
+                OverflowMenu(
+                    actions = actions,
+                    editSection = sections.getOrNull(shownIndex)?.let { section -> { actions.onEditSection(section.id) } },
+                )
+            },
             expandedHeight = 56.dp,
             windowInsets = WindowInsets(0, 0, 0, 0),
             colors = headerAppBarColors(),
@@ -694,7 +700,7 @@ internal fun ProgramSwitcher(
 }
 
 @Composable
-internal fun OverflowMenu(actions: HomeActions) {
+internal fun OverflowMenu(actions: HomeActions, editSection: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -708,7 +714,11 @@ internal fun OverflowMenu(actions: HomeActions) {
                     leadingIcon = icon,
                     onClick = { open = false; onClick() },
                 )
-            entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, actions.onEdit)
+            if (editSection != null) {
+                entry(R.string.edit_this_section, { Icon(Icons.Outlined.Edit, null) }, editSection)
+            } else {
+                entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, actions.onEdit)
+            }
             entry(R.string.prayer_times, { Icon(PrayerIcon, null) }, actions.onOpenPrayerTimes)
             entry(R.string.library, { Icon(LibraryIcon, null) }, actions.onOpenLibrary)
             entry(R.string.settings, { Icon(Icons.Outlined.Settings, null) }, actions.onOpenSettings)

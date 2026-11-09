@@ -57,6 +57,13 @@ data class DhikraPalette(
     /** The immersive counter's "night" gradient. */
     val nightStart: Color,
     val nightEnd: Color,
+    /**
+     * Finished things (completed steps and sections): a golden amber between the secondary orange
+     * and the mustard, so "done" reads warm and distinct from the green of what is going on.
+     */
+    val done: Color,
+    /** Text and icons in [done]'s hue, dark/light enough to read on the background. */
+    val doneText: Color,
 )
 
 val LightPalette = DhikraPalette(
@@ -109,6 +116,8 @@ val LightPalette = DhikraPalette(
     onTabSelected = ForestDeep,
     nightStart = Color(0xFF163F2D),
     nightEnd = Color(0xFF07160F),
+    done = Color(0xFFD9A043),
+    doneText = Color(0xFF8C5A12),
 )
 
 val DarkPalette = DhikraPalette(
@@ -161,6 +170,8 @@ val DarkPalette = DhikraPalette(
     onTabSelected = Color(0xFF0C271B),
     nightStart = Color(0xFF133826),
     nightEnd = Color(0xFF050F0A),
+    done = Color(0xFFE5B261),
+    doneText = Color(0xFFF0C987),
 )
 
 val LocalDhikraPalette = staticCompositionLocalOf { LightPalette }

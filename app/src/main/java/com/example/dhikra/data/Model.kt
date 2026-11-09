@@ -63,8 +63,19 @@ data class LibraryGroup(
     val title: String,
     val description: String = "",
     val items: List<GroupItem> = emptyList(),
+    /**
+     * How many of the texts must be read for the group to be done, the reader choosing which (e.g.
+     * any 2 of 5); 0 when all of them are required.
+     */
+    val required: Int = 0,
 ) {
     fun contains(entryId: String): Boolean = items.any { it.entryId == entryId }
+
+    /** Whether only some of the texts are required: [required] of them, at the reader's choice. */
+    val isChoice: Boolean get() = required in 1 until items.size
+
+    /** The number of texts needed: [required], or all of them. */
+    val needed: Int get() = if (isChoice) required else items.size
 }
 
 /**
@@ -106,12 +117,22 @@ data class Library(
         },
     )
 
-    fun upsertGroup(group: LibraryGroup): Library {
+    /** Adds or replaces [group]; a new one goes right after the group [after] when given, else last. */
+    fun upsertGroup(group: LibraryGroup, after: String? = null): Library {
         val index = groups.indexOfFirst { it.id == group.id }
-        return copy(
-            groups = if (index < 0) groups + group
-            else groups.toMutableList().also { it[index] = group }
-        )
+        if (index >= 0) return copy(groups = groups.toMutableList().also { it[index] = group })
+        val anchor = after?.let { id -> groups.indexOfFirst { it.id == id } } ?: -1
+        return copy(groups = if (anchor < 0) groups + group else groups.toMutableList().also { it.add(anchor + 1, group) })
+    }
+
+    /**
+     * A copy of the group [groupId] under a fresh id and the [title] given, placed right after it;
+     * null when there is no such group.
+     */
+    fun duplicateGroup(groupId: String, title: (String) -> String): Pair<Library, LibraryGroup>? {
+        val group = group(groupId) ?: return null
+        val copy = group.copy(id = newId(), title = title(group.title))
+        return upsertGroup(copy, after = groupId) to copy
     }
 
     /** Removes a group; its texts stay in the library. */
@@ -151,8 +172,16 @@ data class ProgramItem(
      * each tracked on its own (its id is this step's id, a slash and the entry id).
      */
     val members: List<ProgramItem> = emptyList(),
+    /**
+     * Filled in from the library group when resolved: how many of its texts must be read for the
+     * step to be done, the reader choosing which (e.g. 2 of 5); 0 for all of them.
+     */
+    val choose: Int = 0,
 ) {
     val isGroup: Boolean get() = groupId.isNotEmpty()
+
+    /** A group step whose texts are a choice: only [choose] of them are needed. */
+    val isChoice: Boolean get() = isGroup && choose in 1 until members.size
 
     /**
      * Number of completions needed for this item to be considered done; for a group, the number of
@@ -162,6 +191,7 @@ data class ProgramItem(
         get() = when {
             type == ItemType.TASK -> 1
             type == ItemType.HEADING -> 0
+            isChoice -> choose
             isGroup -> members.size
             else -> count.coerceAtLeast(1)
         }
@@ -191,7 +221,13 @@ data class ProgramItem(
                 }
             }
             if (members.isEmpty()) return null
-            return copy(type = group.type, title = group.title, source = group.description, members = members)
+            return copy(
+                type = group.type,
+                title = group.title,
+                source = group.description,
+                members = members,
+                choose = group.required,
+            )
         }
         val entry = library.entry(entryId) ?: return null
         return copy(
@@ -204,16 +240,32 @@ data class ProgramItem(
     }
 }
 
+/** A section's time tied to a prayer: [offsetMinutes] after (or, negative, before) [prayer]'s time. */
+data class SectionAnchor(val prayer: Prayer, val offsetMinutes: Int = 0)
+
 data class ProgramSection(
     val id: String = newId(),
     val title: String,
     val icon: String = "🕌",
-    /** Daily reminder time as minutes from midnight, or null for no reminder. */
+    /**
+     * Daily reminder time as minutes from midnight, or null for no reminder. For a section tied to
+     * a prayer ([anchor]) it is that time on the day the times were last known, and today's is set
+     * from the day's prayer times ([withPrayerTimes]).
+     */
     val reminderMinutes: Int? = null,
     val note: String = "",
     val items: List<ProgramItem> = emptyList(),
+    /** The prayer the section's time follows, day by day; null for a fixed time. */
+    val anchor: SectionAnchor? = null,
 ) {
     val trackableItems: List<ProgramItem> get() = items.filter { it.type.isTrackable }
+
+    /** This section at its time on the day of [timetable]: a section tied to a prayer moves with it. */
+    fun withPrayerTimes(timetable: PrayerTimetable?): ProgramSection {
+        val anchor = anchor ?: return this
+        val prayerTime = timetable?.at(anchor.prayer) ?: return this
+        return copy(reminderMinutes = Math.floorMod(prayerTime + anchor.offsetMinutes, 24 * 60))
+    }
 }
 
 data class Program(
@@ -243,6 +295,11 @@ data class Program(
     }
 
     fun section(id: String?): ProgramSection? = sections.firstOrNull { it.id == id }
+
+    /** The sections tied to a prayer at their times on the day of [timetable]. */
+    fun withPrayerTimes(timetable: PrayerTimetable?): Program =
+        if (timetable == null || sections.none { it.anchor != null }) this
+        else copy(sections = sections.map { it.withPrayerTimes(timetable) })
 
     /** The program as displayed: library texts filled in, dangling references dropped. */
     fun resolvedWith(library: Library): Program = copy(
@@ -283,6 +340,22 @@ data class Program(
             sections = if (index < 0) sections + section
             else sections.toMutableList().also { it[index] = section }
         )
+    }
+
+    /**
+     * A copy of the section [sectionId] — its steps included, each with a fresh id so its progress
+     * and reminder are its own — right after it, titled by [title] (the original's when null).
+     */
+    fun duplicateSection(sectionId: String, title: ((String) -> String)? = null): Program {
+        val index = sections.indexOfFirst { it.id == sectionId }
+        if (index < 0) return this
+        val original = sections[index]
+        val copy = original.copy(
+            id = newId(),
+            title = title?.invoke(original.title) ?: original.title,
+            items = original.items.map { it.copy(id = newId()) },
+        )
+        return copy(sections = sections.toMutableList().also { it.add(index + 1, copy) })
     }
 
     fun removeSection(sectionId: String): Program =
