@@ -72,7 +72,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -96,6 +104,7 @@ import com.example.dhikra.ui.components.NoteIcon
 import com.example.dhikra.ui.components.ReaderText
 import com.example.dhikra.ui.components.UndoIcon
 import com.example.dhikra.ui.components.starLattice
+import com.example.dhikra.ui.components.verticalScrollbar
 import com.example.dhikra.ui.theme.MustardLight
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
@@ -117,6 +126,9 @@ internal class ReaderActions(
     val onNext: () -> Unit,
     val onClose: () -> Unit,
 )
+
+/** Lets a page's leftover scroll and fling reach the pager, see [StepReader]. */
+private val PassThroughNestedScroll = object : NestedScrollConnection {}
 
 /** Test tag of the full-screen reader. */
 const val StepReaderTag = "reader"
@@ -155,10 +167,18 @@ fun StepReader(
         LaunchedEffect(Unit) { onClose(startId) }
         return
     }
+    val initialPage = remember { pages.pageToOpen(startId, state::isComplete) }
+    // Moving on needs the screen shown done: the pager ends at the first screen not done yet from the
+    // one settled on (going back is always possible), and grows as soon as it is done.
+    val latestState by rememberUpdatedState(state)
+    var settled by remember { mutableIntStateOf(initialPage) }
     val pagerState = rememberPagerState(
-        initialPage = remember { pages.pageToOpen(startId, state::isComplete) },
-        pageCount = { pages.size },
+        initialPage = initialPage,
+        pageCount = { pages.reachableCount(settled, latestState::isComplete) },
     )
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { settled = it }
+    }
     val scope = rememberCoroutineScope()
 
     // Reading along only lasts as long as its screen is shown.
@@ -184,6 +204,10 @@ fun StepReader(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { pages[it].id },
+            // A swipe on a long text that is already at its end turns the page, fling included
+            // (see [EdgeHandOff]). The default connection drops that fling, so a swipe starting
+            // on the text only dragged the page a little and let it fall back.
+            pageNestedScrollConnection = PassThroughNestedScroll,
         ) { index ->
             val page = pages[index]
             val item = page.item
@@ -367,12 +391,24 @@ internal fun ReaderPageContent(
                 horizontalArrangement = Arrangement.spacedBy(SideGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val handOff = remember(scroll) { EdgeHandOff(scroll) }
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .then(handOff.modifier),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().verticalScroll(scroll).padding(vertical = 8.dp),
+                        // A text that fits does not scroll, so a swipe on it goes straight to the pager.
+                        // A long text scrolls in its own space, its scroll bar showing; the screen around it
+                        // (title, dial, buttons) stays in place.
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScrollbar(scroll, thumb = Color.White.copy(alpha = 0.55f))
+                            .verticalScroll(scroll, enabled = scroll.canScrollForward || scroll.canScrollBackward)
+                            .padding(vertical = 8.dp)
+                            .padding(end = if (scroll.maxValue > 0) 12.dp else 0.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         PageTexts(
@@ -426,6 +462,36 @@ internal fun ReaderPageContent(
             )
         }
     }
+}
+
+/**
+ * Between a long text's scroll and the pager: what is left of a swipe on the text (its drag and its
+ * fling) goes on to the pager only when the text was already at its end in that direction when the
+ * finger went down. A fling through the text stops at its edge; a new swipe from there turns the page.
+ */
+private class EdgeHandOff(private val scroll: ScrollState) : NestedScrollConnection {
+    private var startedAtTop = true
+    private var startedAtEnd = true
+
+    // Up the screen (negative) moves on to the next page; down goes back.
+    private fun passes(dy: Float) = if (dy < 0) startedAtEnd else startedAtTop
+
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+        if (available.y == 0f || passes(available.y)) Offset.Zero else available
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        if (available.y == 0f || passes(available.y)) Velocity.Zero else available
+
+    val modifier: Modifier = Modifier
+        .pointerInput(Unit) {
+            // Notes where the text stands when the finger goes down, without taking the touch.
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                startedAtTop = !scroll.canScrollBackward
+                startedAtEnd = !scroll.canScrollForward
+            }
+        }
+        .nestedScroll(this)
 }
 
 /**

@@ -108,7 +108,7 @@ class StepReaderTest {
                             onSelectProgram = {},
                             onCreateProgram = {},
                             onEdit = {},
-                            onOpenLibrary = {},
+                            onOpenCollection = {},
                             onOpenSettings = {},
                             onTextSize = {},
                             onResetToday = {},
@@ -357,37 +357,5 @@ class StepReaderTest {
             .fetchSemanticsNodes().isNotEmpty())
         assertTrue(rule.onAllNodes(hasContentDescription(string(R.string.section_finished)))
             .fetchSemanticsNodes().isNotEmpty())
-    }
-
-    @Test
-    fun header_handle_opensTheDay_andPickingASectionClosesIt() {
-        var selected: String? = null
-        show(onSelectSection = { selected = it })
-        assertFalse(isShown(dayList))
-        rule.onNode(hasContentDescription(string(R.string.sections_show)) and hasClickAction()).performClick()
-        rule.waitForIdle()
-        assertTrue(isShown(dayList))
-        // Opened, the header no longer offers the play button.
-        val shurooq = checkNotNull(schedule.section("shurooq")).title
-        assertFalse(rule.onAllNodes(hasContentDescription(string(R.string.start_now_section, shurooq)))
-            .fetchSemanticsNodes().isNotEmpty())
-
-        val duha = checkNotNull(schedule.section("duha")).title
-        rule.onNode(hasText(duha) and hasClickAction()).performClick()
-        rule.waitForIdle()
-        assertEquals("duha", selected)
-        assertFalse(isShown(dayList))
-    }
-
-    @Test
-    fun header_pulledDown_opensTheDay_andPushedUp_closesIt() {
-        show()
-        val panel = rule.onNodeWithTag(HeaderPanelTag)
-        panel.performTouchInput { swipeDown(startY = top + 4f, endY = top + 600f, durationMillis = 300) }
-        rule.waitForIdle()
-        assertTrue(isShown(dayList))
-        panel.performTouchInput { swipeUp(startY = bottom - 4f, endY = top, durationMillis = 300) }
-        rule.waitForIdle()
-        assertFalse(isShown(dayList))
     }
 }

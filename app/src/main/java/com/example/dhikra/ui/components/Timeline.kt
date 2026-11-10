@@ -46,6 +46,9 @@ import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.uiDigits
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 
 /** Progress of one step in the schedule. */
 enum class StepState { Done, Current, Upcoming }
@@ -71,7 +74,7 @@ enum class TimelineSide { Start, End }
 /** Width of the timeline column. */
 val TimelineGutter = 40.dp
 /** A step's circle on the timeline, numbered or checked: one size, so the timeline stays even. */
-val StepNodeSize = 22.dp
+val StepNodeSize = 26.dp
 private val LineWidth = 2.dp
 private val NodeGap = 5.dp
 private val RowSpacing = 14.dp
@@ -140,17 +143,18 @@ fun TimelineRow(
 }
 
 /**
- * A step's circle on the timeline: an empty ring in the theme's green while still to do (with a
+ * A step's circle on the timeline: a light green disc with its number while still to do (with a
  * soft breathing halo on the current step), filled with a check once done — the checked and
- * unchecked states of one round check box. [number] is only read out by screen readers.
+ * unchecked states of one round check box. [number] is shown inside while the step is to do.
  */
 @Composable
 fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    // To do: a light green disc with the step's number; done: filled green with a check.
     val container by animateColorAsState(
         targetValue = when (state) {
             StepState.Done -> scheme.primary
-            else -> scheme.surface
+            else -> scheme.primary.copy(alpha = 0.10f).compositeOver(scheme.surface)
         },
         label = "nodeContainer",
     )
@@ -175,6 +179,15 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
                 .border(if (state == StepState.Current) 2.dp else 1.5.dp, scheme.primary, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
+            if (state != StepState.Done) {
+                Text(
+                    text = uiDigits(number),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = scheme.primary,
+                    maxLines = 1,
+                )
+            }
             AnimatedVisibility(
                 visible = state == StepState.Done,
                 enter = scaleIn(initialScale = 0.3f) + fadeIn(),

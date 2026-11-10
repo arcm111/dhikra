@@ -15,7 +15,7 @@ import com.example.dhikra.data.PrayerCity
 import com.example.dhikra.ui.AppLanguage
 import com.example.dhikra.data.SectionAnchor
 import com.example.dhikra.ui.components.FajrIcon
-import com.example.dhikra.ui.components.MoonStarIcon
+import com.example.dhikra.ui.components.CrescentIcon
 import com.example.dhikra.ui.components.SunIcon
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -58,7 +58,7 @@ internal val Prayer.icon: ImageVector
     get() = when (this) {
         Prayer.FAJR, Prayer.SUNRISE, Prayer.MAGHRIB -> FajrIcon
         Prayer.DHUHR, Prayer.ASR -> SunIcon
-        Prayer.ISHA -> MoonStarIcon
+        Prayer.ISHA -> CrescentIcon
     }
 
 /** "بعد ١ س ٢٠ د" / "بعد ٢٠ د". */
@@ -92,3 +92,10 @@ val PrayerCity.shownCountry: String get() = english(countryEn) ?: country
 val PrayerCity.shownRegion: String get() = english(regionEn) ?: region
 
 private fun english(value: String): String? = value.takeIf { AppLanguage.current == AppLanguage.EN && it.isNotBlank() }
+
+/** "الفجر" (at the prayer time) or "الشروق بعد ٢٠ د": a section's prayer, briefly, for lists. */
+@Composable
+internal fun anchorShortLabel(anchor: SectionAnchor): String {
+    val prayer = stringResource(anchor.prayer.label)
+    return if (anchor.offsetMinutes == 0) prayer else prayer + " " + anchorOffsetText(anchor.offsetMinutes)
+}

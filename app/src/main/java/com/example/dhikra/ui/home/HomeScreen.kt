@@ -96,6 +96,7 @@ import com.example.dhikra.ui.components.DhikraLogo
 import com.example.dhikra.ui.components.HeadingNode
 import com.example.dhikra.ui.components.HeadingNodeSize
 import com.example.dhikra.ui.components.StepNode
+import com.example.dhikra.ui.components.SectionNoticeCard
 import com.example.dhikra.ui.components.StepNodeSize
 import com.example.dhikra.ui.components.StepState
 import com.example.dhikra.ui.components.TimelineRow
@@ -113,7 +114,8 @@ class HomeActions(
     val onSelectProgram: (String) -> Unit,
     val onCreateProgram: () -> Unit,
     val onEdit: () -> Unit,
-    val onOpenLibrary: () -> Unit,
+    /** Opens one of the library's collections (the library is a tab of the day view). */
+    val onOpenCollection: (ItemType) -> Unit,
     val onOpenSettings: () -> Unit,
     val onTextSize: () -> Unit,
     val onResetToday: () -> Unit,
@@ -125,6 +127,17 @@ class HomeActions(
     val onOpenPrayerTimes: () -> Unit = {},
     /** Opens the editor on one section only. */
     val onEditSection: (String) -> Unit = {},
+    /** The daily counter: open one dhikr's counter, add a dhikr (library entry id), take one off. */
+    val onOpenCounter: (String) -> Unit = {},
+    val onAddCounter: (String) -> Unit = {},
+    val onRemoveCounter: (String) -> Unit = {},
+    /** The favourites ([com.example.dhikra.data.Favourites] references): open one in the reader, mark or unmark one. */
+    val onOpenFavourite: (String) -> Unit = {},
+    val onToggleFavourite: (String) -> Unit = {},
+    /** Editing from the section view (a step held down): the program, a library text or group. */
+    val onEditProgram: ((com.example.dhikra.data.Program) -> com.example.dhikra.data.Program) -> Unit = {},
+    val onSaveEntry: (com.example.dhikra.data.LibraryEntry) -> Unit = {},
+    val onSaveGroup: (com.example.dhikra.data.LibraryGroup) -> Unit = {},
 )
 
 private const val KEY_NOTE = "note"
@@ -142,9 +155,11 @@ fun HomeScreen(
     state: UiState,
     actions: HomeActions,
     snackbarHostState: SnackbarHostState,
+    /** Back to the day view (the header's back button). */
+    onBack: () -> Unit = {},
 ) {
     // Another program is another set of tasks: its pages, tabs and scroll positions start afresh.
-    key(state.program.id) { ProgramHome(state, actions, snackbarHostState) }
+    key(state.program.id) { ProgramHome(state, actions, snackbarHostState, onBack) }
 }
 
 @Composable
@@ -152,6 +167,7 @@ private fun ProgramHome(
     state: UiState,
     actions: HomeActions,
     snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
 ) {
     val sections = state.schedule.sections
     val selectedIndex = sections.indexOfFirst { it.id == state.selectedSectionId }.coerceAtLeast(0)
@@ -163,20 +179,24 @@ private fun ProgramHome(
     KeepScreenOn(readerSection != null)
 
     val pagerState = rememberPagerState(initialPage = selectedIndex) { sections.size }
-    val expansion = rememberHeaderExpansion()
     // Height of the closed header: the page keeps exactly that much room for it. Until the
     // header has been measured, a close estimate keeps the first frame from jumping.
     val density = LocalDensity.current
     val statusBar = WindowInsets.statusBars.getTop(density)
     var headerHeight by remember {
-        mutableIntStateOf(statusBar + with(density) { (if (sections.isEmpty()) 60.dp else 130.dp).roundToPx() })
+        mutableIntStateOf(statusBar + with(density) { 80.dp.roundToPx() })
     }
-    BackHandler(enabled = expansion.expanded) { expansion.close() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             topBar = { Spacer(Modifier.fillMaxWidth().height(with(density) { headerHeight.toDp() })) },
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            // Reading the section shown: the screen's main action, floating in the bottom corner.
+            floatingActionButton = {
+                sections.getOrNull(pagerState.targetPage)?.let { section ->
+                    SectionPlayButton(section, state, onPlay = { stepId -> readerStartId = stepId })
+                }
+            },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
             if (sections.isEmpty()) {
@@ -221,7 +241,8 @@ private fun ProgramHome(
                     section = sections[page],
                     nextSection = nextUnfinishedSection(sections, page, state),
                     state = state,
-                    bottomInset = padding.calculateBottomPadding(),
+                    // Room under the last step for the floating play button.
+                    bottomInset = padding.calculateBottomPadding() + 80.dp,
                     actions = actions,
                     onOpenReader = { stepId -> readerStartId = stepId },
                     revealStepId = revealStepId?.takeIf { id -> sections[page].items.any { it.id == id } },
@@ -238,27 +259,13 @@ private fun ProgramHome(
             }
         }
 
-        // While the header is pulled open, the page dims behind it; a tap there closes it.
-        val fraction = expansion.fraction
-        if (fraction > 0f) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = fraction }
-                    .background(Color.Black.copy(alpha = 0.38f))
-                    .pointerInput(expansion) { detectTapGestures { expansion.close() } },
-            )
-        }
-
         HomeHeader(
             state = state,
             sections = sections,
             // The section the pager is on, or heading to: the header follows a swipe at once.
             shownIndex = if (sections.isEmpty()) 0 else pagerState.targetPage,
-            expansion = expansion,
-            actions = actions,
-            onPlay = { stepId -> readerStartId = stepId },
-            onClosedHeight = { headerHeight = it },
+            onBack = onBack,
+            onHeight = { headerHeight = it },
         )
 
         // Full-screen reader: grows out of the schedule and shrinks back into it.
@@ -326,6 +333,9 @@ private fun SectionPage(
     val done = state.completedIn(section)
     val allDone = total > 0 && done == total
     val listState = rememberLazyListState()
+    // A step held down: what can be done with it (edit it, move it to another section).
+    var heldStep by remember { mutableStateOf<ProgramItem?>(null) }
+    heldStep?.let { held -> StepActions(section, held, state, actions, onDone = { heldStep = null }) }
 
     // The current step is the first unfinished one; the timeline is "reached" up to it.
     val currentStepId = items.firstOrNull { it.type.isTrackable && !state.isComplete(it) }?.id
@@ -336,7 +346,7 @@ private fun SectionPage(
     }
 
     // Coming back from the reader, bring the step it was on into view, a quarter of the way down.
-    val headerCount = (if (section.note.isNotBlank()) 1 else 0) + (if (items.isEmpty()) 1 else 0)
+    val headerCount = (if (section.note.isNotBlank()) 1 else 0) + section.notices.size + (if (items.isEmpty()) 1 else 0)
     LaunchedEffect(revealStepId) {
         val index = items.indexOfFirst { it.id == revealStepId }
         if (index >= 0) {
@@ -370,6 +380,12 @@ private fun SectionPage(
     ) {
         if (section.note.isNotBlank()) {
             item(key = KEY_NOTE) { SectionNote(section.note, Modifier.padding(alongTimeline).padding(bottom = 16.dp)) }
+        }
+        // The section's messages (information, warnings, what matters), above its steps.
+        section.notices.forEachIndexed { index, notice ->
+            item(key = "notice/$index") {
+                SectionNoticeCard(notice, Modifier.padding(alongTimeline).padding(bottom = 10.dp))
+            }
         }
         if (items.isEmpty()) {
             item(key = KEY_EMPTY) {
@@ -412,6 +428,7 @@ private fun SectionPage(
                     current = stepState == StepState.Current,
                     onOpenText = onOpenReader,
                     textDone = state::doneCount,
+                    onLongPress = { heldStep = it },
                 )
             }
         }

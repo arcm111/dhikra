@@ -119,6 +119,27 @@ class ProgramRepository(
         putString(KEY_PROGRESS, JSONObject(progress.filterValues { it > 0 }).toString())
     }
 
+    // ---- The daily counter's adhkar and the favourites: lists of ids, kept across days. ----
+
+    fun loadCounters(): List<String> = loadList(KEY_COUNTERS)
+
+    fun saveCounters(entryIds: List<String>) = saveList(KEY_COUNTERS, entryIds)
+
+    fun loadFavourites(): List<String> = loadList(KEY_FAVOURITES)
+
+    fun saveFavourites(refs: List<String>) = saveList(KEY_FAVOURITES, refs)
+
+    private fun loadList(key: String): List<String> =
+        prefs.getString(key, null)?.let { json ->
+            runCatching {
+                val array = org.json.JSONArray(json)
+                (0 until array.length()).map { array.getString(it) }.distinct()
+            }.getOrNull()
+        }.orEmpty()
+
+    private fun saveList(key: String, values: List<String>) =
+        prefs.edit { putString(key, org.json.JSONArray(values).toString()) }
+
     // ---- Reading speed (letters per second), learned per item plus a global default. ----
 
     fun loadSpeeds(): Map<String, Float> =
@@ -196,6 +217,8 @@ class ProgramRepository(
         private const val KEY_PROGRESS_DAY = "progress_day"
         private const val KEY_PROGRESS = "progress"
         private const val KEY_SPEEDS = "reading_speeds"
+        private const val KEY_COUNTERS = "daily_counters"
+        private const val KEY_FAVOURITES = "favourites"
         private const val KEY_DEFAULT_SPEED = "default_reading_speed"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_PRAYER_CITY = "prayer_city"

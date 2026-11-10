@@ -33,6 +33,17 @@ class AppLanguageTest {
         assertEquals("12", uiDigits("١٢")) // typed in Arabic digits, shown in Latin
     }
 
+    @Test
+    fun clock_is24Hour_withTheLanguagesDigits() {
+        AppLanguage.current = AppLanguage.AR
+        assertEquals("٧:٢٠", formatClock(7 * 60 + 20))
+        assertEquals("١٣:٠٤", formatClock(13 * 60 + 4))
+        assertEquals("٠:٣٠", formatClock(24 * 60 + 30)) // past midnight wraps
+        AppLanguage.current = AppLanguage.EN
+        assertEquals("13:04", formatClock(13 * 60 + 4))
+        assertEquals("23:59", formatClock(23 * 60 + 59))
+    }
+
     /** Every interface string has its English version, and no English string is left over. */
     @Test
     fun englishStrings_coverEveryKey() {

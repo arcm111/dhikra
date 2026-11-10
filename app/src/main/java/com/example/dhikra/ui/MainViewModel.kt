@@ -8,6 +8,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
+import com.example.dhikra.data.Favourites
+import com.example.dhikra.data.DailyCounter
 import com.example.dhikra.data.DefaultProgram
 import com.example.dhikra.data.Library
 import com.example.dhikra.data.LibraryEntry
@@ -75,7 +77,14 @@ data class UiState(
     val prayerAlerts: Map<Prayer, PrayerAlert> = emptyMap(),
     /** A section to show in the section view at once (a reminder was tapped); cleared once shown. */
     val openSectionRequest: String? = null,
+    /** The adhkar of the daily counter (library entry ids), in the order they were added. */
+    val counters: List<String> = emptyList(),
+    /** The library texts and groups marked as favourites, see [Favourites]. */
+    val favourites: List<String> = emptyList(),
 ) {
+    /** Today's count of [entryId] on the daily counter. */
+    fun counterCount(entryId: String): Int = progress[DailyCounter.key(entryId)] ?: 0
+
     /** What is stored: every program, the one being followed and the library. */
     val store: ProgramStore get() = ProgramStore(programs.ifEmpty { listOf(program) }, program.id, library)
 
@@ -133,6 +142,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sectionSound = repository.loadSectionSound(),
                     prayerAlerts = repository.loadPrayerAlerts(),
                     prayerSettings = repository.loadPrayerSettings(),
+                    counters = repository.loadCounters(),
+                    favourites = repository.loadFavourites(),
                 )
             }
             val now = currentSectionByTime(loaded.schedule)
@@ -256,6 +267,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         increment(item)
+    }
+
+    // ---------------------------------------------------------------- Daily counter
+
+    /** Adds the dhikr [entryId] to the daily counter (at the end; once). */
+    fun addCounter(entryId: String) {
+        val counters = _state.value.counters
+        if (entryId in counters) return
+        saveCounters(counters + entryId)
+    }
+
+    /** Takes [entryId] off the daily counter, with today's count. */
+    fun removeCounter(entryId: String) {
+        saveCounters(_state.value.counters - entryId)
+        updateProgress { it.remove(DailyCounter.key(entryId)) }
+    }
+
+    private fun saveCounters(counters: List<String>) {
+        _state.update { it.copy(counters = counters) }
+        viewModelScope.launch(Dispatchers.IO) { repository.saveCounters(counters) }
+    }
+
+    /** One more on today's count of [entryId]: it has no end, only rising targets. */
+    fun countDhikr(entryId: String) = updateProgress { progress ->
+        val key = DailyCounter.key(entryId)
+        progress[key] = (progress[key] ?: 0) + 1
+    }
+
+    fun undoDhikr(entryId: String) = updateProgress { progress ->
+        val key = DailyCounter.key(entryId)
+        val count = (progress[key] ?: 0) - 1
+        if (count > 0) progress[key] = count else progress.remove(key)
+    }
+
+    fun resetDhikr(entryId: String) = updateProgress { it.remove(DailyCounter.key(entryId)) }
+
+    // ---------------------------------------------------------------- Favourites
+
+    /** Marks a library text or group ([Favourites.entry] / [Favourites.group]) as a favourite, or not. */
+    fun toggleFavourite(ref: String) {
+        val favourites = _state.value.favourites.let { if (ref in it) it - ref else it + ref }
+        _state.update { it.copy(favourites = favourites) }
+        viewModelScope.launch(Dispatchers.IO) { repository.saveFavourites(favourites) }
     }
 
     private fun updateProgress(block: (MutableMap<String, Int>) -> Unit) {

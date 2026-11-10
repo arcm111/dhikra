@@ -37,3 +37,27 @@ fun List<ReaderPage>.pageToOpen(stepId: String, isComplete: (ProgramItem) -> Boo
     val ofStep = withIndex().filter { it.value.step.id == stepId }
     return (ofStep.firstOrNull { !isComplete(it.value.item) } ?: ofStep.firstOrNull())?.index ?: 0
 }
+
+/**
+ * Whether the reader may move on from this screen: its text is done, or its whole group is. A text
+ * of a choice group (e.g. any 2 of 5) may be passed by, except the group's last one while the group
+ * is not done yet.
+ */
+fun ReaderPage.canMoveOn(isComplete: (ProgramItem) -> Boolean): Boolean = when {
+    isComplete(item) -> true
+    inGroup && isComplete(step) -> true
+    inGroup && step.isChoice -> indexInGroup < step.members.lastIndex
+    else -> false
+}
+
+/**
+ * How many screens the reader can reach from the screen [from]: every screen before it, and the
+ * following ones up to the first that is not done yet, which must be done (with its button or its
+ * count) before swiping on.
+ */
+fun List<ReaderPage>.reachableCount(from: Int, isComplete: (ProgramItem) -> Boolean): Int {
+    if (isEmpty()) return 0
+    val start = from.coerceIn(indices)
+    val stop = (start..lastIndex).firstOrNull { !this[it].canMoveOn(isComplete) } ?: lastIndex
+    return stop + 1
+}

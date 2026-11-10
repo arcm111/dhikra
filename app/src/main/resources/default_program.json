@@ -538,6 +538,12 @@
       "description": "السورة كاملة",
       "opening": "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
       "quran": "32:1-30"
+    },
+    {
+      "id": "bcf234b0c9da",
+      "type": "dua",
+      "title": "دعاء الإستخارة",
+      "text": "اللهم إني أستخيرك بعلمك، وأستقدرك بقدرتك، وأسألك من فضلك العظيم، فإنك تقدر ولا أقدر، وتعلم ولا أعلم وأنت علام الغيوب، اللهم إن كنت تعلم أن هذا الأمر (سمي حاجتك..) خير لي في ديني ومعاشي وعاقبة أمري فاقدره لي ويسره لي ثم بارك لي فيه، وإن كنت تعلم أن هذا الأمر شر لي في ديني ومعاشي وعاقبة أمري فاصرفه عني واصرفني عنه، واقدر لي الخير حيث كان ثم رضني به."
     }
   ],
   "groups": [
@@ -917,6 +923,27 @@
           "entry": "an_nas"
         }
       ]
+    },
+    {
+      "id": "e21f203c4fa4",
+      "type": "quran",
+      "title": "سور قبل النوم",
+      "description": "اقرأ واحدة من هذه السور قبل النوم",
+      "items": [
+        {
+          "entry": "ac02a8ab22ac"
+        },
+        {
+          "entry": "edd04c4d4872"
+        },
+        {
+          "entry": "f132a082b4a4"
+        },
+        {
+          "entry": "0527b39228d1"
+        }
+      ],
+      "required": 1
     }
   ],
   "programs": [
@@ -1012,25 +1039,24 @@
               "id": "qiyam_dhikr",
               "type": "task",
               "text": "ذكر قيام الليل"
-            },
+            }
+          ]
+        },
+        {
+          "id": "21fa59f34939",
+          "title": "قبل صلاة الفجر",
+          "icon": "🕌",
+          "reminder": "05:24",
+          "prayer": "fajr",
+          "note": "يبدأ بعد الأذان وقبل الإقامة",
+          "items": [
             {
-              "id": "qiyam_fajr",
-              "type": "heading",
-              "title": "عند الفجر"
-            },
-            {
-              "id": "qiyam_adhan",
+              "id": "37fc618d064a",
               "type": "dua",
               "group": "group_adhan_iqama"
             },
             {
-              "id": "qiyam_majlis",
-              "type": "task",
-              "text": "مجلس تلاوة القرآن الكريم مع الجماعة في مجلس الروضة الشريفة",
-              "note": "فجرًا: من الساعة 5:00 حتى الشروق (بتوقيت بلدك وفق توقيت المدينة المنوّرة) • مدة المجلس: نصف ساعة"
-            },
-            {
-              "id": "qiyam_sunnat_fajr",
+              "id": "0e6632a42654",
               "type": "dua",
               "group": "group_sunnat_fajr"
             }
@@ -1040,8 +1066,9 @@
           "id": "fajr",
           "title": "اوراد صلاة الفجر",
           "icon": "🕌",
-          "reminder": "05:22",
+          "reminder": "05:54",
           "prayer": "fajr",
+          "offset": 30,
           "note": "أذكار بعد الصلاة تقرأ بعد جميع الصلوات المفروضة",
           "items": [
             {
@@ -1101,6 +1128,70 @@
           ]
         },
         {
+          "id": "e64edaf7007e",
+          "title": "اوراد صلاة المغرب",
+          "icon": "🕌",
+          "reminder": "16:22",
+          "prayer": "maghrib",
+          "note": "أذكار بعد الصلاة تقرأ بعد جميع الصلوات المفروضة",
+          "items": [
+            {
+              "id": "06499d5fecb8",
+              "type": "task",
+              "title": "صلاة المغرب",
+              "text": "صلي ثلاث ركع صلاة المغرب"
+            },
+            {
+              "id": "8042683a11bb",
+              "type": "heading",
+              "title": "أوراد بعد الصلاة"
+            },
+            {
+              "id": "9f26d71196f0",
+              "type": "dhikr",
+              "entry": "istighfar",
+              "count": 3
+            },
+            {
+              "id": "71adebb99081",
+              "type": "dhikr",
+              "entry": "adhkar_baad_salam"
+            },
+            {
+              "id": "08884fefe968",
+              "type": "dhikr",
+              "group": "group_tasbih_salat"
+            },
+            {
+              "id": "c71f69af4741",
+              "type": "quran",
+              "entry": "ayat_al_kursi"
+            },
+            {
+              "id": "f3b88379b570",
+              "type": "quran",
+              "group": "group_muawwidhat",
+              "note": "تقرأ مرة واحدة بعد الصلوات، وثلاثاً بعد الفجر والمغرب"
+            },
+            {
+              "id": "743f52e7eaf1",
+              "type": "dua",
+              "group": "group_baad_salat"
+            },
+            {
+              "id": "582a451f18b9",
+              "type": "dhikr",
+              "entry": "istighfar_hayy_qayyum",
+              "count": 3
+            },
+            {
+              "id": "2175dc4872a2",
+              "type": "dhikr",
+              "entry": "kalimat_khams"
+            }
+          ]
+        },
+        {
           "id": "51e91518cae0",
           "title": "اوراد صلاة الظهر",
           "icon": "🕌",
@@ -1108,10 +1199,15 @@
           "prayer": "dhuhr",
           "items": [
             {
+              "id": "d387878bbcbe",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
               "id": "4733ed5b3688",
               "type": "task",
               "title": "صلاة الظهر",
-              "text": "صلي ركعتي صلاة الفجر"
+              "text": "صلي أربع رك صلاة الظهر"
             },
             {
               "id": "54656f433784",
@@ -1158,6 +1254,142 @@
             },
             {
               "id": "0898339596fa",
+              "type": "dhikr",
+              "entry": "kalimat_khams"
+            }
+          ]
+        },
+        {
+          "id": "4ae6f0e05888",
+          "title": "اوراد صلاة العصر",
+          "icon": "🕌",
+          "reminder": "13:55",
+          "prayer": "asr",
+          "items": [
+            {
+              "id": "f2076038181f",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
+              "id": "db9aded77d4d",
+              "type": "task",
+              "title": "صلاة العصر",
+              "text": "صلي اربع ركع صلاة العصر"
+            },
+            {
+              "id": "c8021ce02350",
+              "type": "heading",
+              "title": "أوراد بعد الصلاة"
+            },
+            {
+              "id": "8db72fd423ac",
+              "type": "dhikr",
+              "entry": "istighfar",
+              "count": 3
+            },
+            {
+              "id": "42b43d00cb04",
+              "type": "dhikr",
+              "entry": "adhkar_baad_salam"
+            },
+            {
+              "id": "39935a916e47",
+              "type": "dhikr",
+              "group": "group_tasbih_salat"
+            },
+            {
+              "id": "2ba6209672fc",
+              "type": "quran",
+              "entry": "ayat_al_kursi"
+            },
+            {
+              "id": "6bead7fdf5cb",
+              "type": "quran",
+              "group": "dada18cc2c8e",
+              "note": "تقرأ مرة واحدة بعد الصلوات، وثلاثاً بعد الفجر والمغرب"
+            },
+            {
+              "id": "854fb401d151",
+              "type": "dua",
+              "group": "group_baad_salat"
+            },
+            {
+              "id": "839f26a0e24a",
+              "type": "dhikr",
+              "entry": "istighfar_hayy_qayyum",
+              "count": 3
+            },
+            {
+              "id": "74ec8b185d1f",
+              "type": "dhikr",
+              "entry": "kalimat_khams"
+            }
+          ]
+        },
+        {
+          "id": "c793ce6a451a",
+          "title": "اوراد صلاة العشاء",
+          "icon": "🕌",
+          "reminder": "18:14",
+          "prayer": "isha",
+          "items": [
+            {
+              "id": "2d54bec53e49",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
+              "id": "c83c55348c89",
+              "type": "task",
+              "title": "صلاة العشاء",
+              "text": "صلي اربع ركع صلاة العشاء"
+            },
+            {
+              "id": "1c1420a356d8",
+              "type": "heading",
+              "title": "أوراد بعد الصلاة"
+            },
+            {
+              "id": "a8043b031e57",
+              "type": "dhikr",
+              "entry": "istighfar",
+              "count": 3
+            },
+            {
+              "id": "9cd9479c4358",
+              "type": "dhikr",
+              "entry": "adhkar_baad_salam"
+            },
+            {
+              "id": "70844f39acc8",
+              "type": "dhikr",
+              "group": "group_tasbih_salat"
+            },
+            {
+              "id": "3a658257fbbf",
+              "type": "quran",
+              "entry": "ayat_al_kursi"
+            },
+            {
+              "id": "d0188600b531",
+              "type": "quran",
+              "group": "dada18cc2c8e",
+              "note": "تقرأ مرة واحدة بعد الصلوات، وثلاثاً بعد الفجر والمغرب"
+            },
+            {
+              "id": "8e36f1257b72",
+              "type": "dua",
+              "group": "group_baad_salat"
+            },
+            {
+              "id": "48ed0c201c2e",
+              "type": "dhikr",
+              "entry": "istighfar_hayy_qayyum",
+              "count": 3
+            },
+            {
+              "id": "c9390efb1d53",
               "type": "dhikr",
               "entry": "kalimat_khams"
             }
@@ -1213,9 +1445,9 @@
         },
         {
           "id": "duha",
-          "title": "وقت الضحى",
+          "title": "صلاة الضحى",
           "icon": "🌕",
-          "reminder": "07:43",
+          "reminder": "07:45",
           "prayer": "sunrise",
           "offset": 20,
           "note": "يبدأ وقت صلاة الضحى بعد الشروق بـ20 دقيقة وينتهي قبل الظهر، وأفضل وقت: قبيل الظهر",
@@ -1240,14 +1472,42 @@
               "id": "duha_kalimat",
               "type": "dhikr",
               "entry": "kalimat_arbaa"
+            }
+          ]
+        },
+        {
+          "id": "c5d1ab6cd524",
+          "title": "صلاة الشكر",
+          "icon": "🌕",
+          "reminder": "08:05",
+          "prayer": "sunrise",
+          "offset": 40,
+          "notices": [
+            {
+              "kind": "info",
+              "text": "يبدأ وقت صلاة الضحى بعد الشروق بـ20 دقيقة وينتهي قبل الظهر - أفضل وقت قبيل الظهر"
+            }
+          ],
+          "items": [
+            {
+              "id": "e723110c08dc",
+              "type": "heading",
+              "title": "الصلاة"
             },
             {
-              "id": "salat_shukr",
+              "id": "26e5c3e3e837",
               "type": "task",
-              "text": "صلاة شكر (ركعتين أو أكثر)"
+              "title": "صلاة الشكر",
+              "text": "صلي ٢ - ٨ ركع تشكرا للّه تعالى",
+              "note": "سلم بعد كل ركعتين"
             },
             {
-              "id": "shukr_hamd",
+              "id": "f5e256fff06a",
+              "type": "heading",
+              "title": "أدعية بعد الصلاة"
+            },
+            {
+              "id": "d729381c0016",
               "type": "dua",
               "group": "group_hamd",
               "note": "تقرأ بعد صلاة الشكر"
@@ -1288,12 +1548,6 @@
               "type": "dhikr",
               "entry": "subhanallah_wabihamdihi",
               "count": 100
-            },
-            {
-              "id": "asr_majlis",
-              "type": "task",
-              "text": "حضور مجلس تلاوة القرآن الكريم الثاني مع الجماعة",
-              "note": "مساءً الساعة 7 (بتوقيت بلدك وفق توقيت المدينة المنوّرة) • مدة المجلس: نصف ساعة"
             }
           ]
         },
@@ -1333,8 +1587,8 @@
           "items": [
             {
               "id": "sleep_surahs",
-              "type": "task",
-              "text": "قراءة سور الإسراء والزمر والسجدة والملك (أو تكتفي بسورة الملك)"
+              "type": "quran",
+              "group": "e21f203c4fa4"
             },
             {
               "id": "sleep_awa",
@@ -1378,7 +1632,6 @@
           "title": "مجلس الصباح",
           "icon": "🕌",
           "reminder": "08:30",
-          "note": "لجميع مجالس القرآن الكريم والذكر",
           "items": [
             {
               "id": "open_heading",
@@ -1415,7 +1668,7 @@
             {
               "id": "21f3a18ac91b",
               "type": "heading",
-              "title": "أذكار المجلس"
+              "title": "المجلس"
             },
             {
               "id": "open_majlis",
@@ -1495,17 +1748,13 @@
             {
               "id": "7630b8c154ec",
               "type": "dua",
-              "entry": "salat_ibrahimiya"
+              "entry": "salat_ibrahimiya",
+              "count": 100
             },
             {
               "id": "7d085ee86b82",
               "type": "heading",
               "title": "الختم"
-            },
-            {
-              "id": "decf503db659",
-              "type": "dua",
-              "entry": "salat_ibrahimiya"
             },
             {
               "id": "7aebbb773ef1",

@@ -91,12 +91,17 @@ import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.icon
 import com.example.dhikra.ui.components.sectionIcon
 import com.example.dhikra.ui.uiDigits
+import com.example.dhikra.ui.components.ProgramIcon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 private sealed interface EditorDialog {
     data class Section(val section: ProgramSection?) : EditorDialog
     data class Item(val sectionId: String, val item: ProgramItem?) : EditorDialog
     data class DeleteSection(val section: ProgramSection) : EditorDialog
     data class DeleteItem(val sectionId: String, val item: ProgramItem) : EditorDialog
+    data class MoveItem(val sectionId: String, val item: ProgramItem) : EditorDialog
 }
 
 /** The editor's rows: the program's sections, one open at a time with its steps listed under it. */
@@ -330,6 +335,9 @@ fun EditorScreen(
                                 onMove = { delta -> onEdit { it.moveItem(row.section.id, item.id, delta) } },
                                 onDuplicate = { onEdit { it.duplicateItem(row.section.id, item.id) } },
                                 onDelete = { dialog = EditorDialog.DeleteItem(row.section.id, item) },
+                                onMoveToSection = if (program.sections.size > 1) {
+                                    { dialog = EditorDialog.MoveItem(row.section.id, item.resolvedWith(library) ?: item) }
+                                } else null,
                             )
                         }
                     }
@@ -386,6 +394,40 @@ fun EditorScreen(
                 dialog = null
             },
         )
+        is EditorDialog.MoveItem -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = {
+                Text(
+                    stringResource(R.string.move_to_section_title, d.item.title.ifBlank { d.item.text }),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            text = {
+                // A long program scrolls within the dialog.
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    program.sections.filter { it.id != d.sectionId }.forEach { target ->
+                        Surface(
+                            onClick = {
+                                onEdit { it.moveItemToSection(d.sectionId, d.item.id, target.id) }
+                                dialog = null
+                            },
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Transparent,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(Modifier.padding(vertical = 12.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(sectionIcon(target.icon), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.width(14.dp))
+                                Text(target.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+
         is EditorDialog.DeleteItem -> ConfirmDeleteDialog(
             message = stringResource(R.string.delete_item_message),
             onDismiss = { dialog = null },
@@ -484,6 +526,7 @@ private fun ItemRow(
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    onMoveToSection: (() -> Unit)? = null,
 ) {
     val colors = item.type.colors()
     Row(
@@ -533,6 +576,7 @@ private fun ItemRow(
             onMove = onMove,
             onDuplicate = onDuplicate,
             onDelete = onDelete,
+            onMoveToSection = onMoveToSection,
         )
     }
 }
@@ -546,6 +590,7 @@ private fun RowMenu(
     onMove: (Int) -> Unit,
     onDelete: () -> Unit,
     onDuplicate: (() -> Unit)? = null,
+    onMoveToSection: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -567,6 +612,11 @@ private fun RowMenu(
                 text = { Text(stringResource(R.string.move_down)) },
                 leadingIcon = { Icon(Icons.Filled.KeyboardArrowDown, null) },
                 onClick = { open = false; onMove(1) },
+            )
+            if (onMoveToSection != null) DropdownMenuItem(
+                text = { Text(stringResource(R.string.move_to_section)) },
+                leadingIcon = { Icon(ProgramIcon, null) },
+                onClick = { open = false; onMoveToSection() },
             )
             if (onDuplicate != null) DropdownMenuItem(
                 text = { Text(stringResource(R.string.duplicate)) },

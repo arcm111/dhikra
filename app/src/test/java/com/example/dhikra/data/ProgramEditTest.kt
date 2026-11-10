@@ -131,4 +131,36 @@ class ProgramEditTest {
         assertEquals(2, copy.required)
         assertEquals(null, library.duplicateGroup("zzz") { it })
     }
+
+    @Test
+    fun moveItemToSection_takesTheSameStepToTheEndOfTheOther() {
+        val moved = program.moveItemToSection("a", "a1", "b")
+        assertEquals(listOf("a2"), moved.sections[0].items.map { it.id })
+        // The same step and id: today's progress on it goes along.
+        assertEquals(listOf("a1"), moved.sections[1].items.map { it.id })
+        assertSame(program, program.moveItemToSection("a", "a1", "a"))
+        assertSame(program, program.moveItemToSection("a", "gone", "b"))
+        assertSame(program, program.moveItemToSection("a", "a1", "nowhere"))
+    }
+
+    @Test
+    fun updateItem_changesOnlyThatStep() {
+        val changed = program.updateItem("a", "a2") { it.copy(title = "z") }
+        assertEquals(listOf("x", "z"), changed.sections[0].items.map { it.title })
+    }
+
+    @Test
+    fun sectionNotices_roundTripThroughJson_inOrder_andBlankOnesAreDropped() {
+        val notices = listOf(
+            SectionNotice(NoticeKind.IMPORTANT, "لا تؤخر الصلاة"),
+            SectionNotice(NoticeKind.INFO, "تقرأ بعد كل صلاة"),
+            SectionNotice(NoticeKind.WARNING, "انتبه للوقت"),
+        )
+        val program = Program(name = "p", id = "p", sections = listOf(ProgramSection(id = "s", title = "s", notices = notices)))
+        val decoded = ProgramJson.decode(ProgramJson.encode(ProgramBundle(program, library))).program
+        assertEquals(notices, decoded.sections[0].notices)
+        // A section without messages has none.
+        val plain = ProgramJson.decode(ProgramJson.encode(ProgramBundle(this.program, library))).program
+        assertEquals(emptyList<SectionNotice>(), plain.sections[0].notices)
+    }
 }

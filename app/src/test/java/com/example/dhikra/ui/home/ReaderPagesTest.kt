@@ -74,4 +74,38 @@ class ReaderPagesTest {
     fun pageToOpen_ofAnUnknownStep_fallsBackToTheFirstScreen() {
         assertEquals(0, pages.pageToOpen("gone") { false })
     }
+
+    // ---- Moving on only once the screen shown is done
+
+    @Test
+    fun reachable_endsAtTheFirstScreenNotDoneFromTheOneShown() {
+        // Nothing done: from the first screen, only it.
+        assertEquals(1, pages.reachableCount(0) { false })
+        // The task done: on to the dhikr, which stops the way.
+        assertEquals(2, pages.reachableCount(0) { it.id == "task" })
+        // Everything done: every screen.
+        assertEquals(5, pages.reachableCount(0) { true })
+    }
+
+    @Test
+    fun reachable_keepsEveryScreenBefore_theOneShown() {
+        // Opened on the group's second text with nothing done: back is open, forward is not.
+        assertEquals(4, pages.reachableCount(3) { false })
+    }
+
+    @Test
+    fun aGroupDone_letsItsTextsBePassed() {
+        assertEquals(5, pages.reachableCount(2) { it.id == "group" })
+    }
+
+    @Test
+    fun aChoiceGroup_letsTextsBeSkipped_butNotItsLastWhileNotDone() {
+        val choice = group.copy(choose = 1)
+        val pages = readerPages(section.copy(items = listOf(task, choice)))
+        // The task done: the group's first two texts may be passed by, its last one must be done.
+        assertEquals(4, pages.reachableCount(0) { it.id == "task" })
+        assertTrue(pages[1].canMoveOn { false })
+        assertFalse(pages[3].canMoveOn { false })
+        assertTrue(pages[3].canMoveOn { it.id == "group" })
+    }
 }

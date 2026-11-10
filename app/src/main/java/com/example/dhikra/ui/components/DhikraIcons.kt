@@ -50,13 +50,6 @@ val FajrIcon: ImageVector = lineIcon(
     "M15.5,22H18",
 )
 
-/** Crescent with a small star: night / evening sections. */
-val MoonStarIcon: ImageVector = lineIcon(
-    "DhikraMoonStar",
-    "M15.8,3.2a8.8,8.8 0 1 0 5,14.1A7.2,7.2 0 0 1 15.8,3.2z",
-    "M18.4,3.1l0.9,1.9 2.1,0.3 -1.5,1.5 0.4,2.1 -1.9,-1 -1.9,1 0.4,-2.1 -1.5,-1.5 2.1,-0.3z",
-)
-
 /** Prayer niche with a hanging lamp. */
 val PrayerIcon: ImageVector = lineIcon(
     "DhikraPrayer",
@@ -183,6 +176,107 @@ val BeadsIcon: ImageVector = lineIcon(
 )
 
 /** Books side by side, the last one leaning: the library of texts. */
+/** A calendar page with today marked: the day view's «اليوم» tab. */
+val TodayIcon: ImageVector = lineIcon(
+    "DhikraToday",
+    "M5.5,5.5h13a2,2 0 0 1 2,2v11a2,2 0 0 1 -2,2h-13a2,2 0 0 1 -2,-2v-11a2,2 0 0 1 2,-2z",
+    "M8,3.5v4",
+    "M16,3.5v4",
+    "M3.5,10.5h17",
+    "M12,13.6a1.9,1.9 0 1 1 0,3.8a1.9,1.9 0 1 1 0,-3.8z",
+)
+
+/** A checklist, two steps ticked and one to go: the program and its sections. */
+val ProgramIcon: ImageVector = lineIcon(
+    "DhikraProgram",
+    "M3.8,6.6l1.6,1.6 2.8,-2.9",
+    "M11,7h9",
+    "M3.8,12.6l1.6,1.6 2.8,-2.9",
+    "M11,13h9",
+    "M6,17.7a1.3,1.3 0 1 1 0,2.6a1.3,1.3 0 1 1 0,-2.6z",
+    "M11,19h9",
+    autoMirror = true,
+)
+
+/** A digital tasbih — a round counter with its screen and button: the daily counter's tab. */
+val CounterIcon: ImageVector = lineIcon(
+    "DhikraCounter",
+    "M12,4.8a7.6,7.6 0 1 1 0,15.2a7.6,7.6 0 1 1 0,-15.2z",
+    "M12,2.4v2.4",
+    "M8.8,8.6h6.4a0.8,0.8 0 0 1 0.8,0.8v2.2a0.8,0.8 0 0 1 -0.8,0.8h-6.4a0.8,0.8 0 0 1 -0.8,-0.8v-2.2a0.8,0.8 0 0 1 0.8,-0.8z",
+    "M12,15a1.3,1.3 0 1 1 0,2.6a1.3,1.3 0 1 1 0,-2.6z",
+)
+
+private const val HEART = "M12,20.2s-7.6,-4.6 -7.6,-10.3a4.3,4.3 0 0 1 7.6,-2.7a4.3,4.3 0 0 1 7.6,2.7c0,5.7 -7.6,10.3 -7.6,10.3z"
+
+/** A heart: the favourites' tab, and a text not marked yet. */
+val FavouriteIcon: ImageVector = lineIcon("DhikraFavourite", HEART)
+
+/** A filled heart: a text or group marked as a favourite. */
+val FavouriteFilledIcon: ImageVector = ImageVector.Builder(
+    name = "DhikraFavouriteFilled",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).addPath(
+    pathData = addPathNodes(HEART),
+    fill = SolidColor(Color.Black),
+    stroke = SolidColor(Color.Black),
+    strokeLineWidth = 1.8f,
+    strokeLineJoin = StrokeJoin.Round,
+).build()
+
+/** A clipboard with its to-do lines: a task step (something to do rather than read). */
+/**
+ * A section of the program: a card with its title bar and its steps on a little timeline, the way
+ * a section opens.
+ */
+val SectionIcon: ImageVector = lineIcon(
+    "DhikraSection",
+    "M5.5,3.8h13a2,2 0 0 1 2,2v12.4a2,2 0 0 1 -2,2h-13a2,2 0 0 1 -2,-2v-12.4a2,2 0 0 1 2,-2z",
+    "M3.5,8.4h17",
+    "M7.6,12.2v4.2",
+    "M7.6,11.9v0.1",
+    "M7.6,16.6v0.1",
+    "M10.6,12h6.8",
+    "M10.6,16.6h4.6",
+    autoMirror = true,
+)
+
+val TaskIcon: ImageVector = lineIcon(
+    "DhikraTask",
+    "M7.8,4.6h8.4a1.6,1.6 0 0 1 1.6,1.6v12.9a1.6,1.6 0 0 1 -1.6,1.6h-8.4a1.6,1.6 0 0 1 -1.6,-1.6v-12.9a1.6,1.6 0 0 1 1.6,-1.6z",
+    "M9.6,3.2h4.8v2.8h-4.8z",
+    "M9.4,10.4h5.2",
+    "M9.4,13.8h5.2",
+    "M9.4,17.2h3.2",
+)
+
+/** A triangle with an exclamation mark: a section's warning. */
+val WarningIcon: ImageVector = lineIcon(
+    "DhikraWarning",
+    "M10.6,4.6a1.6,1.6 0 0 1 2.8,0l7.4,13a1.6,1.6 0 0 1 -1.4,2.4h-14.8a1.6,1.6 0 0 1 -1.4,-2.4z",
+    "M12,9.6v4.4",
+    "M12,16.9v0.1",
+)
+
+/** A circle with an exclamation mark: something important in a section. */
+val ImportantIcon: ImageVector = lineIcon(
+    "DhikraImportant",
+    "M12,3.5a8.5,8.5 0 1 1 0,17a8.5,8.5 0 1 1 0,-17z",
+    "M12,7.6v5.6",
+    "M12,16.2v0.1",
+)
+
+/** A circle with an "i": something to know in a section. */
+val InfoIcon: ImageVector = lineIcon(
+    "DhikraInfo",
+    "M12,3.5a8.5,8.5 0 1 1 0,17a8.5,8.5 0 1 1 0,-17z",
+    "M12,10.8v5.6",
+    "M12,7.7v0.1",
+)
+
 val LibraryIcon: ImageVector = lineIcon(
     "DhikraLibrary",
     "M4.4,4.5h3.6V20H4.4z",
@@ -242,7 +336,7 @@ val ItemType.icon: ImageVector
         ItemType.DUA -> PrayingHandsIcon
         ItemType.HADITH -> ScrollIcon
         ItemType.DHIKR -> BeadsIcon
-        ItemType.TASK -> CheckCircleIcon
+        ItemType.TASK -> TaskIcon
         ItemType.HEADING -> StarOrnamentIcon
     }
 
@@ -261,7 +355,7 @@ fun sectionIcon(emoji: String): ImageVector = when (emoji) {
     "📜" -> ScrollIcon
     "✅" -> CheckCircleIcon
     "🌅", "🌄" -> FajrIcon
-    "⭐", "🌟", "✨", "۞" -> MoonStarIcon
+    "⭐", "🌟", "✨", "۞" -> CrescentIcon
     else -> MosqueIcon
 }
 
@@ -269,7 +363,7 @@ fun sectionIcon(emoji: String): ImageVector = when (emoji) {
 val SectionIconChoices: List<Pair<String, ImageVector>> = listOf(
     "🕌" to MosqueIcon,
     "🌅" to FajrIcon,
-    "🌙" to MoonStarIcon,
+    "🌙" to CrescentIcon,
     "☀️" to SunIcon,
     "📖" to QuranIcon,
     "📿" to BeadsIcon,

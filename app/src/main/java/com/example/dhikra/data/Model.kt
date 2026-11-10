@@ -243,6 +243,20 @@ data class ProgramItem(
 /** A section's time tied to a prayer: [offsetMinutes] after (or, negative, before) [prayer]'s time. */
 data class SectionAnchor(val prayer: Prayer, val offsetMinutes: Int = 0)
 
+/** How a section's message reads: something to know, a warning, or something important. */
+enum class NoticeKind(val key: String) {
+    INFO("info"),
+    WARNING("warning"),
+    IMPORTANT("important");
+
+    companion object {
+        fun fromKey(key: String?): NoticeKind = entries.firstOrNull { it.key == key } ?: INFO
+    }
+}
+
+/** A message at the top of a section: information, a warning or something important. */
+data class SectionNotice(val kind: NoticeKind, val text: String)
+
 data class ProgramSection(
     val id: String = newId(),
     val title: String,
@@ -257,6 +271,8 @@ data class ProgramSection(
     val items: List<ProgramItem> = emptyList(),
     /** The prayer the section's time follows, day by day; null for a fixed time. */
     val anchor: SectionAnchor? = null,
+    /** Messages shown at the top of the section, above its steps, in the order given. */
+    val notices: List<SectionNotice> = emptyList(),
 ) {
     val trackableItems: List<ProgramItem> get() = items.filter { it.type.isTrackable }
 
@@ -383,6 +399,21 @@ data class Program(
         updateSection(sectionId) { s ->
             s.copy(items = s.items.move(s.items.indexOfFirst { it.id == itemId }, delta))
         }
+
+    /**
+     * Moves the step [itemId] from the section [fromSectionId] to the end of [toSectionId]; the same
+     * step (and id), so today's progress on it goes along.
+     */
+    fun moveItemToSection(fromSectionId: String, itemId: String, toSectionId: String): Program {
+        if (fromSectionId == toSectionId) return this
+        val item = section(fromSectionId)?.items?.firstOrNull { it.id == itemId } ?: return this
+        if (section(toSectionId) == null) return this
+        return removeItem(fromSectionId, itemId).updateSection(toSectionId) { it.copy(items = it.items + item) }
+    }
+
+    /** The step [itemId] of [sectionId] changed by [transform] (e.g. to read another library text). */
+    fun updateItem(sectionId: String, itemId: String, transform: (ProgramItem) -> ProgramItem): Program =
+        updateSection(sectionId) { s -> s.copy(items = s.items.map { if (it.id == itemId) transform(it) else it }) }
 
     fun duplicateItem(sectionId: String, itemId: String): Program = updateSection(sectionId) { s ->
         val index = s.items.indexOfFirst { it.id == itemId }

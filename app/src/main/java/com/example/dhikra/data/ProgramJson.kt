@@ -249,6 +249,16 @@ object ProgramJson {
             if (anchor.offsetMinutes != 0) put("offset", anchor.offsetMinutes)
         }
         putIfNotBlank("note", section.note)
+        if (section.notices.isNotEmpty()) {
+            put("notices", JSONArray().apply {
+                section.notices.forEach { notice ->
+                    put(JSONObject().apply {
+                        put("kind", notice.kind.key)
+                        put("text", notice.text)
+                    })
+                }
+            })
+        }
         put("items", JSONArray().apply { section.items.forEach { put(encodeItem(it)) } })
     }
 
@@ -287,6 +297,13 @@ object ProgramJson {
             icon = json.optString("icon").ifBlank { "🕌" },
             reminderMinutes = parseTime24(json.optString("reminder")),
             note = json.optString("note").trim(),
+            notices = json.optJSONArray("notices")?.let { array ->
+                (0 until array.length()).mapNotNull { i ->
+                    val notice = array.optJSONObject(i) ?: return@mapNotNull null
+                    val text = notice.optString("text").trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    SectionNotice(NoticeKind.fromKey(notice.optString("kind")), text)
+                }
+            }.orEmpty(),
             anchor = Prayer.entries.firstOrNull { it.name.equals(json.optString("prayer"), ignoreCase = true) }
                 ?.let { SectionAnchor(it, json.optInt("offset", 0).coerceIn(-MAX_OFFSET, MAX_OFFSET)) },
             items = (0 until itemsJson.length()).mapNotNull { i ->

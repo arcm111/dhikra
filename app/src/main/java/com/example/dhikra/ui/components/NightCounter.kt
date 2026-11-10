@@ -123,9 +123,11 @@ internal fun CounterDial(
     onCount: () -> Unit,
     modifier: Modifier = Modifier.fillMaxWidth(),
     maxDiameter: Dp = Dp.Unspecified,
+    /** The ring's progress, when it is not [done] over [target] (the daily counter's stages). */
+    ringProgress: Float? = null,
 ) {
     val progress by animateFloatAsState(
-        targetValue = if (target <= 0) 0f else (done.toFloat() / target).coerceIn(0f, 1f),
+        targetValue = ringProgress?.coerceIn(0f, 1f) ?: if (target <= 0) 0f else (done.toFloat() / target).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "dialProgress",
     )

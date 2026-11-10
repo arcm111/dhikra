@@ -98,6 +98,12 @@ import com.example.dhikra.ui.library.GroupEditorDialog
 import com.example.dhikra.ui.library.GroupEntryCard
 import com.example.dhikra.ui.theme.ReadingStyles
 import com.example.dhikra.ui.uiDigits
+import com.example.dhikra.data.NoticeKind
+import com.example.dhikra.data.SectionNotice
+import com.example.dhikra.ui.components.accent
+import com.example.dhikra.ui.components.label
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.material.icons.filled.Delete
 
 private val SectionIcons = SectionIconChoices.map { it.first }
 
@@ -118,6 +124,8 @@ fun SectionEditorDialog(
     var reminder by rememberSaveable { mutableStateOf(initial?.reminderMinutes) }
     var lastReminder by rememberSaveable { mutableIntStateOf(initial?.reminderMinutes ?: (5 * 60)) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
+    // The section's messages, kept across rotation as "kind|text" lines.
+    var notices by rememberSaveable(stateSaver = NoticesSaver) { mutableStateOf(initial?.notices.orEmpty()) }
     // A time tied to a prayer: the prayer, and the minutes after (or before) it.
     var byPrayer by rememberSaveable { mutableStateOf(initial?.anchor != null) }
     var anchorPrayer by rememberSaveable { mutableStateOf(initial?.anchor?.prayer ?: Prayer.FAJR) }
@@ -234,6 +242,7 @@ fun SectionEditorDialog(
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                NoticesEditor(notices = notices, onChange = { notices = it })
             }
         },
         confirmButton = {
@@ -249,6 +258,7 @@ fun SectionEditorDialog(
                             reminderMinutes = reminder,
                             note = note.trim(),
                             anchor = anchor,
+                            notices = notices.map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() },
                         ).withPrayerTimes(timetable)
                     )
                 }
@@ -267,6 +277,63 @@ fun SectionEditorDialog(
                 showTimePicker = false
             },
         )
+    }
+}
+
+private val NoticesSaver = listSaver<List<SectionNotice>, String>(
+    save = { list -> list.map { it.kind.key + "|" + it.text } },
+    restore = { saved -> saved.map { SectionNotice(NoticeKind.fromKey(it.substringBefore('|')), it.substringAfter('|')) } },
+)
+
+/**
+ * The section's messages shown above its steps: as many as wanted, each one a kind (information,
+ * warning, important) and its text.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NoticesEditor(notices: List<SectionNotice>, onChange: (List<SectionNotice>) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.notices_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            TextButton(onClick = { onChange(notices + SectionNotice(NoticeKind.INFO, "")) }) {
+                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.notice_add))
+            }
+        }
+        notices.forEachIndexed { index, notice ->
+            fun update(changed: SectionNotice) = onChange(notices.toMutableList().also { it[index] = changed })
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = notice.kind.accent().copy(alpha = 0.08f),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            NoticeKind.entries.forEach { kind ->
+                                FilterChip(
+                                    selected = kind == notice.kind,
+                                    onClick = { update(notice.copy(kind = kind)) },
+                                    leadingIcon = { Icon(kind.icon, null, tint = kind.accent(), modifier = Modifier.size(18.dp)) },
+                                    label = { Text(stringResource(kind.label)) },
+                                )
+                            }
+                        }
+                        IconButton(onClick = { onChange(notices.toMutableList().also { it.removeAt(index) }) }) {
+                            Icon(Icons.Filled.Delete, stringResource(R.string.notice_remove), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = notice.text,
+                        onValueChange = { update(notice.copy(text = it)) },
+                        label = { Text(stringResource(R.string.notice_text)) },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth().padding(end = 6.dp),
+                    )
+                }
+            }
+        }
     }
 }
 

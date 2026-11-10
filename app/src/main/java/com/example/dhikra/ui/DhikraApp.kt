@@ -60,7 +60,6 @@ import com.example.dhikra.ui.editor.EditorScreen
 import com.example.dhikra.ui.home.HomeActions
 import com.example.dhikra.ui.home.HomeScreen
 import com.example.dhikra.ui.library.CollectionScreen
-import com.example.dhikra.ui.library.LibraryScreen
 import com.example.dhikra.ui.library.SettingsActions
 import com.example.dhikra.ui.library.SettingsScreen
 import com.example.dhikra.ui.prayer.PrayerTimesScreen
@@ -70,6 +69,9 @@ import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
 import kotlinx.coroutines.launch
+import com.example.dhikra.data.Favourites
+import com.example.dhikra.ui.counter.DailyCounterScreen
+import com.example.dhikra.ui.home.StepReader
 
 private enum class AppDialog { RestoreDefault, ResetToday, TextSize, NewProgram, DeleteProgram }
 
@@ -82,9 +84,14 @@ private object Route {
     const val HOME = "home"
     const val EDITOR = "editor"
     const val SETTINGS = "settings"
-    const val LIBRARY = "library"
     const val PRAYER = "prayer"
     const val COLLECTION = "collection/"
+
+    /** The daily counter of one dhikr (its library entry id follows). */
+    const val COUNTER = "counter/"
+
+    /** The favourites in the reader, opened on one of them (its reference follows). */
+    const val FAVOURITE = "favourite/"
 
     /** The editor on one section only. */
     const val EDITOR_SECTION = "editor-section/"
@@ -165,7 +172,7 @@ fun DhikraApp(viewModel: MainViewModel) {
         onSelectProgram = viewModel::selectProgram,
         onCreateProgram = { dialog = AppDialog.NewProgram },
         onEdit = { navigate(Route.EDITOR) },
-        onOpenLibrary = { navigate(Route.LIBRARY) },
+        onOpenCollection = { navigate(Route.collection(it)) },
         onOpenSettings = { navigate(Route.SETTINGS) },
         onTextSize = { dialog = AppDialog.TextSize },
         onResetToday = { dialog = AppDialog.ResetToday },
@@ -176,6 +183,14 @@ fun DhikraApp(viewModel: MainViewModel) {
         onResetItem = viewModel::resetItem,
         onOpenPrayerTimes = { navigate(Route.PRAYER) },
         onEditSection = { sectionId -> navigate(Route.editorSection(sectionId)) },
+        onOpenCounter = { entryId -> navigate(Route.COUNTER + entryId) },
+        onAddCounter = viewModel::addCounter,
+        onRemoveCounter = viewModel::removeCounter,
+        onOpenFavourite = { ref -> navigate(Route.FAVOURITE + ref) },
+        onToggleFavourite = viewModel::toggleFavourite,
+        onEditProgram = viewModel::editProgram,
+        onSaveEntry = viewModel::saveEntry,
+        onSaveGroup = viewModel::saveGroup,
     )
     val settingsActions = SettingsActions(
         onTextSize = { dialog = AppDialog.TextSize },
@@ -254,11 +269,6 @@ fun DhikraApp(viewModel: MainViewModel) {
                     settings = state.prayerSettings,
                     onSettingsChange = viewModel::setPrayerSettings,
                 )
-                current == Route.LIBRARY -> LibraryScreen(
-                    library = state.library,
-                    onBack = back,
-                    onOpenCollection = { navigate(Route.collection(it)) },
-                )
                 current.startsWith(Route.COLLECTION) -> CollectionScreen(
                     type = ItemType.fromKey(current.removePrefix(Route.COLLECTION)),
                     library = state.library,
@@ -269,6 +279,8 @@ fun DhikraApp(viewModel: MainViewModel) {
                     onSaveGroup = viewModel::saveGroup,
                     onDeleteGroup = viewModel::deleteGroup,
                     onSaveGroupCopy = viewModel::saveGroupCopy,
+                    favourites = state.favourites,
+                    onToggleFavourite = viewModel::toggleFavourite,
                 )
                 current == Route.TODAY -> TodayScreen(
                     state = state,
@@ -286,10 +298,41 @@ fun DhikraApp(viewModel: MainViewModel) {
                     sectionId = current.removePrefix(Route.EDITOR_SECTION),
                     prayerTimes = state.prayerTimes,
                 )
+                current.startsWith(Route.COUNTER) -> {
+                    val entry = state.library.entry(current.removePrefix(Route.COUNTER))
+                    if (entry == null) {
+                        LaunchedEffect(Unit) { back() }
+                    } else {
+                        DailyCounterScreen(
+                            entry = entry,
+                            count = state.counterCount(entry.id),
+                            textScale = state.textScale,
+                            onCount = { viewModel.countDhikr(entry.id) },
+                            onUndo = { viewModel.undoDhikr(entry.id) },
+                            onReset = { viewModel.resetDhikr(entry.id) },
+                            onClose = back,
+                        )
+                    }
+                }
+                current.startsWith(Route.FAVOURITE) -> {
+                    // The favourites read one after the other, like a section's steps.
+                    val title = stringResource(R.string.favourites_title)
+                    val section = remember(state.favourites, state.library, title) {
+                        Favourites.section(state.favourites, state.library, title)
+                    }
+                    StepReader(
+                        section = section,
+                        startId = Favourites.STEP_PREFIX + current.removePrefix(Route.FAVOURITE),
+                        state = state,
+                        actions = homeActions,
+                        onClose = { back() },
+                    )
+                }
                 else -> HomeScreen(
                     state = state,
                     snackbarHostState = snackbarHostState,
                     actions = homeActions,
+                    onBack = back,
                 )
             }
         }

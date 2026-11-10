@@ -24,3 +24,12 @@ fun formatTime(minutesOfDay: Int): String {
         time + " " + (if (h < 12) "AM" else "PM")
     }
 }
+
+/**
+ * A 24-hour time of day, as a calendar's column shows it: "١٣:٠٤" / "٥:٢٤" in Arabic, "13:04" /
+ * "5:24" in English (no leading zero: the Arabic zero is a dot).
+ */
+fun formatClock(minutesOfDay: Int): String {
+    val minutes = Math.floorMod(minutesOfDay, 24 * 60)
+    return uiDigits((minutes / 60).toString() + ":" + (minutes % 60).toString().padStart(2, '0'))
+}

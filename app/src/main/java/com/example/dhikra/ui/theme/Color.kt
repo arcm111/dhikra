@@ -20,8 +20,10 @@ val MustardLight = Color(0xFFE6CF86)
 val Rose = Color(0xFFC98286)
 /** Accent 3: sage, the hadiths. */
 val Sage = Color(0xFF8FA9A0)
-/** Accent 4: slate blue, the adhkar. */
+/** Accent 4: slate blue, the cards' labels, the tasks and the prayer rail. */
 val Slate = Color(0xFF7C91B0)
+/** Accent 5: a muted violet, the adhkar and what is important. */
+val Purple = Color(0xFF957BC2)
 val Ivory = Color(0xFFF9F7F2)
 
 /** Colors of one element style (Quran, Dua, Hadith...). */
@@ -44,6 +46,10 @@ data class DhikraPalette(
     val hadith: ElementColors,
     val dhikr: ElementColors,
     val task: ElementColors,
+    /** The neutral slate blue of the step cards' labels and counts, the tasks and the prayer rail. */
+    val slate: ElementColors,
+    /** The purple accent (the adhkar's colour), also what is important. */
+    val purple: Color,
     /** Decorative mustard: stars, dividers, timeline heading marks. */
     val ornament: Color,
     /** Mustard dark/light enough to be used for text on the background. */
@@ -64,25 +70,34 @@ data class DhikraPalette(
     val done: Color,
     /** Text and icons in [done]'s hue, dark/light enough to read on the background. */
     val doneText: Color,
+    /**
+     * The current time across the day's schedule: a calendar's red, apart from the green of what
+     * is going on, the blue of the other prayers and the gold of what is done.
+     */
+    val now: Color,
+    /** Steps done along a schedule card: a deep shade of the secondary orange, clear against the card. */
+    val progress: Color,
 )
 
 val LightPalette = DhikraPalette(
     // Each element card is a soft tint of its accent colour, with the accent deepened for text.
+    // The Quran: a fresher shade of the primary green.
     quran = ElementColors(
-        container = Color(0xFFFBF6E6),
-        border = Color(0xFFEDE0B6),
-        accent = Color(0xFF866D21),
+        container = Color(0xFFEEF5F0),
+        border = Color(0xFFD0E3D7),
+        accent = Color(0xFF3A7D5C),
         onAccent = Color.White,
-        ink = Color(0xFF2A2414),
-        highlight = Color(0x40D6B85A),
+        ink = Color(0xFF14261C),
+        highlight = Color(0x333A7D5C),
     ),
+    // The duas: a clear blue.
     dua = ElementColors(
-        container = Color(0xFFFAF0F0),
-        border = Color(0xFFEDD5D7),
-        accent = Color(0xFFA9545A),
+        container = Color(0xFFEDF4FA),
+        border = Color(0xFFCFE0EE),
+        accent = Color(0xFF2F6A9F),
         onAccent = Color.White,
-        ink = Color(0xFF2B1718),
-        highlight = Color(0x33C98286),
+        ink = Color(0xFF14222E),
+        highlight = Color(0x332F6A9F),
     ),
     hadith = ElementColors(
         container = Color(0xFFEFF4F2),
@@ -92,13 +107,14 @@ val LightPalette = DhikraPalette(
         ink = Color(0xFF1A2420),
         highlight = Color(0x408FA9A0),
     ),
+    // The adhkar: the purple accent.
     dhikr = ElementColors(
-        container = Color(0xFFEEF2F8),
-        border = Color(0xFFD3DCEA),
-        accent = Color(0xFF546C91),
+        container = Color(0xFFF4F0F9),
+        border = Color(0xFFE2D9EF),
+        accent = Color(0xFF7A5BA6),
         onAccent = Color.White,
-        ink = Color(0xFF172030),
-        highlight = Color(0x337C91B0),
+        ink = Color(0xFF221A2E),
+        highlight = Color(0x33957BC2),
     ),
     task = ElementColors(
         container = Color.White,
@@ -108,6 +124,15 @@ val LightPalette = DhikraPalette(
         ink = Color(0xFF1C1B17),
         highlight = Color(0x26174B35),
     ),
+    slate = ElementColors(
+        container = Color(0xFFEEF2F8),
+        border = Color(0xFFD3DCEA),
+        accent = Color(0xFF546C91),
+        onAccent = Color.White,
+        ink = Color(0xFF172030),
+        highlight = Color(0x337C91B0),
+    ),
+    purple = Color(0xFF7A5BA6),
     ornament = Mustard,
     ornamentText = Color(0xFF866D21),
     headerStart = Color(0xFF1F5E43),
@@ -118,25 +143,27 @@ val LightPalette = DhikraPalette(
     nightEnd = Color(0xFF07160F),
     done = Color(0xFFD9A043),
     doneText = Color(0xFF8C5A12),
+    now = Color(0xFFD23F3F),
+    progress = Color(0xFFC2611A),
 )
 
 val DarkPalette = DhikraPalette(
     // On dark cards the base colours are light enough for text as they are (or lifted a little).
     quran = ElementColors(
-        container = Color(0xFF221F15),
-        border = Color(0xFF453D24),
-        accent = Mustard,
-        onAccent = Color(0xFF2A2208),
-        ink = Color(0xFFF0EADA),
-        highlight = Color(0x40D6B85A),
+        container = Color(0xFF18211C),
+        border = Color(0xFF2F4237),
+        accent = Color(0xFF93CFAE),
+        onAccent = Color(0xFF0D2A1B),
+        ink = Color(0xFFE2EDE6),
+        highlight = Color(0x4093CFAE),
     ),
     dua = ElementColors(
-        container = Color(0xFF231A1B),
-        border = Color(0xFF463234),
-        accent = Color(0xFFDDA3A6),
-        onAccent = Color(0xFF3A1418),
-        ink = Color(0xFFF2E3E4),
-        highlight = Color(0x40C98286),
+        container = Color(0xFF182029),
+        border = Color(0xFF2E3E4E),
+        accent = Color(0xFF9CC3E6),
+        onAccent = Color(0xFF0E2538),
+        ink = Color(0xFFE2EAF2),
+        highlight = Color(0x407BA7D0),
     ),
     hadith = ElementColors(
         container = Color(0xFF1A201E),
@@ -147,12 +174,12 @@ val DarkPalette = DhikraPalette(
         highlight = Color(0x408FA9A0),
     ),
     dhikr = ElementColors(
-        container = Color(0xFF1A1E26),
-        border = Color(0xFF333C4D),
-        accent = Color(0xFFA9BAD3),
-        onAccent = Color(0xFF1A2840),
-        ink = Color(0xFFE3E8F0),
-        highlight = Color(0x407C91B0),
+        container = Color(0xFF1F1A27),
+        border = Color(0xFF3D3350),
+        accent = Color(0xFFC3ACE6),
+        onAccent = Color(0xFF2A1840),
+        ink = Color(0xFFEAE3F2),
+        highlight = Color(0x40957BC2),
     ),
     task = ElementColors(
         container = Color(0xFF1A1F1D),
@@ -162,6 +189,15 @@ val DarkPalette = DhikraPalette(
         ink = Color(0xFFE2E7E4),
         highlight = Color(0x408CC4A8),
     ),
+    slate = ElementColors(
+        container = Color(0xFF1A1E26),
+        border = Color(0xFF333C4D),
+        accent = Color(0xFFA9BAD3),
+        onAccent = Color(0xFF1A2840),
+        ink = Color(0xFFE3E8F0),
+        highlight = Color(0x407C91B0),
+    ),
+    purple = Color(0xFFC3ACE6),
     ornament = Mustard,
     ornamentText = MustardLight,
     headerStart = Color(0xFF194A35),
@@ -172,6 +208,8 @@ val DarkPalette = DhikraPalette(
     nightEnd = Color(0xFF050F0A),
     done = Color(0xFFE5B261),
     doneText = Color(0xFFF0C987),
+    now = Color(0xFFFF6E6E),
+    progress = Color(0xFFF5A35C),
 )
 
 val LocalDhikraPalette = staticCompositionLocalOf { LightPalette }

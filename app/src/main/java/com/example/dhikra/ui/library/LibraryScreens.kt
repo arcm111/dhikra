@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -128,6 +129,11 @@ import com.example.dhikra.ui.home.GroupBadge
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.theme.ReadingStyles
 import com.example.dhikra.ui.uiDigits
+import com.example.dhikra.data.Favourites
+import com.example.dhikra.ui.components.FavouriteIcon
+import com.example.dhikra.ui.components.FavouriteFilledIcon
+import androidx.compose.material.icons.outlined.Info
+import com.example.dhikra.data.newId
 
 /** Name of the library collection holding entries of this type. */
 val ItemType.collectionName: Int
@@ -168,7 +174,52 @@ private fun ScreenHeader(title: String, onBack: () -> Unit, tabs: (@Composable (
     }
 }
 
-/** The library, opened from the main menu: its four collections and how many texts each holds. */
+/**
+ * The library's four collections, each with how many texts and groups it holds: the library tab of
+ * the day view (and [LibraryScreen]).
+ */
+fun LazyListScope.libraryCollections(
+    library: Library,
+    onOpenCollection: (ItemType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    item {
+        Text(
+            text = stringResource(R.string.library_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+        )
+    }
+    item {
+        SettingsGroup(modifier) {
+            ItemType.CONTENT.forEachIndexed { index, type ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                val colors = type.colors()
+                SettingsRow(
+                    title = stringResource(type.collectionName),
+                    subtitle = stringResource(
+                        R.string.collection_counts,
+                        uiDigits(library.ofType(type).size),
+                        uiDigits(library.groupsOfType(type).size),
+                    ),
+                    leading = {
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape).background(
+                                colors.accent.copy(alpha = 0.13f)
+                            ),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(type.icon, null, tint = colors.accent, modifier = Modifier.size(22.dp)) }
+                    },
+                    chevron = true,
+                    onClick = { onOpenCollection(type) },
+                )
+            }
+        }
+    }
+}
+
+/** The library on a screen of its own: its four collections and how many texts each holds. */
 @Composable
 fun LibraryScreen(library: Library, onBack: () -> Unit, onOpenCollection: (ItemType) -> Unit) {
     Scaffold(
@@ -186,40 +237,7 @@ fun LibraryScreen(library: Library, onBack: () -> Unit, onOpenCollection: (ItemT
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.library_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
-                )
-            }
-            item {
-                SettingsGroup {
-                    ItemType.CONTENT.forEachIndexed { index, type ->
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        val colors = type.colors()
-                        SettingsRow(
-                            title = stringResource(type.collectionName),
-                            subtitle = stringResource(
-                                R.string.collection_counts,
-                                uiDigits(library.ofType(type).size),
-                                uiDigits(library.groupsOfType(type).size),
-                            ),
-                            leading = {
-                                Box(
-                                    Modifier.size(40.dp).clip(CircleShape).background(
-                                        colors.accent.copy(alpha = 0.13f)
-                                    ),
-                                    contentAlignment = Alignment.Center,
-                                ) { Icon(type.icon, null, tint = colors.accent, modifier = Modifier.size(22.dp)) }
-                            },
-                            chevron = true,
-                            onClick = { onOpenCollection(type) },
-                        )
-                    }
-                }
-            }
+            libraryCollections(library, onOpenCollection)
         }
     }
 }
@@ -376,11 +394,11 @@ private fun GroupTitle(title: Int) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable () -> Unit) {
+private fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) { Column { content() } }
 }
 
@@ -494,6 +512,9 @@ fun CollectionScreen(
     initialTab: Int = 0,
     /** Saves a copy of a group (the copy, the original's id), placed right after the original. */
     onSaveGroupCopy: (LibraryGroup, String) -> Unit = { copy, _ -> onSaveGroup(copy) },
+    /** The favourites ([Favourites] references), and marking or unmarking one. */
+    favourites: List<String> = emptyList(),
+    onToggleFavourite: (String) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -562,6 +583,8 @@ fun CollectionScreen(
                         library = library,
                         inProgram = programs.groupUsages(group.id) > 0,
                         onClick = { editingGroup = group },
+                        favourite = Favourites.group(group.id) in favourites,
+                        onToggleFavourite = { onToggleFavourite(Favourites.group(group.id)) },
                         onDuplicate = {
                             // The copy is saved at once, right after the original, and opened to rename it.
                             library.duplicateGroup(group.id) { resources.getString(R.string.section_copy, it) }?.let { (_, copy) ->
@@ -581,6 +604,8 @@ fun CollectionScreen(
                         entry = entry,
                         inProgram = programs.reads(entry.id, library),
                         onClick = { editing = entry },
+                        favourite = Favourites.entry(entry.id) in favourites,
+                        onToggleFavourite = { onToggleFavourite(Favourites.entry(entry.id)) },
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -685,6 +710,9 @@ fun EntryCard(
     modifier: Modifier = Modifier,
     inProgram: Boolean = false,
     selected: Boolean = false,
+    /** Adds the favourite heart: filled when [favourite], tapping it marks or unmarks the text. */
+    onToggleFavourite: (() -> Unit)? = null,
+    favourite: Boolean = false,
 ) {
     val colors = entry.type.colors()
     Surface(
@@ -711,6 +739,7 @@ fun EntryCard(
                 if (inProgram) {
                     com.example.dhikra.ui.components.Pill(stringResource(R.string.entry_in_program), colors.accent)
                 }
+                onToggleFavourite?.let { FavouriteButton(favourite, colors.accent, it) }
             }
             if (entry.description.isNotBlank()) {
                 Text(
@@ -751,7 +780,14 @@ fun EntryEditorDialog(
     usages: Int = 0,
     groups: Int = 0,
     onDelete: (() -> Unit)? = null,
+    /**
+     * How many places read the text (program steps and groups): when more than one, the editor says
+     * so and offers [onSaveAsNew] — the edits saved as a new text, under a new name, for one step.
+     */
+    sharedCount: Int = 0,
+    onSaveAsNew: ((LibraryEntry) -> Unit)? = null,
 ) {
+    var savingAsNew by remember { mutableStateOf(false) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var description by rememberSaveable { mutableStateOf(initial?.description.orEmpty()) }
     var opening by rememberSaveable { mutableStateOf(initial?.opening.orEmpty()) }
@@ -806,20 +842,34 @@ fun EntryEditorDialog(
         toAya = newTo
     }
 
-    fun save() {
+    /** The text as edited, or null (with the errors shown) while something is missing. */
+    fun edited(): LibraryEntry? {
         val hasText = if (isQuran) passage != null || legacyText else text.isNotBlank()
         if (title.isBlank() || !hasText) {
             showErrors = true
-            return
+            return null
         }
-        onSave(
-            (initial ?: LibraryEntry(type = type, title = "", text = "")).copy(
-                title = title.trim(),
-                description = description.trim(),
-                opening = if (hasOpening) opening.trim() else "",
-                text = passage?.text ?: text.trim(),
-                quran = passage?.ref,
-            )
+        return (initial ?: LibraryEntry(type = type, title = "", text = "")).copy(
+            title = title.trim(),
+            description = description.trim(),
+            opening = if (hasOpening) opening.trim() else "",
+            text = passage?.text ?: text.trim(),
+            quran = passage?.ref,
+        )
+    }
+
+    fun save() {
+        edited()?.let(onSave)
+    }
+
+    if (savingAsNew && onSaveAsNew != null) {
+        SaveAsNewDialog(
+            initialName = stringResource(R.string.section_copy, title.trim()),
+            onDismiss = { savingAsNew = false },
+            onSave = { name ->
+                savingAsNew = false
+                edited()?.let { onSaveAsNew(it.copy(id = newId(), title = name)) }
+            },
         )
     }
 
@@ -838,6 +888,12 @@ fun EntryEditorDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = type.colors().accent)
+                    if (onSaveAsNew != null && sharedCount > 1) {
+                        SharedNotice(
+                            text = stringResource(R.string.shared_text_notice, uiDigits(sharedCount)),
+                            onSaveAsNew = { if (edited() != null) savingAsNew = true },
+                        )
+                    }
                     // A Quran text starts with its ayat: they fill in the title and description below.
                     if (isQuran) {
                         QuranPassagePicker(
@@ -947,6 +1003,53 @@ fun EntryEditorDialog(
     }
 }
 
+/**
+ * Said at the top of an editor when what is edited is read in more than one place: the edits will
+ * show in all of them, or can be saved as a new copy for this step only.
+ */
+@Composable
+private fun SharedNotice(text: String, onSaveAsNew: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(shape = MaterialTheme.shapes.medium, color = scheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Outlined.Info, null, tint = scheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSecondaryContainer)
+            }
+            TextButton(onClick = onSaveAsNew, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.save_as_new))
+            }
+        }
+    }
+}
+
+/** Asks the name of the new copy (prefilled with "<title> (نسخة)") before saving it. */
+@Composable
+private fun SaveAsNewDialog(initialName: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by rememberSaveable { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.save_as_new_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.save_as_new_message), style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.save_as_new_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
 /** Top row of the full-screen editors: close, title, an optional delete and the save button. */
 @Composable
 private fun EditorTopBar(title: String, onClose: () -> Unit, onSave: () -> Unit, onDelete: (() -> Unit)?) {
@@ -982,6 +1085,9 @@ fun GroupEntryCard(
     selected: Boolean = false,
     /** Adds a menu to the card with «تعديل» ([onClick]) and «تكرار» (this). */
     onDuplicate: (() -> Unit)? = null,
+    /** Adds the favourite heart: filled when [favourite], tapping it marks or unmarks the group. */
+    onToggleFavourite: (() -> Unit)? = null,
+    favourite: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = group.type.surfaceAccent()
@@ -1013,6 +1119,7 @@ fun GroupEntryCard(
                         modifier = Modifier.weight(1f),
                     )
                     if (inProgram) Pill(stringResource(R.string.entry_in_program), accent)
+                    onToggleFavourite?.let { FavouriteButton(favourite, accent, it) }
                     if (onDuplicate != null) GroupCardMenu(onEdit = onClick, onDuplicate = onDuplicate)
                 }
                 Text(
@@ -1038,6 +1145,19 @@ fun GroupEntryCard(
                 )
             }
         }
+    }
+}
+
+/** The heart on a library card: filled once the text or group is a favourite. */
+@Composable
+private fun FavouriteButton(favourite: Boolean, accent: Color, onToggle: () -> Unit) {
+    IconButton(onClick = onToggle, modifier = Modifier.size(36.dp)) {
+        Icon(
+            imageVector = if (favourite) FavouriteFilledIcon else FavouriteIcon,
+            contentDescription = stringResource(if (favourite) R.string.favourite_remove else R.string.favourite_add),
+            tint = accent,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
@@ -1088,7 +1208,11 @@ fun GroupEditorDialog(
     onSaveEntry: (LibraryEntry) -> Unit,
     usages: Int = 0,
     onDelete: (() -> Unit)? = null,
+    /** As in [EntryEditorDialog]: how many places read the group, and saving the edits as a new group. */
+    sharedCount: Int = 0,
+    onSaveAsNew: ((LibraryGroup) -> Unit)? = null,
 ) {
+    var savingAsNew by remember { mutableStateOf(false) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var description by rememberSaveable { mutableStateOf(initial?.description.orEmpty()) }
     var items by rememberSaveable(stateSaver = GroupItemsSaver) { mutableStateOf(initial?.items.orEmpty()) }
@@ -1103,18 +1227,32 @@ fun GroupEditorDialog(
     val key = ArabicText.searchKey(query)
     val shown = if (key.isEmpty()) available else available.filter { it.matches(key) }
 
-    fun save() {
+    /** The group as edited, or null (with the errors shown) while something is missing. */
+    fun edited(): LibraryGroup? {
         if (title.isBlank() || items.isEmpty()) {
             showErrors = true
-            return
+            return null
         }
-        onSave(
-            (initial ?: LibraryGroup(type = type, title = "")).copy(
-                title = title.trim(),
-                description = description.trim(),
-                items = items,
-                required = required.takeIf { it in 1 until items.size } ?: 0,
-            )
+        return (initial ?: LibraryGroup(type = type, title = "")).copy(
+            title = title.trim(),
+            description = description.trim(),
+            items = items,
+            required = required.takeIf { it in 1 until items.size } ?: 0,
+        )
+    }
+
+    fun save() {
+        edited()?.let(onSave)
+    }
+
+    if (savingAsNew && onSaveAsNew != null) {
+        SaveAsNewDialog(
+            initialName = stringResource(R.string.section_copy, title.trim()),
+            onDismiss = { savingAsNew = false },
+            onSave = { name ->
+                savingAsNew = false
+                edited()?.let { onSaveAsNew(it.copy(id = newId(), title = name)) }
+            },
         )
     }
 
@@ -1135,6 +1273,14 @@ fun GroupEditorDialog(
                 ) {
                     item(key = "collection") {
                         Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = accent)
+                    }
+                    if (onSaveAsNew != null && sharedCount > 1) {
+                        item(key = "shared") {
+                            SharedNotice(
+                                text = stringResource(R.string.shared_group_notice, uiDigits(sharedCount)),
+                                onSaveAsNew = { if (edited() != null) savingAsNew = true },
+                            )
+                        }
                     }
                     item(key = "title") {
                         OutlinedTextField(

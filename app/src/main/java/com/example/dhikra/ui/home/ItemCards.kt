@@ -75,6 +75,14 @@ import com.example.dhikra.ui.theme.ElementColors
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
 import com.example.dhikra.ui.uiDigits
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import com.example.dhikra.ui.components.TaskIcon
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 
 /**
  * One step of the schedule, as a card with only its header (type and title). Tapping a text opens
@@ -95,12 +103,14 @@ fun ProgramItemView(
     current: Boolean = false,
     onOpenText: (String) -> Unit = {},
     textDone: (ProgramItem) -> Int = { 0 },
+    /** Press and hold: the step (or, inside a group, the text) to edit or move. */
+    onLongPress: (ProgramItem) -> Unit = {},
 ) {
     when {
-        item.type == ItemType.HEADING -> HeadingItem(item, modifier)
-        item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, current, onSetComplete, modifier)
-        item.isGroup -> GroupCard(item, done, current, onOpenText, textDone, modifier)
-        else -> ReadingCard(item, done, current, onOpen, modifier)
+        item.type == ItemType.HEADING -> HeadingItem(item, modifier, onLongPress)
+        item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, current, onSetComplete, modifier, onLongPress)
+        item.isGroup -> GroupCard(item, done, current, onOpenText, textDone, modifier, onLongPress)
+        else -> ReadingCard(item, done, current, onOpen, modifier, onLongPress)
     }
 }
 
@@ -148,12 +158,17 @@ internal const val FaintTextAlpha = 0.78f
 
 /** A group label on the timeline, e.g. "أذكار الصباح", followed by a fading rule. */
 @Composable
-private fun HeadingItem(item: ProgramItem, modifier: Modifier) {
+private fun HeadingItem(item: ProgramItem, modifier: Modifier, onLongPress: (ProgramItem) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     // Quiet on purpose: a heading only groups the steps, it should not compete with them.
     val rule = scheme.outlineVariant
-    Column(modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .pointerInput(item.id) { detectTapGestures(onLongPress = { onLongPress(item) }) }
+            .padding(top = 6.dp, bottom = 2.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = item.title.ifBlank { item.text },
@@ -193,7 +208,7 @@ private fun HeadingItem(item: ProgramItem, modifier: Modifier) {
 @Composable
 private fun stepColors(): ElementColors {
     val palette = LocalDhikraPalette.current
-    return palette.dhikr.copy(
+    return palette.slate.copy(
         container = palette.task.container,
         border = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
     )
@@ -221,17 +236,33 @@ private fun StepSurface(
         animationSpec = tween(400),
         label = "stepElevation",
     )
-    // A finished step turns golden: its outline in the "done" amber, over a faint warm tint.
-    val done = LocalDhikraPalette.current.done
-    val border by animateColorAsState(if (complete) done else colors.border, tween(400), label = "stepBorder")
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
-        color = if (complete) done.copy(alpha = 0.07f).compositeOver(colors.container) else colors.container,
-        border = BorderStroke(if (complete) 1.5.dp else 2.dp, border),
+        color = stepContainer(colors, complete),
+        border = stepBorder(colors, complete),
         shadowElevation = elevation,
         content = content,
     )
+}
+
+/**
+ * A step's outline: 2 dp in its colours while to do; a finished step turns golden — 1.5 dp in the
+ * "done" amber. A group's stacked sheets take the same colour, each a little thinner than the
+ * one in front ([widthScale]), so the stack recedes.
+ */
+@Composable
+private fun stepBorder(colors: ElementColors, complete: Boolean, widthScale: Float = 1f): BorderStroke {
+    val done = LocalDhikraPalette.current.done
+    val color by animateColorAsState(if (complete) done else colors.border, tween(400), label = "stepBorder")
+    return BorderStroke((if (complete) 1.5.dp else 2.dp) * widthScale, color)
+}
+
+/** A step's fill: its own, with a very light warm tint once finished. */
+@Composable
+private fun stepContainer(colors: ElementColors, complete: Boolean): Color {
+    val done = LocalDhikraPalette.current.done
+    return if (complete) done.copy(alpha = 0.035f).compositeOver(colors.container) else colors.container
 }
 
 @Composable
@@ -242,25 +273,38 @@ private fun TaskItem(
     current: Boolean,
     onSetComplete: (Boolean) -> Unit,
     modifier: Modifier,
+    onLongPress: (ProgramItem) -> Unit,
 ) {
-    val colors = stepColors()
+    val colors = taskColors(complete)
     val haptic = LocalHapticFeedback.current
     StepSurface(colors, complete, current, modifier) {
         Row(
             modifier = Modifier
-                .toggleable(
-                    value = complete,
+                .combinedClickable(
                     role = Role.Checkbox,
-                    onValueChange = { checked ->
+                    onClick = {
                         haptic.performHapticFeedback(
-                            if (checked) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff
+                            if (!complete) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff
                         )
-                        onSetComplete(checked)
+                        onSetComplete(!complete)
+                    },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongPress(item)
                     },
                 )
-                .padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                .semantics { toggleableState = ToggleableState(complete) }
+                .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Something to do rather than to read: the to-do mark, in the task's green.
+            Box(
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.13f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(TaskIcon, contentDescription = stringResource(R.string.type_task), tint = colors.accent, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 if (item.title.isNotBlank()) {
                     Text(item.title, style = MaterialTheme.typography.titleSmall, color = colors.accent)
@@ -277,6 +321,22 @@ private fun TaskItem(
             CheckMark(checked = complete)
         }
     }
+}
+
+/**
+ * A task's colours: a shade of the blue accent — a soft blue card, blue outline, icon and title —
+ * apart from the reading steps' white cards with their green outline. Once done, the card is as
+ * light as every finished step.
+ */
+@Composable
+private fun taskColors(complete: Boolean): ElementColors {
+    val palette = LocalDhikraPalette.current
+    val blue = palette.slate.accent
+    return palette.task.copy(
+        container = if (complete) palette.task.container else blue.copy(alpha = 0.06f).compositeOver(palette.task.container),
+        border = blue.copy(alpha = 0.45f),
+        accent = blue,
+    )
 }
 
 /**
@@ -309,11 +369,18 @@ private fun ReadingCard(
     current: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier,
+    onLongPress: (ProgramItem) -> Unit,
 ) {
     val complete = done >= item.target
     val colors = stepColors()
     StepSurface(colors = colors, complete = complete, focused = current, modifier = modifier) {
-        Column(Modifier.clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)) {
+        Column(
+            Modifier.combinedClickable(
+                onClickLabel = stringResource(R.string.open_full_screen),
+                onClick = onOpen,
+                onLongClick = { onLongPress(item) },
+            )
+        ) {
             StepHeader(item, colors, done, complete)
         }
     }
@@ -332,6 +399,7 @@ private fun GroupCard(
     onOpenText: (String) -> Unit,
     textDone: (ProgramItem) -> Int,
     modifier: Modifier,
+    onLongPress: (ProgramItem) -> Unit,
 ) {
     val total = item.members.size
     // Done once the texts needed are read: all of them, or the number of a choice group.
@@ -343,12 +411,13 @@ private fun GroupCard(
     val stack by animateDpAsState(if (expanded) 0.dp else 8.dp, label = "groupStack")
     Box(modifier.fillMaxWidth().padding(bottom = stack)) {
         if (stack > 0.dp) {
-            StackSheet(colors, inset = 18.dp, drop = stack)
-            StackSheet(colors, inset = 9.dp, drop = stack / 2)
+            // The sheets behind are a little thinner-edged than the card in front.
+            StackSheet(colors, complete, inset = 18.dp, drop = stack, borderScale = 0.75f)
+            StackSheet(colors, complete, inset = 9.dp, drop = stack / 2, borderScale = 0.75f)
         }
         StepSurface(colors = colors, complete = complete, focused = current, modifier = Modifier) {
             Column {
-                GroupHeader(item, colors, done, total, complete, expanded, onToggle = { expanded = !expanded })
+                GroupHeader(item, colors, done, total, complete, expanded, onToggle = { expanded = !expanded }, onLongPress = { onLongPress(item) })
                 AnimatedVisibility(
                     visible = expanded,
                     enter = expandVertically() + fadeIn(),
@@ -361,6 +430,7 @@ private fun GroupCard(
                                 done = textDone(member),
                                 colors = colors,
                                 onOpen = { onOpenText(member.id) },
+                                onLongPress = { onLongPress(member) },
                             )
                         }
                     }
@@ -377,6 +447,7 @@ private fun GroupText(
     done: Int,
     colors: ElementColors,
     onOpen: () -> Unit,
+    onLongPress: () -> Unit,
 ) {
     val complete = text.target > 0 && done >= text.target
     Column {
@@ -387,7 +458,11 @@ private fun GroupText(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClickLabel = stringResource(R.string.open_full_screen), onClick = onOpen)
+                .combinedClickable(
+                    onClickLabel = stringResource(R.string.open_full_screen),
+                    onClick = onOpen,
+                    onLongClick = onLongPress,
+                )
                 .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -419,11 +494,12 @@ private fun GroupText(
 
 /** A sheet peeking out [drop] below a group card, narrower by [inset] on each side. */
 @Composable
-private fun BoxScope.StackSheet(colors: ElementColors, inset: Dp, drop: Dp) {
+private fun BoxScope.StackSheet(colors: ElementColors, complete: Boolean, inset: Dp, drop: Dp, borderScale: Float) {
+    // The card's own outline colour and fill, to do or finished; the outline [borderScale] as wide.
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = colors.container,
-        border = if (colors.border.alpha > 0f) BorderStroke(1.dp, colors.border) else null,
+        color = stepContainer(colors, complete),
+        border = stepBorder(colors, complete, borderScale),
         modifier = Modifier.matchParentSize().padding(horizontal = inset).offset(y = drop),
     ) {}
 }
@@ -438,6 +514,7 @@ private fun GroupHeader(
     complete: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onLongPress: () -> Unit,
 ) {
     // A choice group: the reader picks the texts; its progress counts toward the number needed.
     val needed = if (item.isChoice) item.choose else total
@@ -452,15 +529,33 @@ private fun GroupHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
+            .combinedClickable(
                 onClickLabel = stringResource(if (expanded) R.string.group_hide_texts else R.string.group_show_texts),
                 onClick = onToggle,
+                onLongClick = onLongPress,
             )
-            .padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+            .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GroupBadge(item.type, total, colors = colors)
-        Spacer(Modifier.width(12.dp))
+        IconPanel(item.type, complete) { tint ->
+            // The number of texts sits on the disc's edge, as on the library's group badge.
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(item.type.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = tint,
+                    contentColor = LocalDhikraPalette.current.task.container,
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceContainerLowest),
+                    modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 6.dp),
+                ) {
+                    Text(uiDigits(total), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 5.dp))
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.weight(1f).padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = item.title,
@@ -481,6 +576,7 @@ private fun GroupHeader(
             tint = colors.accent.copy(alpha = 0.75f),
             modifier = Modifier.padding(start = 8.dp).size(24.dp).rotate(turn),
         )
+        }
     }
 }
 
@@ -552,22 +648,14 @@ private fun StepHeader(
 ) {
     val typeLabel = stringResource(item.type.label)
     val doneLabel = stringResource(R.string.step_state_done)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(colors.accent.copy(alpha = 0.13f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(item.type.icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+        IconPanel(item.type, complete) { tint ->
+            Icon(item.type.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Row(
+            modifier = Modifier.weight(1f).padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = item.title.ifBlank { typeLabel },
@@ -590,6 +678,31 @@ private fun StepHeader(
             )
         }
         OpenIcon(colors)
+        }
+    }
+}
+
+/**
+ * A card's start edge: a panel the card's full height in its type's accent colour (Quran green,
+ * hadith sage, dua blue, dhikr purple), with the icon on a lighter disc of the same colour. Once the
+ * step is [complete], panel, disc and icon all turn the "done" gold. [content] draws the icon in
+ * the colour it is given.
+ */
+@Composable
+private fun IconPanel(type: ItemType, complete: Boolean, content: @Composable (tint: Color) -> Unit) {
+    val palette = LocalDhikraPalette.current
+    val card = palette.task.container
+    val tone by animateColorAsState(if (complete) palette.done else type.colors().accent, tween(400), label = "panelTone")
+    val tint by animateColorAsState(if (complete) palette.doneText else type.colors().accent, tween(400), label = "panelTint")
+    Box(
+        modifier = Modifier.width(64.dp).fillMaxHeight().background(tone.copy(alpha = 0.22f).compositeOver(card)),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Drawn behind, not clipped: a group's count sits on the disc's edge.
+        Box(
+            modifier = Modifier.size(40.dp).background(tone.copy(alpha = 0.07f).compositeOver(card), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { content(tint) }
     }
 }
 
