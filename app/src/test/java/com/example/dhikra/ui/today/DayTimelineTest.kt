@@ -127,4 +127,29 @@ class DayTimelineTest {
         assertEquals(listOf("night", "now", "fajr", "sunrise", "duha", "asr", "sleep"), timeline.layout()[null])
         assertEquals(0, timeline.currentIndex)
     }
+
+    // ---- "Now" on the home tab
+
+    @Test
+    fun periodAtHand_isTheCurrentOne_whileASectionOfItIsLeft() {
+        // 10:00 is in the sunrise period, which holds "sunrise" and "duha".
+        val timeline = buildDayTimeline(sections, makkah, nowMinutes = 10 * 60)
+        val period = timeline.periodAtHand { false }
+        assertEquals(Prayer.SUNRISE, period?.prayer)
+        assertEquals(listOf("sunrise", "duha"), period?.sections?.map { it.id })
+    }
+
+    @Test
+    fun periodAtHand_movesOnToTheNextPeriodWithSomethingLeft() {
+        // The sunrise period done, Dhuhr holds nothing: Asr is next.
+        val timeline = buildDayTimeline(sections, makkah, nowMinutes = 10 * 60)
+        val done = setOf("sunrise", "duha")
+        assertEquals(Prayer.ASR, timeline.periodAtHand { it.id in done }?.prayer)
+    }
+
+    @Test
+    fun periodAtHand_staysOnTheCurrentOne_whenNothingIsLeft() {
+        val timeline = buildDayTimeline(sections, makkah, nowMinutes = 10 * 60)
+        assertEquals(Prayer.SUNRISE, timeline.periodAtHand { true }?.prayer)
+    }
 }

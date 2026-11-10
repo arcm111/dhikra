@@ -130,7 +130,6 @@ import com.example.dhikra.data.DailyCounter
 import com.example.dhikra.data.LibraryEntry
 import com.example.dhikra.data.Library
 import com.example.dhikra.data.ItemType
-import com.example.dhikra.ui.components.CounterIcon
 import com.example.dhikra.ui.components.FavouriteIcon
 import com.example.dhikra.ui.library.EntryCard
 import com.example.dhikra.ui.library.GroupEntryCard
@@ -144,6 +143,17 @@ import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.components.SectionIcon
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.ExperimentalFoundationApi
+import com.example.dhikra.ui.components.HomeIcon
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 
 /** Test tag of the day view's list. */
 const val DayTimelineTag = "day"
@@ -170,7 +180,7 @@ fun TodayScreen(
     key(state.program.id) { DayView(state, actions, onOpenSection, onEditProgram, nowMinutes) }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun DayView(
     state: UiState,
@@ -251,11 +261,10 @@ private fun DayView(
                 )
             }
         },
-        // The tab's main action floats in the bottom corner: adding a section, or a dhikr to count.
+        // The tab's main action floats in the bottom corner: adding a section to the program.
         floatingActionButton = {
             when (DayTab.entries.getOrNull(pager.targetPage)) {
                 DayTab.Program -> MainActionButton(Icons.Filled.Add, stringResource(R.string.add_section)) { addingSection = true }
-                DayTab.Counter -> MainActionButton(Icons.Filled.Add, stringResource(R.string.counter_add)) { pickingCounter = true }
                 else -> {}
             }
         },
@@ -321,27 +330,56 @@ private fun DayView(
                         )
                     }
                 }
-                DayTab.Counter -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
-                    // The daily counter: open-ended counts of chosen adhkar, starting over each day.
-                    item(key = "counterTitle") {
-                        BlockTitle(
+                DayTab.Home -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
+                    // What to do now, as three panels: today's progress, the sections of the period at
+                    // hand, and the daily counters.
+                    item(key = "progress") { ProgressCard(sections, state, Modifier.padding(start = 8.dp)) }
+                    item(key = "now") {
+                        // The period going on, or the next one with a section still to do.
+                        val nowPeriod = timeline.periodAtHand { state.completedIn(it) >= it.trackableItems.size }
+                        val next = timeline.periods.getOrNull(timeline.periods.indexOf(nowPeriod) + 1)
+                        HomePanel(
+                            title = stringResource(R.string.home_now),
+                            // The colour of time, as the calendar's prayer bands.
+                            accent = palette.slate.accent,
+                            subtitle = nowPeriod?.let { periodLine(it, next) },
+                            action = HomeAction(stringResource(R.string.home_full_schedule), Icons.AutoMirrored.Filled.ArrowForward, trailing = true) {
+                                scope.launch { pager.animateScrollToPage(DayTab.Calendar.ordinal) }
+                            },
+                            modifier = Modifier.padding(start = 8.dp, top = 12.dp),
+                        ) {
+                            val nowSections = nowPeriod?.sections.orEmpty()
+                            if (nowSections.isEmpty()) {
+                                PanelNote(stringResource(if (sections.isEmpty()) R.string.home_now_no_program else R.string.home_now_empty))
+                            }
+                            nowSections.forEachIndexed { index, section ->
+                                if (index > 0) PanelDivider()
+                                NowSectionRow(section, state, onClick = { onOpenSection(section.id) })
+                            }
+                        }
+                    }
+                    item(key = "counters") {
+                        // The daily counter: open-ended counts of chosen adhkar, starting over each day.
+                        HomePanel(
                             title = stringResource(R.string.counter_title),
-                            subtitle = stringResource(R.string.counter_subtitle),
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                    val counted = state.counters.mapNotNull(state.library::entry)
-                    if (counted.isEmpty()) {
-                        item(key = "counterEmpty") { EmptyNote(stringResource(R.string.counter_empty), Modifier.padding(start = 8.dp)) }
-                    }
-                    items(counted, key = { "counter/" + it.id }) { entry ->
-                        CounterCard(
-                            entry = entry,
-                            count = state.counterCount(entry.id),
-                            onOpen = { actions.onOpenCounter(entry.id) },
-                            onRemove = { actions.onRemoveCounter(entry.id) },
-                            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp).animateItem(),
-                        )
+                            // The colour of the counters' rings and targets.
+                            accent = palette.progress,
+                            action = HomeAction(stringResource(R.string.counter_add), Icons.Filled.Add) { pickingCounter = true },
+                            modifier = Modifier.padding(start = 8.dp, top = 12.dp),
+                        ) {
+                            val counted = state.counters.mapNotNull(state.library::entry)
+                            // What the counter is, said while it is empty: its rows show it once in use.
+                            if (counted.isEmpty()) PanelNote(stringResource(R.string.counter_empty))
+                            counted.forEachIndexed { index, entry ->
+                                if (index > 0) PanelDivider()
+                                CounterRow(
+                                    entry = entry,
+                                    count = state.counterCount(entry.id),
+                                    onOpen = { actions.onOpenCounter(entry.id) },
+                                    onRemove = { actions.onRemoveCounter(entry.id) },
+                                )
+                            }
+                        }
                     }
                 }
                 DayTab.Favourites -> LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
@@ -392,24 +430,27 @@ private fun DayView(
                     // The schedule's rail side has 8 dp less padding: the same margin on both sides.
                     libraryCollections(state.library, actions.onOpenCollection, Modifier.padding(start = 8.dp))
                 }
-                DayTab.Day -> LazyColumn(
-                    modifier = Modifier.fillMaxSize().testTag(DayTimelineTag),
-                    contentPadding = contentPadding,
+                // The day's list starts under the header (and its rounded lower edge) rather than
+                // behind it: its prayer bands pin to the list's top, which must be in view.
+                DayTab.Calendar -> LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding() + 8.dp).testTag(DayTimelineTag),
+                    contentPadding = PaddingValues(
+                        start = contentPadding.calculateStartPadding(layoutDirection),
+                        end = contentPadding.calculateEndPadding(layoutDirection),
+                        top = 4.dp,
+                        bottom = contentPadding.calculateBottomPadding(),
+                    ),
                 ) {
-                    // The day: today's progress, then the prayer times with the sections they hold.
-                    item(key = "progress") { ProgressCard(sections, state, Modifier.padding(start = 8.dp)) }
+                    // The whole day: the prayer times with the sections they hold.
                     if (sections.isEmpty()) {
                         item(key = "empty") { EmptyDay(actions.onEdit, Modifier.padding(top = 24.dp)) }
                         return@LazyColumn
                     }
-                    item(key = "prayerTitle") {
-                        BlockTitle(
-                            title = stringResource(R.string.day_schedule),
-                            subtitle = stringResource(R.string.day_schedule_hint),
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                items(rows, key = { it.key }) { row ->
+                    item(key = "prayerTitle") { ScheduleHeading(Modifier.padding(start = 8.dp, top = 4.dp)) }
+                // One row of the schedule. A prayer's band is a sticky header: it stays on top while
+                // its period's sections scroll under it, until the next prayer's band takes its place,
+                // so the top of the list always names the period in view.
+                val scheduleRow: @Composable LazyItemScope.(ScheduleItem) -> Unit = { row ->
                     when (row) {
                         is ScheduleItem.PrayerBand -> ScheduleRow(
                             top = row.previous?.let(::railColor),
@@ -417,7 +458,8 @@ private fun DayView(
                             dot = railColor(row.period).copy(alpha = if (row.period.passed) 0.45f else 1f),
                             gutter = { GutterTime(row.period.start, current = row.period.current, passed = row.period.passed) },
                             spaceAbove = if (row.first) 0.dp else 8.dp,
-                            modifier = Modifier.animateItem(),
+                            // Opaque: the sections scroll under it while it is pinned.
+                            modifier = Modifier.animateItem().background(scheme.background),
                         ) { PrayerBand(row.period) }
                         is ScheduleItem.Entry -> {
                             val color = railColor(row.period)
@@ -453,6 +495,13 @@ private fun DayView(
                         }
                     }
                 }
+                rows.forEach { row ->
+                    if (row is ScheduleItem.PrayerBand) {
+                        stickyHeader(key = row.key, contentType = "band") { scheduleRow(row) }
+                    } else {
+                        item(key = row.key) { scheduleRow(row) }
+                    }
+                }
                 }
             }
         }
@@ -461,9 +510,9 @@ private fun DayView(
 
 /** The day view's tabs, in order: their icon, and their name for accessibility. */
 private enum class DayTab(val icon: ImageVector, val label: Int) {
-    Day(TodayIcon, R.string.tab_day),
+    Home(HomeIcon, R.string.tab_home),
+    Calendar(TodayIcon, R.string.tab_schedule),
     Program(ProgramIcon, R.string.tab_program),
-    Counter(CounterIcon, R.string.tab_counter),
     Favourites(FavouriteIcon, R.string.tab_favourites),
     Library(LibraryIcon, R.string.library),
 }
@@ -494,83 +543,231 @@ private fun EmptyNote(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * A dhikr of the daily counter: today's count, large, in a ring filling towards the next target,
- * the dhikr's title and text, and the target. Tapping it opens its counter; its menu takes it off.
+ * A dhikr of the daily counter, as a row of the counters panel: today's count in a ring filling
+ * towards the next target, the dhikr's title and the target. Tapping it opens its counter; its menu
+ * takes it off.
  */
 @Composable
-private fun CounterCard(
+private fun CounterRow(
     entry: LibraryEntry,
     count: Int,
     onOpen: () -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalDhikraPalette.current
     val target = DailyCounter.target(count)
     var menu by remember { mutableStateOf(false) }
     val description = stringResource(R.string.counter_count_description, entry.title, uiDigits(count), uiDigits(target))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(48.dp).semantics(mergeDescendants = true) { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(
+                progress = { DailyCounter.stage(count) },
+                modifier = Modifier.fillMaxSize(),
+                color = palette.progress,
+                trackColor = scheme.primary.copy(alpha = 0.12f),
+                strokeWidth = 3.5.dp,
+                strokeCap = StrokeCap.Round,
+            )
+            Text(
+                text = uiDigits(count),
+                style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.Bold,
+                color = scheme.primary,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = stringResource(R.string.counter_target, uiDigits(target)),
+                style = MaterialTheme.typography.labelMedium,
+                color = palette.progress,
+            )
+        }
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.counter_remove)) },
+                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    onClick = { menu = false; onRemove() },
+                )
+            }
+        }
+    }
+}
+
+/** A panel header's action: a text button with its icon before ([trailing] false) or after the label. */
+private data class HomeAction(val label: String, val icon: ImageVector, val trailing: Boolean = false, val onClick: () -> Unit)
+
+/**
+ * A panel of the home tab, like the progress card: white, outlined, its [title] and [subtitle] in
+ * a header with an optional [action] at its end, then its rows under a divider. The header is
+ * tinted with the panel's [accent] — the colour of what it holds — and its title and action are
+ * written in it (deepened on a light theme, to read).
+ */
+@Composable
+private fun HomePanel(
+    title: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    action: HomeAction? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val ink = if (scheme.surface.luminance() > 0.5f) lerp(accent, Color.Black, 0.22f) else accent
+    val headerTint = accent.copy(alpha = 0.09f).compositeOver(scheme.surfaceContainerLowest)
     Surface(
-        onClick = onOpen,
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         color = scheme.surfaceContainerLowest,
-        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.32f)),
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f)),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(72.dp).semantics(mergeDescendants = true) { contentDescription = description },
-                contentAlignment = Alignment.Center,
+        Column {
+            Row(
+                modifier = Modifier.background(headerTint).padding(start = 16.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircularProgressIndicator(
-                    progress = { DailyCounter.stage(count) },
-                    modifier = Modifier.fillMaxSize(),
-                    color = palette.progress,
-                    trackColor = scheme.primary.copy(alpha = 0.12f),
-                    strokeWidth = 5.dp,
-                    strokeCap = StrokeCap.Round,
-                )
+                Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = ink)
+                    if (subtitle != null) {
+                        Text(subtitle, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                    }
+                }
+                action?.let { (label, icon, trailing, onClick) ->
+                    // A compact button, so the header stays a slim bar: 44 dp to touch.
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 44.dp) {
+                    TextButton(
+                        onClick = onClick,
+                        colors = ButtonDefaults.textButtonColors(contentColor = ink),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        modifier = Modifier.height(44.dp),
+                    ) {
+                        if (!trailing) {
+                            Icon(icon, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        Text(label)
+                        if (trailing) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(icon, null, Modifier.size(18.dp))
+                        }
+                    }
+                    }
+                }
+            }
+            HorizontalDivider(color = accent.copy(alpha = 0.22f))
+            content()
+        }
+    }
+}
+
+/** The line between two rows of a panel, inset from its edges. */
+@Composable
+private fun PanelDivider() {
+    HorizontalDivider(
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+        modifier = Modifier.padding(horizontal = 14.dp),
+    )
+}
+
+/** A panel's note when it has no rows. */
+@Composable
+private fun PanelNote(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+    )
+}
+
+/**
+ * Under «الآن»: the period's prayer, and how long until it, or until the next prayer when it is
+ * going on — «العصر · المغرب بعد ٣ د».
+ */
+@Composable
+private fun periodLine(period: DayPeriod, next: DayPeriod?): String? {
+    val prayer = period.prayer ?: return null
+    val name = stringResource(prayer.label)
+    val until = when {
+        period.untilPrayer != null -> untilText(period.untilPrayer)
+        period.current && next?.prayer != null && next.untilPrayer != null ->
+            stringResource(next.prayer.label) + " " + untilText(next.untilPrayer)
+        else -> null
+    }
+    return listOfNotNull(name, until).joinToString("  ·  ")
+}
+
+/**
+ * A section in the «الآن» panel: its icon, title and time, and the steps done of all («٣/٩») — the
+ * icon and a check turn gold once it is finished. The row opens the section.
+ */
+@Composable
+private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -> Unit) {
+    val total = section.trackableItems.size
+    val done = state.completedIn(section)
+    val finished = total > 0 && done >= total
+    val scheme = MaterialTheme.colorScheme
+    val accent = if (finished) LocalDhikraPalette.current.doneText else scheme.primary
+    val steps = stringResource(R.string.steps_done, uiDigits(done), uiDigits(total))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) { if (total > 0) stateDescription = steps }
+            .padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(38.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(SectionIcon, null, tint = accent, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = section.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = scheme.onSurface.copy(alpha = if (finished) 0.75f else 1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            section.reminderMinutes?.let {
+                Text(formatClock(it), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            }
+        }
+        if (finished) {
+            Icon(Icons.Filled.Check, stringResource(R.string.section_finished), tint = accent, modifier = Modifier.size(22.dp))
+        } else if (total > 0) {
+            Surface(
+                shape = CircleShape,
+                color = accent.copy(alpha = 0.1f),
+                contentColor = accent,
+                modifier = Modifier.clearAndSetSemantics {},
+            ) {
                 Text(
-                    text = uiDigits(count),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = scheme.primary,
+                    text = uiDigits("$done/$total"),
+                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                 )
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (entry.text.isNotBlank() && entry.text != entry.title) {
-                    Text(
-                        text = entry.text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.counter_target, uiDigits(target)),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = palette.progress,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.counter_remove)) },
-                        leadingIcon = { Icon(Icons.Filled.Close, null) },
-                        onClick = { menu = false; onRemove() },
-                    )
-                }
             }
         }
     }
@@ -633,7 +830,7 @@ private fun CounterPickerDialog(library: Library, added: List<String>, onPick: (
 
 // ------------------------------------------------------------------------------ Overview
 
-/** A block's heading on the day view («مواقيت الصلاة», «أقسام البرنامج»), with an optional line under it and action. */
+/** A block's heading on the day view («الآن», «أقسام البرنامج»), with an optional line under it and action. */
 @Composable
 private fun BlockTitle(
     title: String,
@@ -658,6 +855,34 @@ private fun BlockTitle(
                 Text(label)
             }
         }
+    }
+}
+
+/**
+ * The schedule's heading at the top of the calendar: the title followed by a rule fading out to the
+ * end, like a chapter's, with what the schedule shows under it.
+ */
+@Composable
+private fun ScheduleHeading(modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val rule = scheme.primary.copy(alpha = 0.35f)
+    Column(modifier.fillMaxWidth().padding(bottom = 10.dp).semantics(mergeDescendants = true) { heading() }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.day_schedule), style = MaterialTheme.typography.titleMedium, color = scheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(1.5.dp)
+                    .background(Brush.horizontalGradient(if (rtl) listOf(Color.Transparent, rule) else listOf(rule, Color.Transparent)))
+            )
+        }
+        Text(
+            text = stringResource(R.string.day_schedule_hint),
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -1037,7 +1262,7 @@ private fun GutterTime(
  * period going on, faded once over.
  */
 @Composable
-private fun PrayerBand(period: DayPeriod) {
+private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier) {
     val prayer = period.prayer ?: return
     val scheme = MaterialTheme.colorScheme
     // The current prayer is a deeper shade of the bands' blue: that is what marks it as going on.
@@ -1046,7 +1271,7 @@ private fun PrayerBand(period: DayPeriod) {
     val accent = blue.accent
     val ink = blue.ink
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 34.dp)
             .alpha(if (period.passed) 0.6f else 1f)

@@ -39,10 +39,23 @@ data class DayPeriod(
     val passed: Boolean = false,
 )
 
+/** The sections of a period, in their order. */
+val DayPeriod.sections: List<ProgramSection> get() = entries.filterIsInstance<PeriodEntry.Section>().map { it.section }
+
 /** The day at a glance: its prayer [periods] in order, and the sections with no time ([untimed]). */
 data class DayTimeline(val periods: List<DayPeriod>, val untimed: List<ProgramSection>) {
     /** Position of the period the current time falls in. */
     val currentIndex: Int get() = periods.indexOfFirst { it.current }
+
+    /**
+     * The period to show as "now": the one going on if a section of it is still to do ([finished]
+     * tells), else the next one that has such a section; the one going on when nothing is left.
+     */
+    fun periodAtHand(finished: (ProgramSection) -> Boolean): DayPeriod? {
+        val from = currentIndex.coerceAtLeast(0)
+        return periods.drop(from).firstOrNull { period -> period.sections.any { !finished(it) } }
+            ?: periods.getOrNull(currentIndex)
+    }
 
     /**
      * The section whose time it is: the last one to have started in the current period, read on

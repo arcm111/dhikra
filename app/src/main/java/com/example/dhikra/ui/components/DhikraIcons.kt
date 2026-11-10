@@ -244,6 +244,13 @@ val SectionIcon: ImageVector = lineIcon(
     autoMirror = true,
 )
 
+/** A house: the home tab, what to do now. */
+val HomeIcon: ImageVector = lineIcon(
+    "DhikraHome",
+    "M3.8,10.8l8.2,-6.8 8.2,6.8",
+    "M6,9.2v9.8a1,1 0 0 0 1,1h3.4v-5.2h3.2v5.2h3.4a1,1 0 0 0 1,-1v-9.8",
+)
+
 val TaskIcon: ImageVector = lineIcon(
     "DhikraTask",
     "M7.8,4.6h8.4a1.6,1.6 0 0 1 1.6,1.6v12.9a1.6,1.6 0 0 1 -1.6,1.6h-8.4a1.6,1.6 0 0 1 -1.6,-1.6v-12.9a1.6,1.6 0 0 1 1.6,-1.6z",
