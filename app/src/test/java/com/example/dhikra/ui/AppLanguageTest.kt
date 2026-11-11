@@ -15,20 +15,18 @@ class AppLanguageTest {
     }
 
     @Test
-    fun arabic_hasArabicDigitsAndSuffixes() {
+    fun arabic_hasArabicDigits() {
         AppLanguage.current = AppLanguage.AR
-        assertEquals("٥:٠٧ ص", formatTime(5 * 60 + 7))
-        assertEquals("١٢:٠٠ م", formatTime(12 * 60))
-        assertEquals("١٢:٣٠ ص", formatTime(24 * 60 + 30)) // past midnight wraps
+        assertEquals("٥:٠٧", formatClock(5 * 60 + 7))
+        assertEquals("١٢:٠٠", formatClock(12 * 60))
         assertEquals("١٢٣", uiDigits(123))
     }
 
     @Test
-    fun english_hasLatinDigitsAndAmPm() {
+    fun english_hasLatinDigits() {
         AppLanguage.current = AppLanguage.EN
-        assertEquals("5:07 AM", formatTime(5 * 60 + 7))
-        assertEquals("12:00 PM", formatTime(12 * 60))
-        assertEquals("11:59 PM", formatTime(23 * 60 + 59))
+        assertEquals("5:07", formatClock(5 * 60 + 7))
+        assertEquals("12:00", formatClock(12 * 60))
         assertEquals("123", uiDigits(123))
         assertEquals("12", uiDigits("١٢")) // typed in Arabic digits, shown in Latin
     }

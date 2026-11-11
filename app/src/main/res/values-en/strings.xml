@@ -316,6 +316,20 @@
     <string name="anchor_label">%1$s · %2$s</string>
     <string name="edit_this_section">Edit this section</string>
     <string name="section_copy">%1$s (copy)</string>
+    <string name="progress_all_done">All done today ✓</string>
+    <string name="counter_tap_hint">Tap to count</string>
+    <plurals name="section_count">
+        <item quantity="one">1 section</item>
+        <item quantity="other">%1$s sections</item>
+    </plurals>
+    <plurals name="progress_left_before">
+        <item quantity="one">1 section left before %2$s</item>
+        <item quantity="other">%1$s sections left before %2$s</item>
+    </plurals>
+    <plurals name="progress_left_today">
+        <item quantity="one">1 section left today</item>
+        <item quantity="other">%1$s sections left today</item>
+    </plurals>
     <string name="today_progress">Today\'s progress</string>
     <string name="progress_steps">%1$s of %2$s steps done</string>
     <string name="progress_sections">%1$s of %2$s sections complete</string>
@@ -327,6 +341,7 @@
     <string name="language_arabic">العربية</string>
     <string name="language_english">English</string>
     <string name="language_note">The app\'s interface only; the Quran, adhkar and your programs stay as they are written.</string>
+    <string name="clear_text">Clear text</string>
     <string name="tab_home">Home</string>
     <string name="tab_schedule">Schedule</string>
     <string name="home_now">Now</string>

@@ -104,7 +104,7 @@ import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.starLattice
-import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.theme.MustardLight
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.uiDigits
@@ -276,7 +276,7 @@ private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onC
                 )
             }
             Text(
-                text = formatTime(next.atMinutes),
+                text = formatClock(next.atMinutes),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
@@ -365,7 +365,7 @@ private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinute
                         )
                     }
                     Text(
-                        text = formatTime(timetable.at(prayer)),
+                        text = formatClock(timetable.at(prayer)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (isNext) FontWeight.SemiBold else null,
                         color = when {

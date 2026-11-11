@@ -330,6 +330,32 @@
     <string name="anchor_label">%1$s · %2$s</string>
     <string name="edit_this_section">تعديل هذا القسم</string>
     <string name="section_copy">%1$s (نسخة)</string>
+    <string name="progress_all_done">أتممت برنامج اليوم ✓</string>
+    <string name="counter_tap_hint">اضغط للعدّ</string>
+    <plurals name="section_count">
+        <item quantity="zero">لا أقسام</item>
+        <item quantity="one">قسم واحد</item>
+        <item quantity="two">قسمان</item>
+        <item quantity="few">%1$s أقسام</item>
+        <item quantity="many">%1$s قسمًا</item>
+        <item quantity="other">%1$s قسم</item>
+    </plurals>
+    <plurals name="progress_left_before">
+        <item quantity="zero">لا أقسام متبقية قبل %2$s</item>
+        <item quantity="one">بقي قسم واحد قبل %2$s</item>
+        <item quantity="two">بقي قسمان قبل %2$s</item>
+        <item quantity="few">بقيت %1$s أقسام قبل %2$s</item>
+        <item quantity="many">بقي %1$s قسمًا قبل %2$s</item>
+        <item quantity="other">بقي %1$s قسم قبل %2$s</item>
+    </plurals>
+    <plurals name="progress_left_today">
+        <item quantity="zero">لا أقسام متبقية اليوم</item>
+        <item quantity="one">بقي قسم واحد اليوم</item>
+        <item quantity="two">بقي قسمان اليوم</item>
+        <item quantity="few">بقيت %1$s أقسام اليوم</item>
+        <item quantity="many">بقي %1$s قسمًا اليوم</item>
+        <item quantity="other">بقي %1$s قسم اليوم</item>
+    </plurals>
     <string name="today_progress">تقدّم اليوم</string>
     <string name="progress_steps">أُنجز %1$s من %2$s خطوة</string>
     <string name="progress_sections">اكتمل %1$s من %2$s أقسام</string>
@@ -341,6 +367,7 @@
     <string name="language_arabic">العربية</string>
     <string name="language_english">English</string>
     <string name="language_note">لغة واجهة التطبيق فقط؛ تبقى نصوص القرآن والأذكار وبرامجك كما كُتبت.</string>
+    <string name="clear_text">مسح النص</string>
     <string name="tab_home">الرئيسية</string>
     <string name="tab_schedule">الجدول</string>
     <string name="home_now">الآن</string>

@@ -225,6 +225,8 @@ private fun StepSurface(
     focused: Boolean,
     modifier: Modifier,
     shape: Shape = MaterialTheme.shapes.large,
+    /** Whether a finished step takes the faint warm tint (a task keeps its own fill). */
+    doneTint: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val elevation by animateDpAsState(
@@ -239,7 +241,7 @@ private fun StepSurface(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
-        color = stepContainer(colors, complete),
+        color = stepContainer(colors, complete && doneTint),
         border = stepBorder(colors, complete),
         shadowElevation = elevation,
         content = content,
@@ -275,9 +277,9 @@ private fun TaskItem(
     modifier: Modifier,
     onLongPress: (ProgramItem) -> Unit,
 ) {
-    val colors = taskColors(complete)
+    val colors = taskColors()
     val haptic = LocalHapticFeedback.current
-    StepSurface(colors, complete, current, modifier) {
+    StepSurface(colors, complete, current, modifier, doneTint = false) {
         Row(
             modifier = Modifier
                 .combinedClickable(
@@ -325,15 +327,15 @@ private fun TaskItem(
 
 /**
  * A task's colours: a shade of the blue accent — a soft blue card, blue outline, icon and title —
- * apart from the reading steps' white cards with their green outline. Once done, the card is as
- * light as every finished step.
+ * apart from the reading steps' white cards with their green outline. Done or not, the card keeps
+ * its fill (only the outline turns gold and the check fills).
  */
 @Composable
-private fun taskColors(complete: Boolean): ElementColors {
+private fun taskColors(): ElementColors {
     val palette = LocalDhikraPalette.current
     val blue = palette.slate.accent
     return palette.task.copy(
-        container = if (complete) palette.task.container else blue.copy(alpha = 0.06f).compositeOver(palette.task.container),
+        container = blue.copy(alpha = 0.06f).compositeOver(palette.task.container),
         border = blue.copy(alpha = 0.45f),
         accent = blue,
     )

@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -134,6 +133,10 @@ import com.example.dhikra.ui.components.FavouriteIcon
 import com.example.dhikra.ui.components.FavouriteFilledIcon
 import androidx.compose.material.icons.outlined.Info
 import com.example.dhikra.data.newId
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.dhikra.ui.components.clearButton
+import com.example.dhikra.ui.components.DialogSystemBarIcons
 
 /** Name of the library collection holding entries of this type. */
 val ItemType.collectionName: Int
@@ -182,8 +185,10 @@ fun LazyListScope.libraryCollections(
     library: Library,
     onOpenCollection: (ItemType) -> Unit,
     modifier: Modifier = Modifier,
+    /** The line saying what the library is for (left out where a heading already says it). */
+    showHint: Boolean = true,
 ) {
-    item {
+    if (showHint) item {
         Text(
             text = stringResource(R.string.library_hint),
             style = MaterialTheme.typography.bodyMedium,
@@ -873,9 +878,12 @@ fun EntryEditorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Edge to edge: the window is not resized for the keyboard; the content alone makes room for it
+    // (and the system bars) once. Resized and padded both, the fields were pushed up twice.
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.imePadding()) {
+            DialogSystemBarIcons()
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 EditorTopBar(
                     title = stringResource(if (initial == null) R.string.new_entry else R.string.edit_entry),
                     onClose = onDismiss,
@@ -910,6 +918,7 @@ fun EntryEditorDialog(
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
+                        trailingIcon = clearButton(title) { title = "" },
                         label = { Text(stringResource(R.string.entry_title)) },
                         isError = showErrors && title.isBlank(),
                         supportingText = if (showErrors && title.isBlank()) {
@@ -921,6 +930,7 @@ fun EntryEditorDialog(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
+                        trailingIcon = clearButton(description) { description = "" },
                         label = { Text(stringResource(R.string.entry_description)) },
                         placeholder = { Text(stringResource(R.string.entry_description_hint)) },
                         minLines = 1,
@@ -931,6 +941,7 @@ fun EntryEditorDialog(
                         OutlinedTextField(
                             value = opening,
                             onValueChange = { opening = it },
+                            trailingIcon = clearButton(opening) { opening = "" },
                             label = { Text(stringResource(R.string.item_opening)) },
                             supportingText = if (opening.isBlank() && ref?.opensWithBasmala == true) {
                                 { Text(stringResource(R.string.quran_basmala_auto)) }
@@ -954,6 +965,7 @@ fun EntryEditorDialog(
                         OutlinedTextField(
                             value = text,
                             onValueChange = { text = it },
+                            trailingIcon = clearButton(text) { text = "" },
                             label = { Text(stringResource(R.string.entry_text)) },
                             readOnly = legacyText,
                             isError = !isQuran && showErrors && text.isBlank(),
@@ -1037,6 +1049,7 @@ private fun SaveAsNewDialog(initialName: String, onDismiss: () -> Unit, onSave: 
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
+                    trailingIcon = clearButton(name) { name = "" },
                     label = { Text(stringResource(R.string.save_as_new_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -1256,9 +1269,12 @@ fun GroupEditorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Edge to edge: the window is not resized for the keyboard; the content alone makes room for it
+    // (and the system bars) once. Resized and padded both, the fields were pushed up twice.
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.imePadding()) {
+            DialogSystemBarIcons()
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 EditorTopBar(
                     title = stringResource(if (initial == null) R.string.new_group else R.string.edit_group),
                     onClose = onDismiss,
@@ -1286,6 +1302,7 @@ fun GroupEditorDialog(
                         OutlinedTextField(
                             value = title,
                             onValueChange = { title = it },
+                            trailingIcon = clearButton(title) { title = "" },
                             label = { Text(stringResource(R.string.group_title)) },
                             isError = showErrors && title.isBlank(),
                             supportingText = if (showErrors && title.isBlank()) {
@@ -1299,6 +1316,7 @@ fun GroupEditorDialog(
                         OutlinedTextField(
                             value = description,
                             onValueChange = { description = it },
+                            trailingIcon = clearButton(description) { description = "" },
                             label = { Text(stringResource(R.string.entry_description)) },
                             placeholder = { Text(stringResource(R.string.entry_description_hint)) },
                             maxLines = 4,

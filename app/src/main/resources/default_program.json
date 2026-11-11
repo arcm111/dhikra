@@ -551,7 +551,6 @@
       "id": "group_muawwidhat",
       "type": "quran",
       "title": "المعوذات (×٣)",
-      "description": "الإخلاص والفلق والناس: ثلاثاً بعد الفجر والمغرب، وفي أذكار الصباح والمساء",
       "items": [
         {
           "entry": "al_ikhlas",
@@ -1051,9 +1050,30 @@
           "note": "يبدأ بعد الأذان وقبل الإقامة",
           "items": [
             {
+              "id": "1a93ac3fda76",
+              "type": "heading",
+              "title": "قبل الصلاة"
+            },
+            {
               "id": "37fc618d064a",
               "type": "dua",
               "group": "group_adhan_iqama"
+            },
+            {
+              "id": "f7caf5f7beef",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
+              "id": "70e8dd93d935",
+              "type": "task",
+              "title": "صلاة سنة الفجر",
+              "text": "صلي ركعتي سنة الفجر"
+            },
+            {
+              "id": "16aeb863dc29",
+              "type": "heading",
+              "title": "بعد الصلاة"
             },
             {
               "id": "0e6632a42654",
@@ -1071,6 +1091,11 @@
           "offset": 30,
           "note": "أذكار بعد الصلاة تقرأ بعد جميع الصلوات المفروضة",
           "items": [
+            {
+              "id": "dd47464878aa",
+              "type": "heading",
+              "title": "الصلاة"
+            },
             {
               "id": "436a5995adbe",
               "type": "task",
@@ -1136,6 +1161,11 @@
           "note": "أذكار بعد الصلاة تقرأ بعد جميع الصلوات المفروضة",
           "items": [
             {
+              "id": "4863faec0928",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
               "id": "06499d5fecb8",
               "type": "task",
               "title": "صلاة المغرب",
@@ -1170,8 +1200,7 @@
             {
               "id": "f3b88379b570",
               "type": "quran",
-              "group": "group_muawwidhat",
-              "note": "تقرأ مرة واحدة بعد الصلوات، وثلاثاً بعد الفجر والمغرب"
+              "group": "group_muawwidhat"
             },
             {
               "id": "743f52e7eaf1",
@@ -1458,10 +1487,20 @@
               "entry": "hadith_duha"
             },
             {
+              "id": "216d2020b782",
+              "type": "heading",
+              "title": "الصلاة"
+            },
+            {
               "id": "salat_duha",
               "type": "task",
               "text": "صلاة الضحى",
               "note": "عدد الركعات: من 2 إلى 8، وكل ركعتين بسلام • القراءة: لا سورة محددة"
+            },
+            {
+              "id": "1d50f347c8dd",
+              "type": "heading",
+              "title": "بعد الصلاة"
             },
             {
               "id": "duha_adiya",
@@ -1552,38 +1591,10 @@
           ]
         },
         {
-          "id": "isha",
-          "title": "بعد العشاء",
-          "icon": "⭐",
-          "reminder": "20:30",
-          "note": "ضروري جداً ومهم حضور مجلس الصلاة الإبراهيمية في الروضة الشريفة، ومن يقصّر من الملتزمين خاصة فهذا خطر شديد على سيره إلى الله تعالى",
-          "items": [
-            {
-              "id": "isha_salawat",
-              "type": "dua",
-              "entry": "salat_ibrahimiya",
-              "count": 100,
-              "note": "مع الجماعة في مجلس الصلاة على النبي ﷺ المسائي: من 9:00 حتى 9:30 مساءً (بتوقيت المدينة المنورة)"
-            },
-            {
-              "id": "isha_salawat_count",
-              "type": "task",
-              "text": "كتابة العدد اليومي لمجلس الصلاة الإبراهيمية في الاستفتاء في مجموعة مجلس الروضة الشريفة",
-              "note": "اكتب العدد الأقرب لصلاتك على رسول الله ﷺ"
-            },
-            {
-              "id": "isha_istighfar_report",
-              "type": "task",
-              "text": "تسجيل عدد الاستغفار اليومي، وإرسال التقرير اليومي لمرشدك الخاص، وكتابة العدد في الاستفتاء في مجموعة حملة الاستغفار"
-            }
-          ]
-        },
-        {
           "id": "sleep",
           "title": "قبل النوم",
           "icon": "🌙",
           "reminder": "22:30",
-          "note": "من تعذّر عليه حضور مجلس من المجالس الجماعية بسبب عذر طارئ فعليه بقضاء المجلس بمفرده في الوقت الذي يناسبه",
           "items": [
             {
               "id": "sleep_surahs",
@@ -1624,6 +1635,17 @@
               "id": "sleep_adiya",
               "type": "dua",
               "group": "group_nawm"
+            },
+            {
+              "id": "isha_salawat_count",
+              "type": "task",
+              "text": "كتابة العدد اليومي لمجلس الصلاة الإبراهيمية في الاستفتاء في مجموعة مجلس الروضة الشريفة",
+              "note": "اكتب العدد الأقرب لصلاتك على رسول الله ﷺ"
+            },
+            {
+              "id": "isha_istighfar_report",
+              "type": "task",
+              "text": "تسجيل عدد الاستغفار اليومي، وإرسال التقرير اليومي لمرشدك الخاص، وكتابة العدد في الاستفتاء في مجموعة حملة الاستغفار"
             }
           ]
         },
@@ -1697,6 +1719,158 @@
             },
             {
               "id": "close_kaffarah",
+              "type": "dhikr",
+              "entry": "kaffarat_majlis"
+            }
+          ]
+        },
+        {
+          "id": "15c457fbf492",
+          "title": "مجلس القرآن الأول",
+          "icon": "🕌",
+          "reminder": "02:00",
+          "items": [
+            {
+              "id": "d8affeae12e9",
+              "type": "heading",
+              "title": "الاستفتاحية"
+            },
+            {
+              "id": "79275bb87cee",
+              "type": "dua",
+              "entry": "audhu_billahil_azeem"
+            },
+            {
+              "id": "0c9c3cd0da72",
+              "type": "dhikr",
+              "entry": "basmala"
+            },
+            {
+              "id": "91ff840b94ee",
+              "type": "dua",
+              "entry": "salat_ibrahimiya"
+            },
+            {
+              "id": "dfd437877c8a",
+              "type": "quran",
+              "entry": "al_ikhlas",
+              "count": 3
+            },
+            {
+              "id": "abd461f6be81",
+              "type": "dua",
+              "group": "group_jawami",
+              "note": "اختر أحد هذه الأدعية أو قدر ما تشاء منها"
+            },
+            {
+              "id": "df9986bdc353",
+              "type": "heading",
+              "title": "المجلس"
+            },
+            {
+              "id": "bd8b61ed3be4",
+              "type": "task",
+              "title": "مجلس قراءة القرآن الكريم الأول",
+              "text": "حضور مجلس تلاوة القرآن الكريم مع الجماعة في مجلس الروضة الشريفة - مدة المجلس نصف ساعة"
+            },
+            {
+              "id": "b20ff8e8b338",
+              "type": "heading",
+              "title": "الختم"
+            },
+            {
+              "id": "c0ea31e06a11",
+              "type": "dua",
+              "entry": "salat_ibrahimiya"
+            },
+            {
+              "id": "298354f75691",
+              "type": "dua",
+              "entry": "dua_khayr_kulluh"
+            },
+            {
+              "id": "97b6312b6368",
+              "type": "dhikr",
+              "entry": "hamd_hadana"
+            },
+            {
+              "id": "d5945dc2ff06",
+              "type": "dhikr",
+              "entry": "kaffarat_majlis"
+            }
+          ]
+        },
+        {
+          "id": "b7f0b1ac1133",
+          "title": "مجلس القرآن الثاني",
+          "icon": "🕌",
+          "reminder": "16:00",
+          "items": [
+            {
+              "id": "3b72e2569d03",
+              "type": "heading",
+              "title": "الاستفتاحية"
+            },
+            {
+              "id": "34889cb26193",
+              "type": "dua",
+              "entry": "audhu_billahil_azeem"
+            },
+            {
+              "id": "5d6621508acf",
+              "type": "dhikr",
+              "entry": "basmala"
+            },
+            {
+              "id": "508c4d6145ac",
+              "type": "dua",
+              "entry": "salat_ibrahimiya"
+            },
+            {
+              "id": "217dae706052",
+              "type": "quran",
+              "entry": "al_ikhlas",
+              "count": 3
+            },
+            {
+              "id": "69c20730f53b",
+              "type": "dua",
+              "group": "group_jawami",
+              "note": "اختر أحد هذه الأدعية أو قدر ما تشاء منها"
+            },
+            {
+              "id": "c8cd0bd94660",
+              "type": "heading",
+              "title": "المجلس"
+            },
+            {
+              "id": "3b372fb9d8dd",
+              "type": "task",
+              "title": "مجلس قراءة القرآن الكريم الثاني",
+              "text": "حضور مجلس تلاوة القرآن الكريم مع الجماعة في مجلس الروضة الشريفة - مدة المجلس نصف ساعة"
+            },
+            {
+              "id": "6e67b9f4fb33",
+              "type": "heading",
+              "title": "الختم"
+            },
+            {
+              "id": "454a61cda6ce",
+              "type": "dua",
+              "entry": "salat_ibrahimiya"
+            },
+            {
+              "id": "485e7f1560de",
+              "type": "dua",
+              "entry": "dua_khayr_kulluh"
+            },
+            {
+              "id": "81ea79821d0f",
+              "type": "dhikr",
+              "entry": "hamd_hadana"
+            },
+            {
+              "id": "e7cb593999f7",
               "type": "dhikr",
               "entry": "kaffarat_majlis"
             }

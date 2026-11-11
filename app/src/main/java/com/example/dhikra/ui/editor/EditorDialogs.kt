@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,7 +88,7 @@ import com.example.dhikra.data.newId
 import com.example.dhikra.reminder.ReminderScheduler
 import com.example.dhikra.ui.components.SectionIconChoices
 import com.example.dhikra.ui.components.icon
-import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.home.label
 import com.example.dhikra.ui.library.EntryCard
@@ -104,6 +103,11 @@ import com.example.dhikra.ui.components.accent
 import com.example.dhikra.ui.components.label
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.dhikra.ui.components.clearButton
+import com.example.dhikra.ui.components.DialogSystemBarIcons
 
 private val SectionIcons = SectionIconChoices.map { it.first }
 
@@ -146,6 +150,7 @@ fun SectionEditorDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it; showError = false },
+                    trailingIcon = clearButton(title) { title = ""; showError = false },
                     label = { Text(stringResource(R.string.section_title)) },
                     isError = showError,
                     supportingText = if (showError) {
@@ -213,7 +218,7 @@ fun SectionEditorDialog(
                         )
                     } else {
                         OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(formatTime(minutes), style = MaterialTheme.typography.titleMedium)
+                            Text(formatClock(minutes), style = MaterialTheme.typography.titleMedium)
                         }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -238,6 +243,7 @@ fun SectionEditorDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
+                    trailingIcon = clearButton(note) { note = "" },
                     label = { Text(stringResource(R.string.section_note)) },
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
@@ -327,6 +333,7 @@ private fun NoticesEditor(notices: List<SectionNotice>, onChange: (List<SectionN
                     OutlinedTextField(
                         value = notice.text,
                         onValueChange = { update(notice.copy(text = it)) },
+                        trailingIcon = clearButton(notice.text) { update(notice.copy(text = "")) },
                         label = { Text(stringResource(R.string.notice_text)) },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth().padding(end = 6.dp),
@@ -372,7 +379,7 @@ private fun PrayerAnchorEditor(
     }
     Text(
         text = timetable?.let {
-            stringResource(R.string.anchor_today, formatTime(Math.floorMod(it.at(prayer) + offset, 24 * 60)))
+            stringResource(R.string.anchor_today, formatClock(Math.floorMod(it.at(prayer) + offset, 24 * 60)))
         } ?: stringResource(R.string.anchor_no_city),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -385,7 +392,7 @@ private fun TimePickerDialog(initialMinutes: Int, onDismiss: () -> Unit, onConfi
     val state = rememberTimePickerState(
         initialHour = initialMinutes / 60,
         initialMinute = initialMinutes % 60,
-        is24Hour = false,
+        is24Hour = true,
     )
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -474,9 +481,12 @@ fun ItemEditorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Edge to edge: the window is not resized for the keyboard; the content alone makes room for it
+    // (and the system bars) once. Resized and padded both, the fields were pushed up twice.
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.imePadding()) {
+            DialogSystemBarIcons()
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -551,6 +561,7 @@ fun ItemEditorDialog(
                             OutlinedTextField(
                                 value = query,
                                 onValueChange = { query = it },
+                                trailingIcon = clearButton(query) { query = "" },
                                 placeholder = { Text(stringResource(R.string.search)) },
                                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                                 singleLine = true,
@@ -599,6 +610,7 @@ fun ItemEditorDialog(
                             OutlinedTextField(
                                 value = query,
                                 onValueChange = { query = it },
+                                trailingIcon = clearButton(query) { query = "" },
                                 placeholder = { Text(stringResource(R.string.search)) },
                                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                                 singleLine = true,
@@ -630,6 +642,7 @@ fun ItemEditorDialog(
                         OutlinedTextField(
                             value = title,
                             onValueChange = { title = it; showError = false },
+                            trailingIcon = clearButton(title) { title = ""; showError = false },
                             label = {
                                 Text(stringResource(if (type == ItemType.HEADING) R.string.item_title_heading else R.string.item_title))
                             },
@@ -640,6 +653,7 @@ fun ItemEditorDialog(
                         OutlinedTextField(
                             value = text,
                             onValueChange = { text = it; showError = false },
+                            trailingIcon = clearButton(text) { text = ""; showError = false },
                             label = {
                                 Text(stringResource(if (type == ItemType.TASK) R.string.item_text_task else R.string.item_text_heading))
                             },
@@ -660,6 +674,7 @@ fun ItemEditorDialog(
                         OutlinedTextField(
                             value = note,
                             onValueChange = { note = it },
+                            trailingIcon = clearButton(note) { note = "" },
                             label = { Text(stringResource(R.string.item_note)) },
                             modifier = Modifier.fillMaxWidth(),
                         )

@@ -84,7 +84,7 @@ import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.PrayerTimetable
 import com.example.dhikra.ui.prayer.anchorLabel
-import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.home.colors
 import com.example.dhikra.ui.components.DhikraHeader
 import com.example.dhikra.ui.components.headerAppBarColors
@@ -95,6 +95,7 @@ import com.example.dhikra.ui.components.ProgramIcon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.example.dhikra.ui.components.clearButton
 
 private sealed interface EditorDialog {
     data class Section(val section: ProgramSection?) : EditorDialog
@@ -282,6 +283,7 @@ fun EditorScreen(
                     EditorRow.Name -> OutlinedTextField(
                         value = program.name,
                         onValueChange = { name -> onEdit { it.copy(name = name) } },
+                        trailingIcon = clearButton(program.name) { onEdit { it.copy(name = "") } },
                         label = { Text(stringResource(R.string.program_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -489,7 +491,7 @@ private fun SectionHeaderRow(
                     }
                     Text(
                         text = (section.anchor?.let { anchorLabel(it) }
-                            ?: section.reminderMinutes?.let(::formatTime)
+                            ?: section.reminderMinutes?.let(::formatClock)
                             ?: stringResource(R.string.no_reminder)) +
                             "  ·  " + stringResource(R.string.section_steps_count, uiDigits(section.trackableItems.size)),
                         style = MaterialTheme.typography.labelSmall,

@@ -95,7 +95,7 @@ import com.example.dhikra.ui.components.GoldInk
 import com.example.dhikra.ui.components.PrayerIcon
 import com.example.dhikra.ui.components.headerAppBarColors
 import com.example.dhikra.ui.components.sectionIcon
-import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.MustardLight
@@ -204,7 +204,7 @@ private fun SectionMeta(section: ProgramSection) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.Notifications, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))
-        Text(formatTime(minutes), style = MaterialTheme.typography.labelMedium, color = color)
+        Text(formatClock(minutes), style = MaterialTheme.typography.labelMedium, color = color)
     }
 }
 

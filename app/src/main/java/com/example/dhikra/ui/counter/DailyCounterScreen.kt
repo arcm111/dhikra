@@ -55,6 +55,7 @@ import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.theme.ReadingStyles
 import com.example.dhikra.ui.uiDigits
 import kotlinx.coroutines.delay
+import androidx.compose.ui.text.font.FontWeight
 
 /**
  * The daily counter of one dhikr, full screen on the night background of the reader: its text,
@@ -118,21 +119,16 @@ fun DailyCounterScreen(
                 IconButton(onClick = onClose) {
                     Icon(Icons.Filled.Close, stringResource(R.string.close), tint = NightInk)
                 }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = entry.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = NightInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stringResource(R.string.counter_screen_title, uiDigits(target)),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.6f),
-                        maxLines = 1,
-                    )
-                }
+                // Only today's count of the target it climbs to, e.g. «٤٠٠/٥٠٠».
+                Text(
+                    text = uiDigits("$count/$target"),
+                    style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.SemiBold,
+                    color = NightInk,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
                 Spacer(Modifier.widthIn(min = 48.dp))
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -142,7 +138,7 @@ fun DailyCounterScreen(
                     style = ReadingStyles.dhikr(textScale).copy(textAlign = TextAlign.Center),
                     color = Color.White,
                     modifier = Modifier
-                        .verticalScrollbar(scroll, thumb = Color.White.copy(alpha = 0.55f))
+                        .verticalScrollbar(scroll, thumb = Color.White.copy(alpha = 0.35f))
                         .verticalScroll(scroll)
                         .padding(vertical = 8.dp)
                         .padding(horizontal = if (scroll.maxValue > 0) 12.dp else 0.dp),

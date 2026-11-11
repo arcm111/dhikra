@@ -27,7 +27,7 @@ import com.example.dhikra.data.Program
 import com.example.dhikra.data.ProgramRepository
 import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.data.ReminderSound
-import com.example.dhikra.ui.formatTime
+import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.localized
 import com.example.dhikra.ui.prayer.shownName
 import com.example.dhikra.ui.prayer.label
@@ -312,7 +312,7 @@ object ReminderScheduler {
             .setColor(ContextCompat.getColor(context, R.color.brand_primary))
             .setContentTitle(context.getString(R.string.prayer_alert_title, name))
             .setContentText(
-                context.getString(R.string.prayer_alert_text, formatTime(timetable.at(prayer)), timetable.city.shownName)
+                context.getString(R.string.prayer_alert_text, formatClock(timetable.at(prayer)), timetable.city.shownName)
             )
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

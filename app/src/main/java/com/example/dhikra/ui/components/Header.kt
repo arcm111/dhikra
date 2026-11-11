@@ -47,14 +47,17 @@ private val HeaderShape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18
 fun DhikraHeader(
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 12.dp,
+    /** The gradient's top and bottom colours; the theme's header greens by default. */
+    colors: Pair<Color, Color>? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val palette = LocalDhikraPalette.current
+    val (top, bottom) = colors ?: (palette.headerStart to palette.headerEnd)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .shadow(elevation = 8.dp, shape = HeaderShape)
-            .background(Brush.verticalGradient(listOf(palette.headerStart, palette.headerEnd)))
+            .background(Brush.verticalGradient(listOf(top, bottom)))
             .starLattice(Color.White.copy(alpha = 0.05f))
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
