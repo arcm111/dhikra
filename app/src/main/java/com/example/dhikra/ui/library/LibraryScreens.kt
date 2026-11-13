@@ -1169,7 +1169,7 @@ fun EntryEditorDialog(
                             },
                             textStyle = (if (isQuran) ReadingStyles.quran(0.85f) else ReadingStyles.dua(0.9f))
                                 .copy(textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurface),
-                            minLines = 4,
+                            minLines = 3,
                             maxLines = 12,
                             modifier = Modifier.fillMaxWidth(),
                         )
