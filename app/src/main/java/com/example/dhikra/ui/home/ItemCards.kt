@@ -83,6 +83,8 @@ import androidx.compose.ui.state.ToggleableState
 import com.example.dhikra.ui.components.TaskIcon
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import com.example.dhikra.ui.components.LocalSectionComplete
+import com.example.dhikra.ui.components.GoldInk
 
 /**
  * One step of the schedule, as a card with only its header (type and title). Tapping a text opens
@@ -299,12 +301,16 @@ private fun TaskItem(
                 .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Something to do rather than to read: the to-do mark, in the task's green.
+            // Something to do rather than to read: the to-do mark on its disc, in the task's blue — gold
+            // once done, like every finished step.
+            val palette = LocalDhikraPalette.current
+            val markTone by animateColorAsState(if (complete) palette.done else colors.accent, tween(400), label = "taskMark")
+            val markTint by animateColorAsState(if (complete) palette.doneText else colors.accent, tween(400), label = "taskMarkTint")
             Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.13f)),
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(markTone.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(TaskIcon, contentDescription = stringResource(R.string.type_task), tint = colors.accent, modifier = Modifier.size(20.dp))
+                Icon(TaskIcon, contentDescription = stringResource(R.string.type_task), tint = markTint, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -348,17 +354,20 @@ private fun taskColors(): ElementColors {
 @Composable
 private fun CheckMark(checked: Boolean, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
-    val fill by animateColorAsState(if (checked) scheme.primary else Color.Transparent, label = "checkFill")
+    // Gold once the whole section is done, like its step circles.
+    val gold = LocalSectionComplete.current
+    val tone = if (gold) LocalDhikraPalette.current.done else scheme.primary
+    val fill by animateColorAsState(if (checked) tone else Color.Transparent, label = "checkFill")
     Box(
         modifier = modifier
             .size(22.dp)
             .clip(CircleShape)
             .background(fill)
-            .border(1.5.dp, scheme.primary, CircleShape),
+            .border(1.5.dp, if (checked) tone else scheme.primary, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(visible = checked, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-            Icon(Icons.Filled.Check, null, tint = scheme.onPrimary, modifier = Modifier.size(13.dp))
+            Icon(Icons.Filled.Check, null, tint = if (gold) GoldInk else scheme.onPrimary, modifier = Modifier.size(13.dp))
         }
     }
 }

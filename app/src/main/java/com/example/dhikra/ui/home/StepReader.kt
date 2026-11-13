@@ -121,6 +121,26 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.gestures.TargetedFlingBehavior
 import androidx.compose.foundation.gestures.ScrollScope
 import com.example.dhikra.data.ProgramItem
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.compositeOver
+import com.example.dhikra.ui.components.CounterBar
+import com.example.dhikra.ui.components.PlayToggle
+import com.example.dhikra.ui.components.PlayButtonSize
 
 /** What the reader can do on its screens; the screens themselves keep no progress of their own. */
 internal class ReaderActions(
@@ -248,6 +268,16 @@ fun StepReader(
             ReaderPageContent(
                 page = page,
                 position = pagePosition(section, page),
+                marks = section.trackableItems.map { step ->
+                    val current = step.id == page.step.id
+                    StepMark(
+                        done = state.isComplete(step),
+                        current = current,
+                        groupShare = if (current && step.isGroup && step.target > 0) {
+                            state.doneCount(step).toFloat() / step.target
+                        } else null,
+                    )
+                },
                 done = state.doneCount(item),
                 groupComplete = page.inGroup && state.isComplete(page.step),
                 sectionComplete = state.completedIn(section) >= section.trackableItems.size,
@@ -309,6 +339,7 @@ private enum class FooterMode { Counting, MarkDone, Finished }
 internal fun ReaderPageContent(
     page: ReaderPage,
     position: String,
+    marks: List<StepMark>,
     done: Int,
     groupComplete: Boolean,
     sectionComplete: Boolean,
@@ -412,10 +443,7 @@ internal fun ReaderPageContent(
         ) {
             ReaderTopBar(
                 position = position,
-                canPlay = counted && !complete,
-                playing = playing,
-                onTogglePlay = actions.onTogglePlay,
-                inGroup = page.inGroup,
+                marks = marks,
                 groupComplete = groupComplete,
                 onSetGroupComplete = actions.onSetGroupComplete,
                 onClose = actions.onClose,
@@ -504,6 +532,8 @@ internal fun ReaderPageContent(
                     actions.onSetComplete(false)
                 },
                 onNext = actions.onNext,
+                playing = playing,
+                onTogglePlay = actions.onTogglePlay,
                 nudge = nudge,
                 modifier = Modifier.widthIn(max = ReaderMaxWidth),
             )
@@ -614,88 +644,166 @@ private class EdgeHandOff(private val scroll: ScrollState) : NestedScrollConnect
  * [fraction] of the way through the text is shown at the same fraction of the scroll; the user's
  * own scrolling takes over until they let go.
  */
-private fun followHighlight(scroll: ScrollState, fraction: Float) {
+internal fun followHighlight(scroll: ScrollState, fraction: Float) {
     val range = scroll.maxValue
     if (scroll.isScrollInProgress || range <= 0 || range == Int.MAX_VALUE) return
     scroll.dispatchRawDelta((fraction * range).roundToInt() - scroll.value.toFloat())
 }
 
+/**
+ * One step of the section on the reader's top bar: [done] or not, the [current] one, and for a
+ * current group the share of its texts done ([groupShare]).
+ */
+internal data class StepMark(val done: Boolean, val current: Boolean, val groupShare: Float? = null)
+
+/**
+ * The reader's top bar: the close button, and the section's steps as a row of check boxes — done
+ * ones gold with a tick, the current one outlined brighter; a current group is a ring filling
+ * with its texts, a tick once complete, and a long press on it finishes (or undoes) the whole
+ * group. Too many steps to fit make small dots, then just «٥/٩».
+ */
 @Composable
 private fun ReaderTopBar(
     position: String,
-    canPlay: Boolean,
-    playing: Boolean,
-    onTogglePlay: () -> Unit,
-    inGroup: Boolean,
+    marks: List<StepMark>,
     groupComplete: Boolean,
     onSetGroupComplete: (Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
-    // Both ends are as wide as the actions, so the title stays centred.
-    val actionCount = (if (canPlay) 1 else 0) + (if (inGroup) 1 else 0)
-    val side = ActionSize * actionCount.coerceAtLeast(1)
     Row(
         modifier = Modifier.fillMaxWidth().height(TopBarHeight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(side), contentAlignment = Alignment.CenterStart) {
+        Box(Modifier.width(ActionSize), contentAlignment = Alignment.CenterStart) {
             IconButton(onClick = onClose) {
                 Icon(Icons.Filled.Close, stringResource(R.string.close), tint = NightInk)
             }
         }
-        // Only where the reader is: «٥/٩».
-        Text(
-            text = position,
-            style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-            fontWeight = FontWeight.SemiBold,
-            color = NightInk,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
+        StepMarks(
+            marks = marks,
+            position = position,
+            groupComplete = groupComplete,
+            onSetGroupComplete = onSetGroupComplete,
             modifier = Modifier.weight(1f),
         )
-        Row(
-            modifier = Modifier.width(side),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (canPlay) {
-                IconButton(onClick = onTogglePlay) {
-                    if (playing) {
-                        Icon(painterResource(R.drawable.ic_pause), stringResource(R.string.pause), tint = MustardLight)
-                    } else {
-                        Icon(Icons.Filled.PlayArrow, stringResource(R.string.play), tint = MustardLight)
-                    }
+        Spacer(Modifier.width(ActionSize))
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun StepMarks(
+    marks: List<StepMark>,
+    position: String,
+    groupComplete: Boolean,
+    onSetGroupComplete: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+    val index = marks.indexOfFirst { it.current }
+    val currentMark = marks.getOrNull(index)
+    // The current step is a group: its ring (or its tick once complete) finishes or undoes it all.
+    val isGroup = currentMark?.groupShare != null || (currentMark?.done == true && groupComplete)
+    val spoken = stringResource(R.string.reader_position, uiDigits(index + 1), uiDigits(marks.size))
+    val groupAction = stringResource(if (groupComplete) R.string.undo_done else R.string.group_complete_all)
+    val toggleGroup = {
+        haptic.performHapticFeedback(if (groupComplete) HapticFeedbackType.ToggleOff else HapticFeedbackType.Confirm)
+        onSetGroupComplete(!groupComplete)
+    }
+    BoxWithConstraints(
+        modifier = modifier.clearAndSetSemantics {
+            contentDescription = spoken
+            if (isGroup) customActions = listOf(CustomAccessibilityAction(groupAction) { toggleGroup(); true })
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        val box = 18.dp
+        val gap = 6.dp
+        when {
+            (box + gap) * marks.size <= maxWidth -> Row(
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                marks.forEach { mark ->
+                    val longPress = if (mark.current && isGroup) {
+                        Modifier.combinedClickable(
+                            interactionSource = null,
+                            indication = null,
+                            onClick = {},
+                            onLongClick = toggleGroup,
+                        )
+                    } else Modifier
+                    StepCheck(mark, box, longPress)
                 }
             }
-            if (inGroup) GroupMenu(groupComplete, onSetGroupComplete)
+            (10.dp + 4.dp) * marks.size <= maxWidth -> Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                marks.forEach { mark ->
+                    Box(
+                        Modifier
+                            .size(if (mark.current) 10.dp else 8.dp)
+                            .background(
+                                when {
+                                    mark.done -> MustardLight
+                                    mark.current -> NightInk
+                                    else -> Color.White.copy(alpha = 0.25f)
+                                },
+                                CircleShape,
+                            )
+                    )
+                }
+            }
+            else -> Text(
+                text = position,
+                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+                color = NightInk,
+                maxLines = 1,
+            )
         }
     }
 }
 
-/** Finishing (or undoing) all the texts of a group at once, as the list's group card used to. */
+/** One step's box: a gold tick when done, an outline while to do (brighter for the current one); a ring for a current group. */
 @Composable
-private fun GroupMenu(complete: Boolean, onSetComplete: (Boolean) -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more), tint = NightInk)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = {
-                    Text(stringResource(if (complete) R.string.undo_done else R.string.group_complete_all))
-                },
-                leadingIcon = {
-                    Icon(if (complete) UndoIcon else Icons.Filled.Check, contentDescription = null)
-                },
-                onClick = {
-                    open = false
-                    haptic.performHapticFeedback(
-                        if (complete) HapticFeedbackType.ToggleOff else HapticFeedbackType.Confirm
+private fun StepCheck(mark: StepMark, size: Dp, modifier: Modifier = Modifier) {
+    val share = mark.groupShare
+    val shape = RoundedCornerShape(5.dp)
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        when {
+            mark.done -> Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(MustardLight, shape)
+                    .then(if (mark.current) Modifier.border(1.5.dp, Color.White, shape) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Check, null, tint = GoldInk, modifier = Modifier.size(size * 0.75f))
+            }
+            share != null -> {
+                // A group under way: its texts done, round a ring.
+                val progress by animateFloatAsState(share.coerceIn(0f, 1f), label = "groupMark")
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxSize(),
+                    color = MustardLight,
+                    // As bright as the current step's outline: this is where the reader is.
+                    trackColor = Color.White.copy(alpha = 0.75f),
+                    strokeWidth = 2.5.dp,
+                    gapSize = 0.dp,
+                )
+            }
+            else -> Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = if (mark.current) 0.14f else 0f), shape)
+                    .border(
+                        if (mark.current) 2.dp else 1.5.dp,
+                        Color.White.copy(alpha = if (mark.current) 0.9f else 0.35f),
+                        shape,
                     )
-                    onSetComplete(!complete)
-                },
             )
         }
     }
@@ -807,6 +915,8 @@ private fun ReaderFooter(
     onMarkDone: () -> Unit,
     onUnmarkDone: () -> Unit,
     onNext: () -> Unit,
+    playing: Boolean,
+    onTogglePlay: () -> Unit,
     nudge: () -> Float,
     modifier: Modifier = Modifier,
 ) {
@@ -838,10 +948,14 @@ private fun ReaderFooter(
             ) {
                 val side = Modifier.weight(1f).fillMaxHeight()
                 when (current) {
-                    FooterMode.Counting -> {
-                        NightButton(UndoIcon, stringResource(R.string.counter_undo), onUndo, side, enabled = done > 0)
-                        ResetButton(confirmReset, onReset, side, enabled = done > 0)
-                    }
+                    FooterMode.Counting -> CountingBar(
+                        done = done,
+                        confirmReset = confirmReset,
+                        playing = playing,
+                        onUndo = onUndo,
+                        onReset = onReset,
+                        onTogglePlay = onTogglePlay,
+                    )
                     FooterMode.MarkDone -> GoldButton(
                         icon = Icons.Filled.Check,
                         label = stringResource(R.string.mark_done),
@@ -862,6 +976,32 @@ private fun ReaderFooter(
                 }
             }
         }
+    }
+}
+
+/**
+ * A counted step's controls: the counters' bar, undo on one side and reset on the other, with
+ * reading along — play, or pause while playing — as a quiet gold button in its middle.
+ */
+@Composable
+private fun RowScope.CountingBar(
+    done: Int,
+    confirmReset: Boolean,
+    playing: Boolean,
+    onUndo: () -> Unit,
+    onReset: () -> Unit,
+    onTogglePlay: () -> Unit,
+) {
+    CounterBar(
+        undoEnabled = done > 0,
+        resetEnabled = done > 0,
+        confirmReset = confirmReset,
+        onUndo = onUndo,
+        onReset = onReset,
+        centerSize = PlayButtonSize,
+        modifier = Modifier.weight(1f).fillMaxHeight(),
+    ) {
+        PlayToggle(playing = playing, onToggle = onTogglePlay, size = PlayButtonSize)
     }
 }
 

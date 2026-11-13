@@ -30,6 +30,9 @@ class ProgramRepository(
     /** The stored programs and library (or the defaults), with the text of the Quran passages. */
     fun load(): ProgramStore = withQuranText(loadStored())
 
+    /** The stored programs and library without the Quran passages' text: enough for titles (the widgets). */
+    fun loadWithoutQuranText(): ProgramStore = loadStored()
+
     /** [store] with the text of its library's Quran passages filled in. */
     fun withQuranText(store: ProgramStore): ProgramStore =
         store.copy(library = store.library.withQuranText(quran))
@@ -161,12 +164,37 @@ class ProgramRepository(
 
     fun loadTextScale(): Float = prefs.getFloat(KEY_TEXT_SCALE, 1f)
 
+    /** The floating counter's size, a share of its default (the bubble follows a change at once). */
+    fun loadOverlayScale(): Float = prefs.getFloat(KEY_OVERLAY_SCALE, 1f)
+
+    fun saveOverlayScale(scale: Float) = prefs.edit { putFloat(KEY_OVERLAY_SCALE, scale) }
+
+    /** How the floating counter fades while left alone (the bubble follows a change at once). */
+    fun loadOverlayFade(): OverlayFade = OverlayFade(
+        enabled = prefs.getBoolean(OverlayFade.KEY_ENABLED, true),
+        opacity = prefs.getFloat(OverlayFade.KEY_OPACITY, OverlayFade.DEFAULT_OPACITY)
+            .coerceIn(OverlayFade.MIN_OPACITY, OverlayFade.MAX_OPACITY),
+        delaySeconds = prefs.getInt(OverlayFade.KEY_DELAY, OverlayFade.DEFAULT_DELAY_SECONDS)
+            .coerceIn(OverlayFade.MIN_DELAY_SECONDS, OverlayFade.MAX_DELAY_SECONDS),
+    )
+
+    fun saveOverlayFade(fade: OverlayFade) = prefs.edit {
+        putBoolean(OverlayFade.KEY_ENABLED, fade.enabled)
+        putFloat(OverlayFade.KEY_OPACITY, fade.opacity)
+        putInt(OverlayFade.KEY_DELAY, fade.delaySeconds)
+    }
+
     fun saveTextScale(scale: Float) = prefs.edit { putFloat(KEY_TEXT_SCALE, scale) }
 
     /** The city the user picked for their prayer times, or null when none was picked yet. */
     fun loadPrayerCity(): String? = prefs.getString(KEY_PRAYER_CITY, null)
 
     fun savePrayerCity(cityId: String) = prefs.edit { putString(KEY_PRAYER_CITY, cityId) }
+
+    /** Whether the first launch's "choose your city" question was answered (a city, or later). */
+    fun loadCityAsked(): Boolean = prefs.getBoolean(KEY_CITY_ASKED, false)
+
+    fun saveCityAsked() = prefs.edit { putBoolean(KEY_CITY_ASKED, true) }
 
     // ---- Reminder sounds ----
 
@@ -221,7 +249,9 @@ class ProgramRepository(
         private const val KEY_FAVOURITES = "favourites"
         private const val KEY_DEFAULT_SPEED = "default_reading_speed"
         private const val KEY_TEXT_SCALE = "text_scale"
+        private const val KEY_OVERLAY_SCALE = "overlay_scale"
         private const val KEY_PRAYER_CITY = "prayer_city"
+        private const val KEY_CITY_ASKED = "city_asked"
         private const val KEY_SECTION_SOUND = "section_reminder_sound"
         private const val KEY_PRAYER_ALERT_PREFIX = "prayer_alert_"
         private const val KEY_PRAYER_METHOD = "prayer_method"

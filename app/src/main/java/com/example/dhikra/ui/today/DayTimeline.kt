@@ -137,3 +137,69 @@ fun buildDayTimeline(
     }
     return DayTimeline(periods, untimed)
 }
+
+// ---------------------------------------------------------------- The prayer-time card
+
+/** Minutes before the next prayer from which the time going on is shown as closing (red). */
+const val CLOSING_MINUTES = 15
+
+/**
+ * The share (0 to 1) of the period from [start] to [end] (minutes of the day) that has passed at
+ * [now]; the period may run past midnight (Isha to Fajr).
+ */
+fun periodShare(start: Int, end: Int, now: Int): Float {
+    val length = Math.floorMod(end - start, MINUTES_PER_DAY).let { if (it == 0) MINUTES_PER_DAY else it }
+    val passed = Math.floorMod(now - start, MINUTES_PER_DAY)
+    return (passed.toFloat() / length).coerceIn(0f, 1f)
+}
+
+/** Minutes from [now] until [end] (minutes of the day), across midnight if need be. */
+fun minutesLeft(end: Int, now: Int): Int = Math.floorMod(end - now, MINUTES_PER_DAY)
+
+/** Whether so few minutes are left of the time going on that it is shown as closing. */
+fun isClosing(minutesLeft: Int): Boolean = minutesLeft <= CLOSING_MINUTES
+
+/**
+ * The row (0 or 1) of each label at [positions] along a line, so that two labels on one row are
+ * at least [minGap] apart: in order along the line, a label takes the first row with room, and
+ * the second of two that would clash drops to the next row (row 0 if neither has room).
+ */
+fun labelRows(positions: List<Float>, minGap: Float): List<Int> {
+    val rows = IntArray(positions.size)
+    val lastOnRow = floatArrayOf(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY)
+    positions.indices.sortedBy { positions[it] }.forEach { i ->
+        val p = positions[i]
+        val row = when {
+            p - lastOnRow[0] >= minGap -> 0
+            p - lastOnRow[1] >= minGap -> 1
+            else -> 0
+        }
+        rows[i] = row
+        lastOnRow[row] = p
+    }
+    return rows.toList()
+}
+
+/** The sections of «الآن» and those coming up next, see [nowAndNext]. */
+data class NowAndNext(val now: List<ProgramSection>, val next: List<ProgramSection>)
+
+/**
+ * Within the prayer time from [periodStart] to [periodEnd] (minutes of the day; it may run past
+ * midnight): [NowAndNext.now], the timed sections whose time came last at [nowMinutes] — all of them
+ * when several share that time — and [NowAndNext.next], those still ahead before the next prayer
+ * whose time comes first, all of them when several share it. Sections without a time are left out.
+ */
+fun nowAndNext(sections: List<ProgramSection>, periodStart: Int, periodEnd: Int, nowMinutes: Int): NowAndNext {
+    fun offset(minutes: Int) = Math.floorMod(minutes - periodStart, MINUTES_PER_DAY)
+    val length = offset(periodEnd).let { if (it == 0) MINUTES_PER_DAY else it }
+    val now = offset(nowMinutes)
+    val timed = sections.filter { it.reminderMinutes != null }.map { it to offset(it.reminderMinutes!!) }
+    val due = timed.filter { (_, at) -> at <= now }
+    val ahead = timed.filter { (_, at) -> at in (now + 1) until length }
+    val latest = due.maxOfOrNull { it.second }
+    val earliest = ahead.minOfOrNull { it.second }
+    return NowAndNext(
+        now = due.filter { it.second == latest }.map { it.first },
+        next = ahead.filter { it.second == earliest }.map { it.first },
+    )
+}

@@ -45,6 +45,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Calendar
+import com.example.dhikra.widget.Widgets
+import com.example.dhikra.data.CounterStore
+import com.example.dhikra.overlay.CounterOverlayService
+import com.example.dhikra.data.ReadingSpeeds
+import com.example.dhikra.data.OverlayFade
 
 data class UiState(
     val loading: Boolean = true,
@@ -77,6 +82,14 @@ data class UiState(
     val prayerAlerts: Map<Prayer, PrayerAlert> = emptyMap(),
     /** A section to show in the section view at once (a reminder was tapped); cleared once shown. */
     val openSectionRequest: String? = null,
+    /** The floating counter's size, a share of its default. */
+    val overlayScale: Float = 1f,
+    /** How the floating counter fades while left alone. */
+    val overlayFade: OverlayFade = OverlayFade(),
+    /** The first launch: no city yet, and the user was not asked for one. */
+    val askCity: Boolean = false,
+    /** A daily counter to show at once (a widget's counter was tapped); cleared once shown. */
+    val openCounterRequest: String? = null,
     /** The adhkar of the daily counter (library entry ids), in the order they were added. */
     val counters: List<String> = emptyList(),
     /** The library texts and groups marked as favourites, see [Favourites]. */
@@ -95,6 +108,8 @@ data class UiState(
 
     fun isComplete(item: ProgramItem): Boolean = item.target > 0 && doneCount(item) >= item.target
     fun speedFor(item: ProgramItem): Float = speeds[item.id] ?: defaultSpeed
+    /** The reading speed of the daily counter of [entryId]. */
+    fun counterSpeed(entryId: String): Float = speeds[ReadingSpeeds.counterKey(entryId)] ?: defaultSpeed
     fun completedIn(section: ProgramSection): Int = section.trackableItems.count(::isComplete)
 }
 
@@ -122,6 +137,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingSectionSelection: String? = null
 
     init {
+        // A count made outside the app's screen (the widget, the floating counter): show it.
+        viewModelScope.launch {
+            CounterStore.changes.collect { if (it == CounterStore.Source.OUTSIDE) reloadFromStorage() }
+        }
         viewModelScope.launch {
             val today = ProgramRepository.today()
             val loaded = withContext(Dispatchers.IO) {
@@ -138,12 +157,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     speeds = repository.loadSpeeds(),
                     defaultSpeed = repository.loadDefaultSpeed(),
                     textScale = repository.loadTextScale(),
+                    overlayScale = repository.loadOverlayScale(),
+                    overlayFade = repository.loadOverlayFade(),
                     prayerTimes = timetable,
                     sectionSound = repository.loadSectionSound(),
                     prayerAlerts = repository.loadPrayerAlerts(),
                     prayerSettings = repository.loadPrayerSettings(),
                     counters = repository.loadCounters(),
                     favourites = repository.loadFavourites(),
+                    askCity = timetable == null && repository.loadPrayerCity() == null && !repository.loadCityAsked(),
                 )
             }
             val now = currentSectionByTime(loaded.schedule)
@@ -154,6 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     nowSectionId = now,
                     pendingImport = it.pendingImport,
                     openSectionRequest = it.openSectionRequest,
+                    openCounterRequest = it.openCounterRequest,
                 )
             }
             withContext(Dispatchers.IO) {
@@ -176,6 +199,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openSection(sectionId: String) {
         selectSection(sectionId)
         _state.update { it.copy(openSectionRequest = sectionId) }
+    }
+
+    /** Asks for the daily counter of [entryId] to be shown (a widget's counter was tapped). */
+    fun openCounter(entryId: String) {
+        _state.update { it.copy(openCounterRequest = entryId) }
+    }
+
+    /** The counter was opened for [UiState.openCounterRequest]. */
+    fun consumeOpenCounter() {
+        _state.update { it.copy(openCounterRequest = null) }
     }
 
     /** The section view was opened for [UiState.openSectionRequest]. */
@@ -249,24 +282,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * stored, then the counter is incremented.
      */
     fun onRepetitionRead(item: ProgramItem, elapsedMs: Long) {
-        val letters = ArabicText.totalLetters(item.text)
-        if (elapsedMs >= MIN_MEASURABLE_MS && letters > 0) {
-            val measured = (letters / (elapsedMs / 1000f)).coerceIn(
-                ProgramRepository.MIN_LETTERS_PER_SECOND,
-                ProgramRepository.MAX_LETTERS_PER_SECOND,
-            )
-            val current = _state.value
-            val itemSpeed = current.speedFor(item) * (1 - ITEM_SMOOTHING) + measured * ITEM_SMOOTHING
-            val defaultSpeed =
-                current.defaultSpeed * (1 - DEFAULT_SMOOTHING) + measured * DEFAULT_SMOOTHING
-            val speeds = current.speeds + (item.id to itemSpeed)
-            _state.update { it.copy(speeds = speeds, defaultSpeed = defaultSpeed) }
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.saveSpeeds(speeds)
-                repository.saveDefaultSpeed(defaultSpeed)
-            }
-        }
+        learnSpeed(item.id, item.text, elapsedMs)
         increment(item)
+    }
+
+    /** As [onRepetitionRead], for the daily counter of [entryId] (its own speed, then +1). */
+    fun onCounterRepetitionRead(entryId: String, text: String, elapsedMs: Long) {
+        learnSpeed(ReadingSpeeds.counterKey(entryId), text, elapsedMs)
+        countDhikr(entryId)
+    }
+
+    private fun learnSpeed(key: String, text: String, elapsedMs: Long) {
+        val current = _state.value
+        val learned = ReadingSpeeds.learn(
+            itemSpeed = current.speeds[key] ?: current.defaultSpeed,
+            defaultSpeed = current.defaultSpeed,
+            letters = ArabicText.totalLetters(text),
+            elapsedMs = elapsedMs,
+        ) ?: return
+        val speeds = current.speeds + (key to learned.item)
+        _state.update { it.copy(speeds = speeds, defaultSpeed = learned.default) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveSpeeds(speeds)
+            repository.saveDefaultSpeed(learned.default)
+        }
     }
 
     // ---------------------------------------------------------------- Daily counter
@@ -280,6 +319,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Takes [entryId] off the daily counter, with today's count. */
     fun removeCounter(entryId: String) {
+        if (CounterOverlayService.shownEntryId == entryId) CounterOverlayService.stop(getApplication())
         saveCounters(_state.value.counters - entryId)
         updateProgress { it.remove(DailyCounter.key(entryId)) }
     }
@@ -287,6 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun saveCounters(counters: List<String>) {
         _state.update { it.copy(counters = counters) }
         viewModelScope.launch(Dispatchers.IO) { repository.saveCounters(counters) }
+        Widgets.refresh(getApplication())
     }
 
     /** One more on today's count of [entryId]: it has no end, only rising targets. */
@@ -317,14 +358,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val current = _state.value
         val progress = current.progress.toMutableMap().also(block)
         _state.update { it.copy(progress = progress) }
-        viewModelScope.launch(Dispatchers.IO) { repository.saveProgress(current.day, progress) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveProgress(current.day, progress)
+            CounterStore.appSaved()
+            Widgets.refresh(getApplication())
+        }
+    }
+
+    /**
+     * Reads today's progress and counters again from storage: a home-screen widget may have
+     * counted while the app was away. Called when the app comes back to the foreground.
+     */
+    fun reloadFromStorage() {
+        if (_state.value.loading) return
+        refreshDay()
+        val day = _state.value.day
+        viewModelScope.launch {
+            val (progress, counters) = withContext(Dispatchers.IO) { repository.loadProgress(day) to repository.loadCounters() }
+            // The floating counter learns reading speeds too.
+            val (speeds, defaultSpeed) = withContext(Dispatchers.IO) { repository.loadSpeeds() to repository.loadDefaultSpeed() }
+            _state.update {
+                if (it.day == day) it.copy(progress = progress, counters = counters, speeds = speeds, defaultSpeed = defaultSpeed) else it
+            }
+        }
     }
 
     // ---------------------------------------------------------------- Preferences
 
+    fun setOverlayFade(fade: OverlayFade) {
+        _state.update { it.copy(overlayFade = fade) }
+        viewModelScope.launch(Dispatchers.IO) { repository.saveOverlayFade(fade) }
+    }
+
+    fun setOverlayScale(scale: Float) {
+        _state.update { it.copy(overlayScale = scale) }
+        viewModelScope.launch(Dispatchers.IO) { repository.saveOverlayScale(scale) }
+    }
+
     fun setTextScale(scale: Float) {
         _state.update { it.copy(textScale = scale) }
         viewModelScope.launch(Dispatchers.IO) { repository.saveTextScale(scale) }
+    }
+
+    /** The first launch's question is answered with [cityId]: it becomes the user's city. */
+    fun chooseFirstCity(cityId: String) {
+        setPrayerCity(cityId)
+        dismissCityQuestion()
+    }
+
+    /** The first launch's question is put off ("later"): it is not asked again. */
+    fun dismissCityQuestion() {
+        _state.update { it.copy(askCity = false) }
+        viewModelScope.launch(Dispatchers.IO) { repository.saveCityAsked() }
     }
 
     /** Shows the prayer times of [cityId] and remembers it as the user's city. */
@@ -451,6 +536,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun persist(store: ProgramStore) = withContext(Dispatchers.IO) {
         repository.save(store)
+        Widgets.refresh(getApplication())
         dirty = false
         // Only the program being followed has reminders.
         ReminderScheduler.scheduleAll(getApplication(), store.active)
@@ -470,6 +556,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         commit(_state.value.store.add(Program(name = trimmed)), reselect = true)
+    }
+
+    /** Adds a copy of the program followed, named [name] — its sections and steps with fresh ids — and switches to it. */
+    fun duplicateProgram(name: String) {
+        val program = _state.value.store.active
+        val copy = Program(
+            name = name,
+            sections = program.sections.map { section ->
+                section.copy(id = newId(), items = section.items.map { it.copy(id = newId()) })
+            },
+        )
+        commit(_state.value.store.add(copy), reselect = true)
     }
 
     /** Deletes the program [programId], unless it is the last one. */
@@ -590,9 +688,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val SAVE_DEBOUNCE_MS = 300L
-        const val MIN_MEASURABLE_MS = 400L
-        const val ITEM_SMOOTHING = 0.5f
-        const val DEFAULT_SMOOTHING = 0.25f
         const val MAX_IMPORT_BYTES = 4 * 1024 * 1024
 
         /** The section whose reminder time most recently passed, or the first section. */

@@ -108,10 +108,14 @@ import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.theme.MustardLight
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import com.example.dhikra.ui.uiDigits
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.Notifications
+import com.example.dhikra.ui.components.BellOffIcon
 
 /**
- * Prayer times, opened from the main menu: the next prayer and the countdown to it, then the
- * day's six times in the city the user picked. The city is chosen from a list (no location
+ * Prayer times, opened from the main menu: the next prayer and the countdown to it (its gear opens
+ * the alerts and the calculation settings), then the day's six times, each prayer with a bell
+ * saying whether its alert is set, in the city the user picked. The city is chosen from a list (no location
  * permission); until one is chosen the screen asks for it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,6 +131,8 @@ fun PrayerTimesScreen(
     onSettingsChange: (PrayerSettings) -> Unit = {},
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
+    // The settings — the alerts and how the times are calculated — open from the gear.
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val nowMinutes = rememberMinuteOfDay(timetable?.city?.timeZone)
     Scaffold(
         topBar = {
@@ -168,7 +174,7 @@ fun PrayerTimesScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 val next = timetable.next(nowMinutes)
-                item { NextPrayerCard(timetable, next, onChangeCity = { picking = true }) }
+                item { NextPrayerCard(timetable, next, onChangeCity = { picking = true }, onSettings = { settingsOpen = true }) }
                 item {
                     Text(
                         text = stringResource(R.string.prayer_today),
@@ -181,53 +187,22 @@ fun PrayerTimesScreen(
                             .semantics { heading() },
                     )
                 }
-                item { DayTimes(timetable, next, nowMinutes) }
-                item {
-                    Text(
-                        text = stringResource(R.string.prayer_alerts),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .widthIn(max = MaxWidth)
-                            .fillMaxWidth()
-                            .padding(start = 8.dp, top = 24.dp, bottom = 2.dp)
-                            .semantics { heading() },
-                    )
-                }
-                item {
-                    Text(
-                        text = stringResource(R.string.prayer_alerts_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, bottom = 8.dp),
-                    )
-                }
-                item { PrayerAlertsCard(alerts, onAlertChange) }
-                item {
-                    Text(
-                        text = stringResource(R.string.prayer_calculation),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .widthIn(max = MaxWidth)
-                            .fillMaxWidth()
-                            .padding(start = 8.dp, top = 24.dp, bottom = 2.dp)
-                            .semantics { heading() },
-                    )
-                }
-                item {
-                    Text(
-                        text = stringResource(R.string.prayer_calculation_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, bottom = 8.dp),
-                    )
-                }
-                item { CalculationCard(timetable.city.countryCode, settings, onSettingsChange) }
+                item { DayTimes(timetable, next, nowMinutes, alerts) }
+
             }
         }
     }
 
+    if (settingsOpen && timetable != null) {
+        PrayerSettingsSheet(
+            countryCode = timetable.city.countryCode,
+            alerts = alerts,
+            onAlertChange = onAlertChange,
+            settings = settings,
+            onSettingsChange = onSettingsChange,
+            onDismiss = { settingsOpen = false },
+        )
+    }
     if (picking) {
         CityPickerSheet(
             source = source,
@@ -245,7 +220,7 @@ private val MaxWidth = 560.dp
 
 /** The next prayer, large, on the brand's dark green with the countdown and the city. */
 @Composable
-private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onChangeCity: () -> Unit) {
+private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onChangeCity: () -> Unit, onSettings: () -> Unit) {
     val palette = LocalDhikraPalette.current
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
@@ -253,8 +228,10 @@ private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onC
         shadowElevation = 4.dp,
         modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth(),
     ) {
+      Box {
         Column(
             modifier = Modifier
+                .fillMaxWidth()
                 .background(Brush.linearGradient(listOf(palette.headerStart, palette.headerEnd)))
                 .starLattice(Color.White.copy(alpha = 0.05f))
                 .padding(horizontal = 20.dp, vertical = 22.dp),
@@ -300,12 +277,17 @@ private fun NextPrayerCard(timetable: PrayerTimetable, next: UpcomingPrayer, onC
                 )
             }
         }
+        // The settings: the prayers' alerts and how the times are calculated.
+        IconButton(onClick = onSettings, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+            Icon(Icons.Outlined.Settings, stringResource(R.string.prayer_settings), tint = Color.White.copy(alpha = 0.9f))
+        }
+      }
     }
 }
 
 /** The day's six times in one card; the next prayer is highlighted and those passed are dimmed. */
 @Composable
-private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinutes: Int) {
+private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinutes: Int, alerts: Map<Prayer, PrayerAlert>) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalDhikraPalette.current
     Surface(
@@ -374,6 +356,19 @@ private fun DayTimes(timetable: PrayerTimetable, next: UpcomingPrayer, nowMinute
                             else -> scheme.onSurface
                         },
                     )
+                    // Whether this prayer's alert is set: a bell, or a bell struck through.
+                    Spacer(Modifier.width(12.dp))
+                    if (prayer.isPrayer) {
+                        val on = alerts[prayer]?.enabled == true
+                        Icon(
+                            imageVector = if (on) Icons.Filled.Notifications else BellOffIcon,
+                            contentDescription = stringResource(if (on) R.string.prayer_alert_on else R.string.prayer_alert_off),
+                            tint = if (on) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        Spacer(Modifier.width(20.dp))
+                    }
                 }
             }
         }
@@ -497,6 +492,51 @@ private fun PrayerAlertsCard(alerts: Map<Prayer, PrayerAlert>, onChange: (Prayer
     }
 }
 
+/** The prayer times' settings, from the gear: the five prayers' alerts, then how the times are calculated. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PrayerSettingsSheet(
+    countryCode: String,
+    alerts: Map<Prayer, PrayerAlert>,
+    onAlertChange: (Prayer, PrayerAlert) -> Unit,
+    settings: PrayerSettings,
+    onSettingsChange: (PrayerSettings) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            item {
+                Text(
+                    text = stringResource(R.string.prayer_settings),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, bottom = 4.dp).semantics { heading() },
+                )
+            }
+            item { SheetHeading(stringResource(R.string.prayer_alerts), stringResource(R.string.prayer_alerts_note)) }
+            item { PrayerAlertsCard(alerts, onAlertChange) }
+            item { SheetHeading(stringResource(R.string.prayer_calculation), stringResource(R.string.prayer_calculation_note)) }
+            item { CalculationCard(countryCode, settings, onSettingsChange) }
+        }
+    }
+}
+
+/** A part of the settings sheet: its title, and a line on what it does. */
+@Composable
+private fun SheetHeading(title: String, note: String) {
+    Column(Modifier.widthIn(max = MaxWidth).fillMaxWidth().padding(start = 8.dp, top = 20.dp, bottom = 8.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(text = note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 private val PrayerMethod.label: Int
     get() = when (this) {
         PrayerMethod.MUSLIM_WORLD_LEAGUE -> R.string.method_mwl
@@ -519,8 +559,8 @@ private val AsrMadhab.label: Int
 private enum class CalculationDialog { Method, Madhab, Adjust }
 
 /**
- * How the times are calculated: the method and the Asr school (by default those of the city's
- * country, [countryCode]) and the minutes added to or taken from each time. Each row opens its
+ * How the times are calculated: the method (by default the Moonsighting Committee's) and the Asr
+ * school (by default the city's country's, [countryCode]) and the minutes added to or taken from each time. Each row opens its
  * choices.
  */
 @Composable
@@ -577,7 +617,8 @@ private fun CalculationCard(countryCode: String, settings: PrayerSettings, onCha
             options = listOf<PrayerMethod?>(null) + PrayerMethod.entries,
             selected = settings.method,
             label = { it?.let { method -> stringResource(method.label) } ?: stringResource(R.string.prayer_auto, stringResource(defaultMethod.label)) },
-            note = { if (it == null) stringResource(R.string.prayer_auto_note) else null },
+            // The default method is the same everywhere (لجنة رؤية الهلال), not the country's.
+            note = { null },
             onSelect = { onChange(settings.copy(method = it)); dialog = null },
             onDismiss = { dialog = null },
         )
@@ -730,7 +771,7 @@ private fun NoCity(onPick: () -> Unit, modifier: Modifier) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CityPickerSheet(
+internal fun CityPickerSheet(
     source: PrayerTimesSource,
     selectedId: String?,
     onSelect: (PrayerCity) -> Unit,
@@ -803,4 +844,41 @@ private fun CityPickerSheet(
             }
         }
     }
+}
+
+/**
+ * The first launch: a welcome asking for the user's city, which the prayer times and the day's
+ * schedule follow. «اختيار المدينة» opens the city list ([onPick] with the city chosen); «لاحقًا»
+ * puts it off ([onLater]) — the city can still be chosen from the prayer times.
+ */
+@Composable
+fun FirstCityDialog(source: PrayerTimesSource, onPick: (String) -> Unit, onLater: () -> Unit) {
+    var picking by rememberSaveable { mutableStateOf(false) }
+    if (picking) {
+        CityPickerSheet(
+            source = source,
+            selectedId = null,
+            onSelect = { city -> onPick(city.id) },
+            onDismiss = { picking = false },
+        )
+        return
+    }
+    AlertDialog(
+        onDismissRequest = {},
+        icon = { Icon(Icons.Outlined.LocationOn, null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text(stringResource(R.string.first_city_title), textAlign = TextAlign.Center) },
+        text = {
+            Text(
+                text = stringResource(R.string.first_city_text),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+        },
+        confirmButton = {
+            Button(onClick = { picking = true }) { Text(stringResource(R.string.first_city_pick)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onLater) { Text(stringResource(R.string.first_city_later)) }
+        },
+    )
 }

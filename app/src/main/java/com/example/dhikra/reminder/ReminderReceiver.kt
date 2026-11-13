@@ -15,6 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import com.example.dhikra.widget.Widgets
 
 /**
  * Fires when a section's reminder time or a prayer's time arrives: notifies with the chosen sound
@@ -71,6 +72,7 @@ class RescheduleReceiver : BroadcastReceiver() {
         goAsyncOnIo(context) { appContext ->
             ReminderScheduler.scheduleAll(appContext, ProgramRepository(appContext).load().active)
             ReminderScheduler.schedulePrayers(appContext)
+            runCatching { Widgets.updateAll(appContext) }
         }
     }
 

@@ -244,6 +244,7 @@ object ProgramJson {
         put("title", section.title)
         putIfNotBlank("icon", section.icon)
         section.reminderMinutes?.let { put("reminder", formatTime24(it)) }
+        if (section.zone != SectionZone.LOCAL) put("zone", section.zone.key)
         section.anchor?.let { anchor ->
             put("prayer", anchor.prayer.name.lowercase())
             if (anchor.offsetMinutes != 0) put("offset", anchor.offsetMinutes)
@@ -296,6 +297,7 @@ object ProgramJson {
             title = json.optString("title").trim(),
             icon = json.optString("icon").ifBlank { "🕌" },
             reminderMinutes = parseTime24(json.optString("reminder")),
+            zone = SectionZone.fromKey(json.optString("zone")),
             note = json.optString("note").trim(),
             notices = json.optJSONArray("notices")?.let { array ->
                 (0 until array.length()).mapNotNull { i ->

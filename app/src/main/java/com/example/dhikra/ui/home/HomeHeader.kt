@@ -139,13 +139,16 @@ internal fun HomeHeader(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SectionDisc(shown, size = 36.dp)
                             Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = shown.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                            // One line, centred with the back arrow and the disc: the title, then its time.
+                            Text(
+                                text = shown.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (shown.reminderMinutes != null) {
+                                Spacer(Modifier.width(10.dp))
                                 SectionMeta(shown)
                             }
                             if (total > 0 && done >= total) {
@@ -196,7 +199,7 @@ private fun SectionDisc(section: ProgramSection, size: Dp) {
     }
 }
 
-/** The section's reminder time, e.g. "🔔 ٥:١٥ ص", under its title. */
+/** The section's reminder time, e.g. "🔔 ٥:١٥", after its title. */
 @Composable
 private fun SectionMeta(section: ProgramSection) {
     val minutes = section.reminderMinutes ?: return
@@ -269,7 +272,7 @@ internal fun ProgramSwitcher(
 }
 
 @Composable
-internal fun OverflowMenu(actions: HomeActions, editSection: (() -> Unit)? = null) {
+internal fun OverflowMenu(actions: HomeActions, editSection: (() -> Unit)? = null, editProgram: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -286,7 +289,7 @@ internal fun OverflowMenu(actions: HomeActions, editSection: (() -> Unit)? = nul
             if (editSection != null) {
                 entry(R.string.edit_this_section, { Icon(Icons.Outlined.Edit, null) }, editSection)
             } else {
-                entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, actions.onEdit)
+                entry(R.string.action_edit, { Icon(Icons.Outlined.Edit, null) }, editProgram ?: actions.onEdit)
             }
             entry(R.string.prayer_times, { Icon(PrayerIcon, null) }, actions.onOpenPrayerTimes)
             entry(R.string.settings, { Icon(Icons.Outlined.Settings, null) }, actions.onOpenSettings)

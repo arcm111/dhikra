@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
@@ -56,6 +57,28 @@ import com.example.dhikra.ui.theme.ReadingStyles
 import com.example.dhikra.ui.uiDigits
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
+import com.example.dhikra.ui.components.CounterBar
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.painterResource
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.example.dhikra.overlay.CounterOverlayService
+import com.example.dhikra.ui.components.findActivity
+import android.os.SystemClock
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import com.example.dhikra.ui.components.ReaderText
+import com.example.dhikra.ui.components.NightTextColors
+import com.example.dhikra.ui.components.PlayToggle
+import com.example.dhikra.ui.components.PlayButtonSize
+import com.example.dhikra.ui.home.followHighlight
 
 /**
  * The daily counter of one dhikr, full screen on the night background of the reader: its text,
@@ -67,7 +90,10 @@ fun DailyCounterScreen(
     entry: LibraryEntry,
     count: Int,
     textScale: Float,
+    lettersPerSecond: Float,
     onCount: () -> Unit,
+    /** A repetition read along with play, in so many ms: the speed learns from it, then +1. */
+    onRepetitionRead: (Long) -> Unit,
     onUndo: () -> Unit,
     onReset: () -> Unit,
     onClose: () -> Unit,
@@ -75,9 +101,15 @@ fun DailyCounterScreen(
     BackHandler(onBack = onClose)
     LightNavigationBarIcons()
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val target = DailyCounter.target(count)
     var pressed by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
+    // Reading along, as in the section reader: the words light up at the learned speed, one
+    // repetition per cycle, and a tap counts it and starts the next.
+    var playing by rememberSaveable { mutableStateOf(false) }
+    var cycle by remember { mutableIntStateOf(0) }
+    var cycleStart by remember { mutableLongStateOf(0L) }
     LaunchedEffect(confirmReset) {
         if (confirmReset) {
             delay(3_000)
@@ -87,9 +119,54 @@ fun DailyCounterScreen(
     val count1: () -> Unit = {
         // Reaching a target is felt more strongly than the other repetitions.
         haptic.performHapticFeedback(if (count + 1 == target) HapticFeedbackType.Confirm else HapticFeedbackType.SegmentTick)
-        onCount()
+        if (playing) {
+            onRepetitionRead(SystemClock.uptimeMillis() - cycleStart)
+            cycle++
+        } else {
+            onCount()
+        }
     }
     val latestCount by rememberUpdatedState(count1)
+
+    // The floating counter: shown at once when allowed, else after "Display over other apps" is
+    // turned on in Settings and the user comes back.
+    val activity = context.findActivity()
+    var explainOverlay by remember { mutableStateOf(false) }
+    var awaitingOverlay by remember { mutableStateOf(false) }
+    val popOut = {
+        playing = false
+        CounterOverlayService.start(context, entry.id)
+        activity?.moveTaskToBack(true)
+    }
+    LifecycleResumeEffect(awaitingOverlay) {
+        if (awaitingOverlay && CounterOverlayService.canShow(context)) {
+            awaitingOverlay = false
+            popOut()
+        }
+        onPauseOrDispose {}
+    }
+    if (explainOverlay) {
+        AlertDialog(
+            onDismissRequest = { explainOverlay = false },
+            icon = { Icon(painterResource(R.drawable.ic_pop_out), null) },
+            title = { Text(stringResource(R.string.overlay_permission_title)) },
+            text = { Text(stringResource(R.string.overlay_permission_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    explainOverlay = false
+                    awaitingOverlay = true
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri())
+                        )
+                    }
+                }) { Text(stringResource(R.string.overlay_permission_go)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { explainOverlay = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 
     val palette = LocalDhikraPalette.current
     Box(
@@ -129,14 +206,40 @@ fun DailyCounterScreen(
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.widthIn(min = 48.dp))
+                // Sharing a picture of the day's count: small and faint, out of the way.
+                IconButton(onClick = {
+                    CounterShareCard.share(
+                        context = context,
+                        title = entry.title,
+                        text = entry.text,
+                        count = count,
+                        nightTop = palette.nightStart.toArgb(),
+                        nightBottom = palette.nightEnd.toArgb(),
+                    )
+                }) {
+                    Icon(Icons.Filled.Share, stringResource(R.string.counter_share), tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(20.dp))
+                }
+                // Floating the counter over other apps: as quiet as the share icon.
+                IconButton(onClick = { if (CounterOverlayService.canShow(context)) popOut() else explainOverlay = true }) {
+                    Icon(
+                        painterResource(R.drawable.ic_pop_out),
+                        stringResource(R.string.overlay_pop_out),
+                        tint = Color.White.copy(alpha = 0.55f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val scroll = rememberScrollState()
-                Text(
+                ReaderText(
                     text = entry.text,
                     style = ReadingStyles.dhikr(textScale).copy(textAlign = TextAlign.Center),
-                    color = Color.White,
+                    colors = NightTextColors,
+                    playing = playing,
+                    cycle = cycle,
+                    lettersPerSecond = lettersPerSecond,
+                    onCycleStart = { cycleStart = it },
+                    onProgress = { followHighlight(scroll, it) },
                     modifier = Modifier
                         .verticalScrollbar(scroll, thumb = Color.White.copy(alpha = 0.35f))
                         .verticalScroll(scroll)
@@ -153,32 +256,28 @@ fun DailyCounterScreen(
                 ringProgress = DailyCounter.stage(count),
             )
             Spacer(Modifier.height(24.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NightButton(
-                    UndoIcon,
-                    stringResource(R.string.counter_undo),
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                        onUndo()
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = count > 0,
-                )
-                NightButton(
-                    Icons.Filled.Refresh,
-                    stringResource(if (confirmReset) R.string.counter_reset_confirm else R.string.counter_reset),
-                    onClick = {
-                        if (confirmReset) {
-                            confirmReset = false
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onReset()
-                        } else {
-                            confirmReset = true
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = count > 0,
-                )
+            // The same bar as a counted step's, without its play button.
+            CounterBar(
+                undoEnabled = count > 0,
+                resetEnabled = count > 0,
+                confirmReset = confirmReset,
+                onUndo = {
+                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    onUndo()
+                },
+                onReset = {
+                    if (confirmReset) {
+                        confirmReset = false
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onReset()
+                    } else {
+                        confirmReset = true
+                    }
+                },
+                centerSize = PlayButtonSize,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                PlayToggle(playing = playing, onToggle = { playing = !playing })
             }
             Spacer(Modifier.height(8.dp))
         }

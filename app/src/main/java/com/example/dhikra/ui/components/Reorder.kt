@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectDragGestures
 
 /**
  * Press-and-hold reordering for a `LazyColumn`: a long press picks an item up, it follows the
@@ -112,6 +113,26 @@ fun rememberReorderState(
         ReorderState(listState, scope, { from, to -> currentCanMove(from, to) }, { from, to -> currentOnMove(from, to) })
     }
 }
+
+/**
+ * A drag handle for the list item [key] (which takes [reorderable] too): it picks the item up at once,
+ * without holding first, and moves it with the finger. [onPickUp] as for [reorderable].
+ */
+fun Modifier.reorderHandle(state: ReorderState, key: Any, onPickUp: () -> Unit = {}): Modifier = this
+    .pointerInput(state, key) {
+        detectDragGestures(
+            onDragStart = {
+                onPickUp()
+                state.start(key)
+            },
+            onDrag = { change, amount ->
+                change.consume()
+                state.drag(amount.y)
+            },
+            onDragEnd = { state.end() },
+            onDragCancel = { state.end() },
+        )
+    }
 
 /**
  * Makes the list item [key] reorderable: press and hold, then move. [onPickUp] runs when it is

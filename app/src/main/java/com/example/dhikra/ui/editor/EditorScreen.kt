@@ -96,6 +96,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.example.dhikra.ui.components.clearButton
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.material3.OutlinedButton
+import com.example.dhikra.ui.components.reorderHandle
+import androidx.compose.ui.res.painterResource
+import com.example.dhikra.ui.prayer.anchorShortLabel
 
 private sealed interface EditorDialog {
     data class Section(val section: ProgramSection?) : EditorDialog
@@ -175,7 +180,8 @@ fun EditorScreen(
         add(EditorRow.Hint)
         sections.forEachIndexed { index, section ->
             val open = single || section.id == expandedId
-            add(EditorRow.Header(section, index, sections.size, open))
+            // A section edited on its own has its header in the top bar.
+            if (!single) add(EditorRow.Header(section, index, sections.size, open))
             if (open) {
                 section.items.forEachIndexed { at, item -> add(EditorRow.Step(section, item, at)) }
                 add(EditorRow.AddStep(section))
@@ -228,10 +234,11 @@ fun EditorScreen(
             DhikraHeader(bottomPadding = 4.dp) {
                 TopAppBar(
                     title = {
-                        Text(
-                            stringResource(if (single) R.string.edit_section else R.string.editor_title),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
+                        if (focused != null) {
+                            SectionTitle(focused)
+                        } else {
+                            Text(stringResource(R.string.editor_title), style = MaterialTheme.typography.titleLarge)
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
@@ -239,13 +246,24 @@ fun EditorScreen(
                         }
                     },
                     actions = {
+                        if (focused != null) {
+                            // The section's own menu: its details, or deleting it.
+                            RowMenu(
+                                editLabel = R.string.edit_details,
+                                canMoveUp = false,
+                                canMoveDown = false,
+                                onEdit = { dialog = EditorDialog.Section(focused) },
+                                onMove = {},
+                                onDelete = { dialog = EditorDialog.DeleteSection(focused) },
+                            )
+                        }
                         if (onDelete != null && !single) {
                             IconButton(onClick = onDelete) {
                                 Icon(Icons.Outlined.Delete, stringResource(R.string.delete_program))
                             }
                         }
                     },
-                    expandedHeight = 56.dp,
+                    expandedHeight = if (single) 64.dp else 56.dp,
                     windowInsets = WindowInsets(0, 0, 0, 0),
                     colors = headerAppBarColors(),
                 )
@@ -289,7 +307,7 @@ fun EditorScreen(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     )
                     EditorRow.Hint -> Text(
-                        text = stringResource(R.string.reorder_hint),
+                        text = stringResource(if (single) R.string.section_edit_hint else R.string.reorder_hint),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
@@ -322,7 +340,8 @@ fun EditorScreen(
                     is EditorRow.Step -> {
                         val item = row.item
                         Surface(
-                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            // Under its section's header card in the full editor; on the page on its own.
+                            color = if (single) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerLowest,
                             shape = RectangleShape,
                             modifier = itemModifier.fillMaxWidth().reorderable(reorder, row.key) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -331,6 +350,9 @@ fun EditorScreen(
                             ItemRow(
                                 // Library steps show their entry's title.
                                 item = item.resolvedWith(library) ?: item,
+                                handle = Modifier.reorderHandle(reorder, row.key) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
                                 canMoveUp = row.index > 0,
                                 canMoveDown = row.index < row.section.items.lastIndex,
                                 onClick = { dialog = EditorDialog.Item(row.section.id, item) },
@@ -344,19 +366,19 @@ fun EditorScreen(
                         }
                     }
                     is EditorRow.AddStep -> Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        color = if (single) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerLowest,
                         shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
                         modifier = itemModifier.fillMaxWidth(),
                     ) {
-                        Box(Modifier.fillMaxWidth()) {
-                            TextButton(
-                                onClick = { dialog = EditorDialog.Item(row.section.id, null) },
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            ) {
-                                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.add_item))
-                            }
+                        // Adding a step: a clear button under the steps.
+                        OutlinedButton(
+                            onClick = { dialog = EditorDialog.Item(row.section.id, null) },
+                            shape = CircleShape,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                        ) {
+                            Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.add_step))
                         }
                     }
                 }
@@ -446,6 +468,41 @@ fun EditorScreen(
  * Tapping it opens it (closing the one open before) or folds it; open, it is the top of a card
  * whose steps follow.
  */
+/**
+ * A section edited on its own, as the top bar's title: its icon and title, and below them that it is
+ * being edited, its time and its steps («تعديل القسم · ٢٢:٣٠ · ١٠ خطوات»).
+ */
+@Composable
+private fun SectionTitle(section: ProgramSection) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(sectionIcon(section.icon), null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(
+                section.title,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val time = section.anchor?.let { anchorShortLabel(it) } ?: section.reminderMinutes?.let(::formatClock)
+            Text(
+                text = listOfNotNull(
+                    stringResource(R.string.edit_section),
+                    time,
+                    stringResource(R.string.section_steps_count, uiDigits(section.trackableItems.size)),
+                ).joinToString("  ·  "),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.75f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 private fun SectionHeaderRow(
     section: ProgramSection,
@@ -522,6 +579,8 @@ private fun SectionHeaderRow(
 @Composable
 private fun ItemRow(
     item: ProgramItem,
+    /** The drag handle's gesture: the step moves as soon as the handle is dragged. */
+    handle: Modifier,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onClick: () -> Unit,
@@ -531,22 +590,44 @@ private fun ItemRow(
     onMoveToSection: (() -> Unit)? = null,
 ) {
     val colors = item.type.colors()
+    val scheme = MaterialTheme.colorScheme
+    // A small card in the step cards' style: white, outlined in green, the tile of its kind first.
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = scheme.surfaceContainerLowest,
+        border = BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.45f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 0.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(shape = CircleShape, color = colors.container, modifier = Modifier.size(30.dp)) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = item.type.icon,
-                    contentDescription = null,
-                    tint = colors.accent,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+        // The standard drag handle on the leading edge: drag it to move the step.
+        Box(
+            modifier = Modifier.size(width = 32.dp, height = 40.dp).then(handle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_drag_handle),
+                contentDescription = stringResource(R.string.reorder_handle),
+                tint = scheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(colors.accent.copy(alpha = 0.22f).compositeOver(scheme.surfaceContainerLowest)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = item.type.icon,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(20.dp),
+            )
         }
         Spacer(Modifier.width(10.dp))
         Text(
@@ -580,6 +661,7 @@ private fun ItemRow(
             onDelete = onDelete,
             onMoveToSection = onMoveToSection,
         )
+    }
     }
 }
 

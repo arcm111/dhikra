@@ -49,6 +49,7 @@ import com.example.dhikra.ui.uiDigits
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.compositionLocalOf
 
 /** Progress of one step in the schedule. */
 enum class StepState { Done, Current, Upcoming }
@@ -97,8 +98,10 @@ fun TimelineRow(
     content: @Composable () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val reached = scheme.primary
-    val pending = scheme.outlineVariant
+    // A section all done: its line turns gold from end to end, like its circles.
+    val gold = LocalSectionComplete.current
+    val reached = if (gold) LocalDhikraPalette.current.done else scheme.primary
+    val pending = if (gold) reached else scheme.outlineVariant
     val top by animateColorAsState(
         targetValue = if (segments.topReached) reached else pending,
         animationSpec = tween(450),
@@ -150,10 +153,13 @@ fun TimelineRow(
 @Composable
 fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    // The whole section done: its circles turn gold, like everything finished in the app.
+    val gold = LocalSectionComplete.current
+    val tone = if (gold) LocalDhikraPalette.current.done else scheme.primary
     // To do: a light green disc with the step's number; done: filled green with a check.
     val container by animateColorAsState(
         targetValue = when (state) {
-            StepState.Done -> scheme.primary
+            StepState.Done -> tone
             else -> scheme.primary.copy(alpha = 0.10f).compositeOver(scheme.surface)
         },
         label = "nodeContainer",
@@ -176,7 +182,7 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .clip(CircleShape)
                 .background(container)
-                .border(if (state == StepState.Current) 2.dp else 1.5.dp, scheme.primary, CircleShape),
+                .border(if (state == StepState.Current) 2.dp else 1.5.dp, if (state == StepState.Done) tone else scheme.primary, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             if (state != StepState.Done) {
@@ -196,13 +202,16 @@ fun StepNode(number: Int, state: StepState, modifier: Modifier = Modifier) {
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
-                    tint = scheme.onPrimary,
+                    tint = if (gold) GoldInk else scheme.onPrimary,
                     modifier = Modifier.size(13.dp),
                 )
             }
         }
     }
 }
+
+/** Whether the section shown is all done: its step circles and check boxes then turn gold. */
+val LocalSectionComplete = compositionLocalOf { false }
 
 /** Soft ring that breathes out of the current step's node. */
 @Composable

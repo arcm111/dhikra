@@ -164,7 +164,46 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.clipRect
+import com.example.dhikra.data.SectionClock
+import java.util.TimeZone
+import androidx.compose.ui.unit.sp
+import com.example.dhikra.ui.components.starLattice
+import com.example.dhikra.ui.components.NightInk
+import com.example.dhikra.ui.theme.ForestLight
+import com.example.dhikra.ui.components.StepNode
+import com.example.dhikra.ui.components.TimelineRow
+import com.example.dhikra.ui.components.TimelineSegments
+import com.example.dhikra.ui.components.StepState
+import com.example.dhikra.ui.components.StepNodeSize
+import com.example.dhikra.ui.components.LocalSectionComplete
+import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.Prayer
+import com.example.dhikra.ui.theme.OrangeLight
+import com.example.dhikra.ui.home.ProgramItemView
+import com.example.dhikra.ui.home.nodeCenter
+import com.example.dhikra.ui.components.HeadingNode
+import com.example.dhikra.ui.components.HeadingNodeSize
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.OutlinedButton
 
 /** Test tag of the day view's list. */
 const val DayTimelineTag = "day"
@@ -202,6 +241,8 @@ private fun DayView(
 ) {
     val sections = state.schedule.sections
     var addingSection by rememberSaveable { mutableStateOf(false) }
+    // The prayer time a new section is added to (its time tied to that prayer), if any.
+    var addingPrayer by rememberSaveable { mutableStateOf<Prayer?>(null) }
     var pickingCounter by rememberSaveable { mutableStateOf(false) }
     if (pickingCounter) {
         CounterPickerDialog(
@@ -217,6 +258,7 @@ private fun DayView(
     if (addingSection) {
         SectionEditorDialog(
             initial = null,
+            prayer = addingPrayer,
             timetable = state.prayerTimes,
             onDismiss = { addingSection = false },
             onSave = { section ->
@@ -244,11 +286,9 @@ private fun DayView(
             list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 24
         }
     }
-    // The header's green follows the time of day: fresher at dawn, warm at Maghrib, deep at night.
-    val (headerTop, headerBottom) = headerColors(timeline.periods.firstOrNull { it.current }?.prayer)
     Scaffold(
         topBar = {
-            DhikraHeader(bottomPadding = 10.dp, colors = headerTop to headerBottom) {
+            DhikraHeader(bottomPadding = 10.dp) {
                 TopAppBar(
                     title = {
                         // The program followed (tap to switch or start another), and today's date.
@@ -275,30 +315,30 @@ private fun DayView(
                             }
                         }
                     },
-                    actions = { OverflowMenu(actions) },
+                    // «تعديل البرنامج»: the program tab, where the program is edited.
+                    actions = { OverflowMenu(actions, editProgram = { scope.launch { pager.animateScrollToPage(DayTab.Program.ordinal) } }) },
                     expandedHeight = 64.dp,
                     windowInsets = WindowInsets(0, 0, 0, 0),
                     colors = headerAppBarColors(),
                 )
                 AnimatedVisibility(
-                    visible = !folded || state.prayerTimes == null,
+                    visible = !folded,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut(),
                 ) {
-                    NextPrayerPanel(state.prayerTimes, nowMinutes, onClick = actions.onOpenPrayerTimes)
+                    HeaderProgress(
+                        timeline = timeline,
+                        ordered = timeline.sectionsInOrder(sections),
+                        state = state,
+                        message = progressMessage(timeline, sections, state),
+                        onClick = { scope.launch { pager.animateScrollToPage(DayTab.Calendar.ordinal) } },
+                    )
                 }
                 DayTabBar(
                     selected = pager.targetPage,
                     onSelect = { page -> scope.launch { pager.animateScrollToPage(page) } },
                     modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp),
                 )
-            }
-        },
-        // The tab's main action floats in the bottom corner: adding a section to the program.
-        floatingActionButton = {
-            when (DayTab.entries.getOrNull(pager.targetPage)) {
-                DayTab.Program -> MainActionButton(Icons.Filled.Add, stringResource(R.string.add_section)) { addingSection = true }
-                else -> {}
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -334,100 +374,64 @@ private fun DayView(
             key = { DayTab.entries[it].name },
         ) { page ->
             when (DayTab.entries[page]) {
-                DayTab.Program -> LazyColumn(Modifier.fillMaxSize(), state = listStates.getValue(DayTab.Program), contentPadding = contentPadding) {
-                    // The program's sections, to open, add, duplicate or edit: one list in a panel.
-                    if (sections.isEmpty()) {
-                        item(key = "empty") { EmptyDay(actions.onEdit, Modifier.padding(top = 24.dp)) }
-                    } else {
-                        item(key = "sectionsTitle") {
-                            TabHeading(
-                                title = stringResource(R.string.program_sections),
-                                description = stringResource(
-                                    R.string.program_summary,
-                                    uiDigits(state.program.sections.size),
-                                    uiDigits(state.program.itemCount),
-                                ),
-                                modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                            )
-                        }
-                        item(key = "sections") {
-                            HomePanel(
-                                title = null,
-                                accent = scheme.primary,
-                                modifier = Modifier.padding(start = 8.dp),
-                            ) {
-                                timeline.sectionsInOrder(sections).forEachIndexed { index, section ->
-                                    if (index > 0) PanelDivider()
-                                    SectionListRow(
-                                        section = section,
-                                        state = state,
-                                        onOpen = { onOpenSection(section.id) },
-                                        onEdit = { actions.onEditSection(section.id) },
-                                        onDuplicate = {
-                                            onEditProgram { it.duplicateSection(section.id) { title -> resources.getString(R.string.section_copy, title) } }
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                DayTab.Program -> ProgramTab(
+                    state = state,
+                    actions = actions,
+                    timeline = timeline,
+                    onEditProgram = onEditProgram,
+                    onAddSection = { prayer ->
+                        addingPrayer = prayer
+                        addingSection = true
+                    },
+                    listState = listStates.getValue(DayTab.Program),
+                    contentPadding = contentPadding,
+                    bottomInset = padding.calculateBottomPadding(),
+                )
                 DayTab.Home -> LazyColumn(Modifier.fillMaxSize(), state = listStates.getValue(DayTab.Home), contentPadding = contentPadding) {
                     // What to do now, as three panels: today's progress, the sections of the period at
                     // hand, and the daily counters.
-                    item(key = "progress") {
-                        ProgressCard(
-                            ordered = timeline.sectionsInOrder(sections),
-                            state = state,
-                            message = progressMessage(timeline, sections, state),
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
+                    item(key = "prayerTime") {
+                        // The time of the prayer going on and the day's prayers; without a city, the
+                        // way to choose it.
+                        val timetable = state.prayerTimes
+                        if (timetable != null) {
+                            PrayerTimeCard(
+                                timeline = timeline,
+                                city = timetable.city.shownName,
+                                nowMinutes = nowMinutes,
+                                onClick = actions.onOpenPrayerTimes,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        } else {
+                            ChooseCityCard(onClick = actions.onOpenPrayerTimes, modifier = Modifier.padding(start = 8.dp))
+                        }
                     }
                     item(key = "now") {
-                        // The period going on, or the next one with a section still to do.
-                        val nowPeriod = timeline.periodAtHand { state.completedIn(it) >= it.trackableItems.size }
-                        HomePanel(
-                            title = stringResource(R.string.home_now),
-                            // The colour of time, as the calendar's prayer bands.
-                            accent = palette.slate.accent,
-                            subtitle = nowPeriod?.let { periodLine(it) },
-                            action = HomeAction(stringResource(R.string.home_full_schedule), Icons.AutoMirrored.Filled.ArrowForward, trailing = true) {
-                                scope.launch { pager.animateScrollToPage(DayTab.Calendar.ordinal) }
-                            },
+                        // Within the prayer time going on: the section(s) whose time came last, and
+                        // those coming next before the next prayer.
+                        val period = timeline.periods.getOrNull(timeline.currentIndex)
+                        val group = period?.let { nowAndNext(sections, it.start, it.end, nowMinutes) } ?: NowAndNext(emptyList(), emptyList())
+                        NowCard(
+                            group = group,
+                            state = state,
+                            nowMinutes = nowMinutes,
+                            empty = period?.prayer?.let { stringResource(R.string.now_none_in, stringResource(it.label)) }
+                                ?: stringResource(if (sections.isEmpty()) R.string.home_now_no_program else R.string.home_now_empty),
+                            onOpenSection = onOpenSection,
                             modifier = Modifier.padding(start = 8.dp, top = 12.dp),
-                        ) {
-                            val nowSections = nowPeriod?.sections.orEmpty()
-                            if (nowSections.isEmpty()) {
-                                PanelNote(stringResource(if (sections.isEmpty()) R.string.home_now_no_program else R.string.home_now_empty))
-                            }
-                            nowSections.forEachIndexed { index, section ->
-                                if (index > 0) PanelDivider()
-                                NowSectionRow(section, state, onClick = { onOpenSection(section.id) })
-                            }
-                        }
+                        )
                     }
                     item(key = "counters") {
-                        // The daily counter: open-ended counts of chosen adhkar, starting over each day.
-                        HomePanel(
-                            title = stringResource(R.string.counter_title),
-                            // The colour of the counters' rings and targets.
-                            accent = palette.progress,
-                            action = HomeAction(stringResource(R.string.counter_add), Icons.Filled.Add) { pickingCounter = true },
+                        // The daily counter, as the counter screen draws it: open-ended counts of
+                        // chosen adhkar, starting over each day.
+                        CounterCard(
+                            entries = state.counters.mapNotNull(state.library::entry),
+                            state = state,
+                            onAdd = { pickingCounter = true },
+                            onOpen = actions.onOpenCounter,
+                            onRemove = actions.onRemoveCounter,
                             modifier = Modifier.padding(start = 8.dp, top = 12.dp),
-                        ) {
-                            val counted = state.counters.mapNotNull(state.library::entry)
-                            // What the counter is, said while it is empty: its rows show it once in use.
-                            if (counted.isEmpty()) PanelNote(stringResource(R.string.counter_empty))
-                            counted.forEachIndexed { index, entry ->
-                                if (index > 0) PanelDivider()
-                                CounterRow(
-                                    entry = entry,
-                                    count = state.counterCount(entry.id),
-                                    onOpen = { actions.onOpenCounter(entry.id) },
-                                    onRemove = { actions.onRemoveCounter(entry.id) },
-                                )
-                            }
-                        }
+                        )
                     }
                 }
                 DayTab.Favourites -> LazyColumn(Modifier.fillMaxSize(), state = listStates.getValue(DayTab.Favourites), contentPadding = contentPadding) {
@@ -518,10 +522,11 @@ private fun DayView(
                             bottom = railColor(row.period).takeIf { row.continues },
                             dot = railColor(row.period).copy(alpha = if (row.period.passed) 0.45f else 1f),
                             gutter = { GutterTime(row.period.start, current = row.period.current, passed = row.period.passed) },
-                            spaceAbove = if (row.first) 0.dp else 8.dp,
+                            spaceAbove = if (row.first) 0.dp else 14.dp,
+                            gap = 0.dp,
                             // Opaque: the sections scroll under it while it is pinned.
                             modifier = Modifier.animateItem().background(scheme.background),
-                        ) { PrayerBand(row.period) }
+                        ) { PrayerBand(row.period, slice = row.slice) }
                         is ScheduleItem.Entry -> {
                             val color = railColor(row.period)
                             when (val entry = row.entry) {
@@ -530,29 +535,29 @@ private fun DayView(
                                     bottom = color.takeIf { !row.last },
                                     dot = NowColor(),
                                     gutter = { GutterTime(entry.minutes, color = NowColor()) },
-                                ) { NowLine() }
+                                    gap = 0.dp,
+                                ) {
+                                    PanelSlice(row.slice, current = row.period.current) {
+                                        NowLine(Modifier.padding(horizontal = 10.dp))
+                                    }
+                                }
                                 is PeriodEntry.Section -> ScheduleRow(
                                     top = color.takeIf { !row.firstOfDay },
                                     bottom = color.takeIf { !row.last },
+                                    gap = 0.dp,
                                     modifier = Modifier.animateItem(),
                                 ) {
-                                    SectionChip(
-                                        section = entry.section,
-                                        state = state,
-                                        colors = timedChipColors(),
-                                        onClick = { onOpenSection(entry.section.id) },
-                                    )
+                                    PanelSlice(row.slice, current = row.period.current, divider = row.divider) {
+                                        NowSectionRow(entry.section, state, onClick = { onOpenSection(entry.section.id) })
+                                    }
                                 }
                             }
                         }
                         ScheduleItem.AllDayLabel -> AllDayDivider(Modifier.padding(top = 18.dp, bottom = 8.dp))
-                        is ScheduleItem.AllDay -> ScheduleRow(modifier = Modifier.animateItem()) {
-                            SectionChip(
-                                section = row.section,
-                                state = state,
-                                colors = timedChipColors(),
-                                onClick = { onOpenSection(row.section.id) },
-                            )
+                        is ScheduleItem.AllDay -> ScheduleRow(gap = 0.dp, modifier = Modifier.animateItem()) {
+                            PanelSlice(row.slice, current = false, divider = row.divider) {
+                                NowSectionRow(row.section, state, onClick = { onOpenSection(row.section.id) })
+                            }
                         }
                     }
                 }
@@ -604,19 +609,514 @@ private fun EmptyNote(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * A dhikr of the daily counter, as a row of the counters panel: today's count in a ring filling
- * towards the next target (a badge on the ring), the dhikr's title, and a hint while not started. Tapping it opens its counter; its menu
- * takes it off.
+ * The ground of the home tab's dark cards (the progress and the daily counter): the counter
+ * screen's night green, its two shades met in one flat colour.
  */
 @Composable
-private fun CounterRow(
-    entry: LibraryEntry,
-    count: Int,
-    onOpen: () -> Unit,
-    onRemove: () -> Unit,
+private fun homeCardColor(): Color =
+    LocalDhikraPalette.current.let { lerp(it.nightStart, it.nightEnd, 0.5f) }
+
+/**
+ * The time of the prayer going on: in a pane of glass along the card's start edge, a ring filling
+ * with a timer's dial draining as it passes and the time left in its middle — «حتى المغرب» above
+ * it and that prayer's hour below, in light orange — then its name and the city, and the day's
+ * prayers on a 24-hour line. Opens the prayer times.
+ */
+@Composable
+private fun PrayerTimeCard(timeline: DayTimeline, city: String, nowMinutes: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val periods = timeline.periods
+    val index = timeline.currentIndex
+    val period = periods.getOrNull(index) ?: return
+    val prayer = period.prayer ?: return
+    val next = periods[(index + 1) % periods.size]
+    val nextPrayer = next.prayer ?: return
+    val share = periodShare(period.start, period.end, nowMinutes)
+    val left = minutesLeft(period.end, nowMinutes)
+    // The light orange of the top bar's progress ring, always.
+    val accent = OrangeLight
+    Surface(onClick = onClick, shape = MaterialTheme.shapes.large, color = homeCardColor(), contentColor = NightInk, modifier = modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .height(IntrinsicSize.Min)
+                .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(80.dp)
+                    .background(HeaderGlass),
+                contentAlignment = Alignment.Center,
+            ) {
+              // The countdown to the next prayer: its name above the ring, its time below.
+              Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 10.dp)) {
+                Text(
+                    text = stringResource(R.string.prayer_until, stringResource(nextPrayer.label)),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                    TimerRing(elapsed = share, color = accent, modifier = Modifier.fillMaxSize())
+                    // The time left: «٤٨ د», or «١ س» over «٥ د».
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val ink = Color.White
+                        val hours = left / 60
+                        val minutes = left % 60
+                        if (hours > 0) {
+                            Text(
+                                text = stringResource(R.string.prayer_hours_short, uiDigits(hours)),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ink,
+                                lineHeight = 16.sp,
+                            )
+                            Text(
+                                text = stringResource(R.string.prayer_minutes_short, uiDigits(minutes)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ink.copy(alpha = 0.8f),
+                                lineHeight = 13.sp,
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.prayer_minutes_short, uiDigits(minutes)),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ink,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = formatClock(next.start),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    color = Color.White.copy(alpha = 0.6f),
+                    maxLines = 1,
+                )
+              }
+            }
+            Column(Modifier.weight(1f).padding(start = 22.dp, end = 14.dp, top = 14.dp, bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.prayer_time_title, stringResource(prayer.label)),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NightInk,
+                        modifier = Modifier.weight(1f),
+                    )
+                    // The city the times are for.
+                    Icon(Icons.Outlined.LocationOn, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = city,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 110.dp),
+                    )
+                }
+                DayStrip(periods, index, nowMinutes, accent, Modifier.padding(top = 10.dp))
+            }
+        }
+    }
+}
+
+/**
+ * A timer's dial, unlike the progress rings that fill: a ring of [TIMER_TICKS] ticks, those of the
+ * time still left lit in [color] and going out one by one from the top as [elapsed] (0 to 1) grows,
+ * turning the other way round from the progress rings.
+ */
+@Composable
+private fun TimerRing(elapsed: Float, color: Color, modifier: Modifier = Modifier) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Canvas(modifier) {
+        // The other way round from the progress rings: the time left runs back from the top.
+        val direction = if (rtl) 1f else -1f
+        val outer = size.minDimension / 2f
+        val tick = 3.5.dp.toPx()
+        val radius = outer - 2.dp.toPx()
+        fun at(share: Float, r: Float): Offset {
+            val angle = -PI / 2 + direction * 2 * PI * share
+            return Offset(center.x + r * cos(angle).toFloat(), center.y + r * sin(angle).toFloat())
+        }
+        for (i in 0 until TIMER_TICKS) {
+            val share = i / TIMER_TICKS.toFloat()
+            drawLine(
+                color = if (share >= elapsed) color else Color.White.copy(alpha = 0.14f),
+                start = at(share, radius - tick),
+                end = at(share, radius),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
+/** The ticks round [TimerRing]'s dial. */
+private const val TIMER_TICKS = 48
+
+/** No city chosen yet: the place of the prayer-time card asks for it (opens the prayer times). */
+@Composable
+private fun ChooseCityCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onClick, shape = MaterialTheme.shapes.large, color = homeCardColor(), contentColor = NightInk, modifier = modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.LocationOn, null, tint = MustardLight, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(stringResource(R.string.day_pick_city), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.6f))
+        }
+    }
+}
+
+
+/**
+ * The day's prayers on a 24-hour line, 00:00 at its start and 24:00 at its end (right to left in
+ * Arabic): a mark at each prayer, its letter above and its time below — the one going on in gold —
+ * the time going on filled up to now in [accent], and a gold tick at now. Labels too close to fit
+ * side by side take a second row.
+ */
+@Composable
+private fun DayStrip(periods: List<DayPeriod>, current: Int, nowMinutes: Int, accent: Color, modifier: Modifier = Modifier) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val density = LocalDensity.current
+    val prayers = periods.mapNotNull { it.prayer }
+    if (prayers.size != periods.size) return
+    val letters = prayers.map { prayerInitial(it) }
+    val times = periods.map { formatClock(it.start) }
+    // Its width, once laid out (a card sized to its content cannot ask it beforehand).
+    var width by remember { mutableFloatStateOf(0f) }
+    Box(modifier.fillMaxWidth().onSizeChanged { width = it.width.toFloat() }) {
+        fun x(minutes: Int): Float {
+            val f = Math.floorMod(minutes, 24 * 60) / (24f * 60f)
+            return if (rtl) width * (1 - f) else width * f
+        }
+        val positions = periods.map { x(it.start) }
+        val letterRows = labelRows(positions, with(density) { 12.dp.toPx() })
+        val timeRows = labelRows(positions, with(density) { 30.dp.toPx() })
+        val labelStyle = MaterialTheme.typography.labelSmall
+        Column {
+            for (row in 0..(letterRows.maxOrNull() ?: 0)) {
+                Box(Modifier.fillMaxWidth().height(16.dp)) {
+                    periods.indices.filter { letterRows[it] == row }.forEach { i ->
+                        Text(
+                            text = letters[i],
+                            style = labelStyle,
+                            fontWeight = if (i == current) FontWeight.Bold else FontWeight.Medium,
+                            color = if (i == current) MustardLight else Color.White.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            modifier = Modifier.centredAt(positions[i]),
+                        )
+                    }
+                }
+            }
+            Canvas(Modifier.fillMaxWidth().height(12.dp)) {
+                val y = size.height / 2f
+                val line = 3.dp.toPx()
+                drawLine(Color.White.copy(alpha = 0.16f), Offset(0f, y), Offset(size.width, y), line, StrokeCap.Round)
+                // The time going on, up to now (two pieces when it runs past midnight).
+                val start = periods[current].start
+                fun fill(from: Int, to: Int) {
+                    drawLine(accent, Offset(x(from), y), Offset(if (to >= 24 * 60) x(24 * 60 - 1) else x(to), y), line, StrokeCap.Round)
+                }
+                if (nowMinutes >= start) fill(start, nowMinutes) else {
+                    fill(start, 24 * 60)
+                    fill(0, nowMinutes)
+                }
+                positions.forEachIndexed { i, px ->
+                    drawLine(
+                        if (i == current) MustardLight else Color.White.copy(alpha = 0.55f),
+                        Offset(px, y - 4.dp.toPx()),
+                        Offset(px, y + 4.dp.toPx()),
+                        1.5.dp.toPx(),
+                        StrokeCap.Round,
+                    )
+                }
+                val nowX = x(nowMinutes)
+                drawLine(MustardLight, Offset(nowX, 0f), Offset(nowX, size.height), 2.dp.toPx(), StrokeCap.Round)
+            }
+            for (row in 0..(timeRows.maxOrNull() ?: 0)) {
+                Box(Modifier.fillMaxWidth().height(15.dp)) {
+                    periods.indices.filter { timeRows[it] == row }.forEach { i ->
+                        Text(
+                            text = times[i],
+                            style = labelStyle.copy(fontFeatureSettings = "tnum"),
+                            color = if (i == current) Color.White else Color.White.copy(alpha = 0.55f),
+                            maxLines = 1,
+                            modifier = Modifier.centredAt(positions[i]),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A label centred on [x] (px from the left of its row), kept inside the row. */
+private fun Modifier.centredAt(x: Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minWidth = 0))
+    val rowWidth = constraints.maxWidth
+    layout(rowWidth, placeable.height) {
+        placeable.place((x - placeable.width / 2f).roundToInt().coerceIn(0, (rowWidth - placeable.width).coerceAtLeast(0)), 0)
+    }
+}
+
+/** A prayer's initial: the first letter of its name after the article («ف» الفجر, «ع» العصر and العشاء). */
+@Composable
+internal fun prayerInitial(prayer: Prayer): String {
+    val name = stringResource(prayer.label)
+    return name.removePrefix("ال").ifEmpty { name }.take(1)
+}
+
+/**
+ * «الآن» and what comes next, within the prayer time going on: on top, set apart on a green tint,
+ * the section(s) of it whose time came last — the ring of their steps round the icon, the title,
+ * a word that spurs on («٩ خطوات بانتظارك», «أنجزت ٣ من ٩ · بقي ٦», or «✓ مكتمل») and a clear button
+ * into the section; then, under a rule, the one(s) coming up before the next prayer, compact.
+ */
+@Composable
+private fun NowCard(
+    group: NowAndNext,
+    state: UiState,
+    nowMinutes: Int,
+    empty: String,
+    onOpenSection: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val green = scheme.primary
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = scheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, green.copy(alpha = 0.22f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column {
+            if (group.now.isEmpty() && group.next.isEmpty()) {
+                Text(
+                    text = empty,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+            if (group.now.isNotEmpty()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(green.copy(alpha = 0.07f))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    group.now.forEach { NowSection(it, state, onOpen = { onOpenSection(it.id) }) }
+                }
+            }
+            if (group.next.isNotEmpty()) {
+                if (group.now.isNotEmpty()) HorizontalDivider(color = green.copy(alpha = 0.22f))
+                Text(
+                    text = stringResource(R.string.home_next_tag),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp),
+                )
+                group.next.forEach { UpcomingRow(it, nowMinutes, onClick = { onOpenSection(it.id) }) }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+    }
+}
+
+/** A section of «الآن», put forward: its steps round its icon, its title and progress, and the way in. */
+@Composable
+private fun NowSection(section: ProgramSection, state: UiState, onOpen: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     val palette = LocalDhikraPalette.current
+    val total = section.trackableItems.size
+    val done = state.completedIn(section).coerceAtMost(total)
+    val finished = total > 0 && done >= total
+    val tone = if (finished) palette.done else scheme.primary
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { if (total == 0) 0f else done.toFloat() / total },
+                    modifier = Modifier.fillMaxSize(),
+                    color = tone,
+                    trackColor = scheme.primary.copy(alpha = 0.14f),
+                    strokeWidth = 4.dp,
+                    strokeCap = StrokeCap.Round,
+                    gapSize = 0.dp,
+                )
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).background(tone.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(SectionIcon, null, tint = if (finished) palette.doneText else scheme.primary, modifier = Modifier.size(22.dp)) }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = listOfNotNull(stringResource(R.string.home_now), section.reminderMinutes?.let(::formatClock)).joinToString("  ·  "),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (finished) palette.doneText else scheme.primary,
+                )
+                Text(
+                    text = section.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (finished) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Check, null, tint = palette.doneText, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text(stringResource(R.string.section_finished), style = MaterialTheme.typography.bodySmall, color = palette.doneText)
+                    }
+                } else if (total > 0) {
+                    Text(
+                        text = if (done == 0) pluralStringResource(R.plurals.focus_steps_waiting, total, uiDigits(total))
+                        else stringResource(R.string.focus_progress, uiDigits(done), uiDigits(total), uiDigits(total - done)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        // Into the section, to be started there when the user wants; quieter once it is done.
+        val label = @Composable {
+            Text(stringResource(R.string.focus_open), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
+        }
+        val buttonModifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(48.dp)
+        if (finished) {
+            OutlinedButton(onClick = onOpen, shape = CircleShape, modifier = buttonModifier) { label() }
+        } else {
+            Button(onClick = onOpen, shape = CircleShape, modifier = buttonModifier) { label() }
+        }
+    }
+}
+
+/** A section coming up before the next prayer: its icon, title, time and how long until it. */
+@Composable
+private fun UpcomingRow(section: ProgramSection, nowMinutes: Int, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val until = section.reminderMinutes?.let { minutesLeft(it, nowMinutes) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(CircleShape).background(scheme.onSurfaceVariant.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(SectionIcon, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = section.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = scheme.onSurface.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = listOfNotNull(section.reminderMinutes?.let(::formatClock), until?.let { untilText(it) }).joinToString("  ·  "),
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+    }
+}
+
+/**
+ * The daily counter on the home tab, after the counter screen: on the home cards' flat green with the
+ * faint lattice of stars, each dhikr with a small dial — the mint ring filling towards the next
+ * target round the green pearl with today's count. A row opens the dhikr's counter.
+ */
+@Composable
+private fun CounterCard(
+    entries: List<LibraryEntry>,
+    state: UiState,
+    onAdd: () -> Unit,
+    onOpen: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalDhikraPalette.current
+    Surface(shape = MaterialTheme.shapes.large, color = homeCardColor(), modifier = modifier.fillMaxWidth()) {
+        Column(
+            Modifier
+                .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
+        ) {
+            // A slim header on a faint glass.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(start = 16.dp, end = 4.dp, top = 6.5.dp, bottom = 6.5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.counter_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = NightInk,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+                    TextButton(
+                        onClick = onAdd,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MustardLight),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        modifier = Modifier.height(40.dp),
+                    ) {
+                        Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.counter_add))
+                    }
+                }
+            }
+            // What the counter is, said while it is empty: its rows show it once in use.
+            if (entries.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.counter_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+            }
+            entries.forEachIndexed { index, entry ->
+                if (index > 0) {
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(horizontal = 14.dp))
+                }
+                CounterDialRow(
+                    entry = entry,
+                    count = state.counterCount(entry.id),
+                    onOpen = { onOpen(entry.id) },
+                    onRemove = { onRemove(entry.id) },
+                )
+            }
+        }
+    }
+}
+
+/** One dhikr of the daily counter card: its small dial, its title and today's count. Its menu takes it off. */
+@Composable
+private fun CounterDialRow(entry: LibraryEntry, count: Int, onOpen: () -> Unit, onRemove: () -> Unit) {
     val target = DailyCounter.target(count)
     var menu by remember { mutableStateOf(false) }
     val description = stringResource(R.string.counter_count_description, entry.title, uiDigits(count), uiDigits(target))
@@ -624,60 +1124,33 @@ private fun CounterRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen)
-            .padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 14.dp),
+            .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(48.dp).semantics(mergeDescendants = true) { contentDescription = description },
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator(
-                progress = { DailyCounter.stage(count) },
-                modifier = Modifier.fillMaxSize(),
-                color = palette.progress,
-                trackColor = scheme.primary.copy(alpha = 0.12f),
-                strokeWidth = 3.5.dp,
-                strokeCap = StrokeCap.Round,
-            )
-            Text(
-                text = uiDigits(count),
-                style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
-                fontWeight = FontWeight.Bold,
-                color = scheme.primary,
-                maxLines = 1,
-            )
-            // The target the ring fills towards, as a badge on its lower edge.
-            Surface(
-                shape = CircleShape,
-                color = palette.progress,
-                contentColor = scheme.surfaceContainerLowest,
-                border = BorderStroke(1.5.dp, scheme.surfaceContainerLowest),
-                modifier = Modifier.align(Alignment.BottomCenter).offset(y = 7.dp),
-            ) {
-                Text(
-                    text = uiDigits(target),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 5.dp),
-                )
-            }
-        }
+        MiniDial(
+            count = count,
+            modifier = Modifier.size(56.dp).semantics(mergeDescendants = true) { contentDescription = description },
+        )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (count == 0) {
-                // Not counted yet today: how to start.
-                Text(
-                    text = stringResource(R.string.counter_tap_hint),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.onSurfaceVariant.copy(alpha = 0.75f),
-                )
-            }
+            Text(
+                text = entry.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = NightInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                // Not counted yet today: how to start; else how far, «٥٠٤ من ١٠٠٠».
+                text = if (count == 0) stringResource(R.string.counter_tap_hint)
+                else uiDigits(count) + " " + stringResource(R.string.counter_of, uiDigits(target)),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.65f),
+            )
         }
         Box {
             IconButton(onClick = { menu = true }) {
-                Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
+                Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more), tint = Color.White.copy(alpha = 0.7f))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
@@ -687,6 +1160,74 @@ private fun CounterRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * The counter screen's dial in small: the string with the day's progress in mint (mirrored right
+ * to left), round the green pearl lit from the upper left, with today's count.
+ */
+@Composable
+private fun MiniDial(count: Int, modifier: Modifier = Modifier) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val stage = DailyCounter.stage(count)
+    val target = DailyCounter.target(count)
+    val digits = uiDigits(count)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val outer = size.minDimension / 2f
+            val ring = outer - 3.dp.toPx()
+            drawCircle(Color.White.copy(alpha = 0.10f), radius = ring, style = Stroke(1.dp.toPx()))
+            // While the target is a hundred or less, its beads, as on the counter screen.
+            if (target in 1..100) {
+                val spacing = (2 * PI * ring / target).toFloat()
+                val bead = (spacing * 0.3f).coerceIn(0.6.dp.toPx(), 1.6.dp.toPx())
+                for (i in 0 until target) {
+                    val angle = -PI / 2 + (if (rtl) -1 else 1) * 2 * PI * i / target
+                    val lit = i < count
+                    drawCircle(
+                        color = if (lit) ForestLight else Color.White.copy(alpha = 0.18f),
+                        radius = if (lit) bead else bead * 0.78f,
+                        center = Offset(center.x + ring * cos(angle).toFloat(), center.y + ring * sin(angle).toFloat()),
+                    )
+                }
+            }
+            drawArc(
+                color = ForestLight.copy(alpha = 0.9f),
+                startAngle = -90f,
+                sweepAngle = 360f * stage * if (rtl) -1f else 1f,
+                useCenter = false,
+                topLeft = Offset(center.x - ring, center.y - ring),
+                size = Size(ring * 2, ring * 2),
+                style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round),
+            )
+            val pearl = outer * 0.66f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF2F7A57), Color(0xFF0F3524)),
+                    center = Offset(center.x - pearl * 0.28f, center.y - pearl * 0.44f),
+                    radius = pearl * 1.8f,
+                ),
+                radius = pearl,
+            )
+            drawCircle(
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.04f)),
+                    startY = center.y - pearl,
+                    endY = center.y + pearl,
+                ),
+                radius = pearl - 0.5.dp.toPx(),
+                style = Stroke(1.dp.toPx()),
+            )
+        }
+        Text(
+            text = digits,
+            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+            fontSize = if (digits.length <= 3) 15.sp else 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 1,
+        )
     }
 }
 
@@ -778,18 +1319,8 @@ private fun PanelNote(text: String) {
     )
 }
 
-/** Under «الآن»: the period's prayer and its sections — «المغرب · ٣ أقسام» (the countdown is in the header). */
-@Composable
-private fun periodLine(period: DayPeriod): String? {
-    val prayer = period.prayer ?: return null
-    val count = period.sections.size
-    val name = stringResource(prayer.label)
-    if (count == 0) return name
-    return name + "  ·  " + pluralStringResource(R.plurals.section_count, count, uiDigits(count))
-}
-
 /**
- * A section in the «الآن» panel: its icon, title and time, and the steps done of all («٣/٩») — the
+ * A section in the day's schedule: its icon, title and time, and the steps done of all («٣/٩») — the
  * icon and a check turn gold once it is finished. The row opens the section.
  */
 @Composable
@@ -910,7 +1441,7 @@ private fun CounterPickerDialog(library: Library, added: List<String>, onPick: (
  * rule fading out to the end, like a chapter's, with what the tab shows under it.
  */
 @Composable
-private fun TabHeading(title: String, description: String, modifier: Modifier = Modifier) {
+internal fun TabHeading(title: String, description: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val rule = scheme.primary.copy(alpha = 0.35f)
@@ -934,34 +1465,39 @@ private fun TabHeading(title: String, description: String, modifier: Modifier = 
 }
 
 /**
- * Today's progress through the whole program: a ring with the share of steps done, a line saying
- * what is left (or that the day is complete), the steps done, and one dot per section in the day's
- * order — gold once finished, green while still to do.
+ * Today's progress through the whole program, on the top bar's glass: a ring with the share of
+ * steps done, a line saying what is left (or that the day is complete), the steps done, and beside
+ * them the sections as a small borderless table — a column per prayer time, headed by its first
+ * letter, with a small rounded box for each of its sections, gold once finished. Opens the day.
  */
 @Composable
-private fun ProgressCard(ordered: List<ProgramSection>, state: UiState, message: String?, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val palette = LocalDhikraPalette.current
+private fun HeaderProgress(
+    timeline: DayTimeline,
+    ordered: List<ProgramSection>,
+    state: UiState,
+    message: String?,
+    onClick: () -> Unit,
+) {
     val withSteps = ordered.filter { it.trackableItems.isNotEmpty() }
     val total = withSteps.sumOf { it.trackableItems.size }
     val done = withSteps.sumOf { state.completedIn(it).coerceAtMost(it.trackableItems.size) }
-    val finished = withSteps.map { state.completedIn(it) >= it.trackableItems.size }
     val fraction = if (total == 0) 0f else done.toFloat() / total
-    val sectionsLabel = stringResource(R.string.progress_sections, uiDigits(finished.count { it }), uiDigits(withSteps.size))
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.large,
-        color = scheme.surfaceContainerLowest,
-        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f)),
-        modifier = modifier.fillMaxWidth(),
+        color = HeaderGlass,
+        contentColor = Color.White,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+        Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     progress = { fraction },
                     modifier = Modifier.fillMaxSize(),
-                    color = scheme.primary,
-                    trackColor = scheme.primary.copy(alpha = 0.14f),
-                    strokeWidth = 6.dp,
+                    // The secondary orange, in its lighter shade for the dark green.
+                    color = OrangeLight,
+                    trackColor = Color.White.copy(alpha = 0.14f),
+                    strokeWidth = 5.dp,
                     strokeCap = StrokeCap.Round,
                     gapSize = 0.dp,
                 )
@@ -969,38 +1505,106 @@ private fun ProgressCard(ordered: List<ProgramSection>, state: UiState, message:
                     text = stringResource(R.string.progress_percent, uiDigits(Math.round(fraction * 100))),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = scheme.primary,
+                    color = Color.White,
                 )
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.today_progress), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.today_progress), style = MaterialTheme.typography.titleMedium, color = Color.White)
                 if (message != null) {
-                    Text(message, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = scheme.primary)
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MustardLight,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 Text(
                     text = stringResource(R.string.progress_steps, uiDigits(done), uiDigits(total)),
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.72f),
                 )
-                if (finished.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        modifier = Modifier.padding(top = 8.dp).clearAndSetSemantics { contentDescription = sectionsLabel },
-                    ) {
-                        finished.forEach { isDone ->
-                            Box(
-                                Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isDone) palette.done else scheme.primary.copy(alpha = 0.22f))
-                            )
-                        }
-                    }
-                }
             }
+            SectionTable(timeline, state, Modifier.padding(start = 8.dp))
         }
+    }
+}
+
+/**
+ * The sections of the day as a borderless table: a column per prayer time, headed by the first
+ * letter of its name (العصر and العشاء both «ع»: their order tells them apart), with a small rounded box under
+ * it for each of its sections — gold once finished, faint while still to do; the column of the time
+ * going on stands out. Sections with no time make a last column. Without prayer times, one row.
+ */
+@Composable
+private fun SectionTable(timeline: DayTimeline, state: UiState, modifier: Modifier = Modifier) {
+    val palette = LocalDhikraPalette.current
+    fun finished(section: ProgramSection) = state.completedIn(section) >= section.trackableItems.size
+    val all = timeline.periods.flatMap { it.sections } + timeline.untimed
+    val withSteps = all.filter { it.trackableItems.isNotEmpty() }
+    if (withSteps.isEmpty()) return
+    val sectionsLabel = stringResource(
+        R.string.progress_sections,
+        uiDigits(withSteps.count(::finished)),
+        uiDigits(withSteps.size),
+    )
+    val dot = @Composable { isDone: Boolean ->
+        Box(
+            Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(1.5.dp))
+                .background(if (isDone) palette.done else Color.White.copy(alpha = 0.22f))
+        )
+    }
+    val timed = timeline.periods.any { it.prayer != null }
+    if (!timed) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            maxItemsInEachRow = 6,
+            modifier = modifier.clearAndSetSemantics { contentDescription = sectionsLabel },
+        ) { withSteps.forEach { dot(finished(it)) } }
+        return
+    }
+    // The headers: the first letter of the name after its article (العصر and العشاء both «ع»).
+    val headers = timeline.periods.map { period -> period.prayer?.let { prayerInitial(it) }.orEmpty() }
+    val untimed = timeline.untimed.filter { it.trackableItems.isNotEmpty() }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = modifier.clearAndSetSemantics { contentDescription = sectionsLabel },
+    ) {
+        timeline.periods.forEachIndexed { index, period ->
+            TableColumn(
+                header = headers[index],
+                current = period.current,
+                dots = period.sections.filter { it.trackableItems.isNotEmpty() }.map(::finished),
+                dot = dot,
+            )
+        }
+        if (untimed.isNotEmpty()) {
+            TableColumn(header = "•", current = false, dots = untimed.map(::finished), dot = dot)
+        }
+    }
+}
+
+/** One column of [SectionTable]: its header, and a dot per section under it. */
+@Composable
+private fun TableColumn(header: String, current: Boolean, dots: List<Boolean>, dot: @Composable (Boolean) -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.widthIn(min = 11.dp),
+    ) {
+        Text(
+            text = header,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
+            color = if (current) MustardLight else Color.White.copy(alpha = 0.6f),
+            maxLines = 1,
+        )
+        dots.forEach { dot(it) }
     }
 }
 
@@ -1024,137 +1628,8 @@ private fun progressMessage(timeline: DayTimeline, sections: List<ProgramSection
     }
 }
 
-/**
- * A section as a row of the program's list: its icon, title, time and steps, and its menu — edit it
- * (the editor on this section only) or duplicate it. Tapping it opens the section.
- */
-@Composable
-private fun SectionListRow(
-    section: ProgramSection,
-    state: UiState,
-    onOpen: () -> Unit,
-    onEdit: () -> Unit,
-    onDuplicate: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val total = section.trackableItems.size
-    val done = state.completedIn(section)
-    var menu by remember { mutableStateOf(false) }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .padding(start = 14.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-            Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(scheme.primary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(sectionIcon(section.icon), null, tint = scheme.primary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(section.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    // «الشروق بعد ٢٠ د · ٧:٤٣ ص · أُنجز ٣ من ٦»: when, and how far along.
-                    text = listOfNotNull(
-                        section.anchor?.let { anchorShortLabel(it) },
-                        section.reminderMinutes?.let(::formatClock) ?: stringResource(R.string.no_reminder),
-                        stringResource(R.string.steps_done, uiDigits(done), uiDigits(total)),
-                    ).joinToString("  ·  "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit_section)) },
-                        leadingIcon = { Icon(Icons.Filled.Edit, null) },
-                        onClick = { menu = false; onEdit() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.duplicate)) },
-                        leadingIcon = { Icon(Icons.Filled.Add, null) },
-                        onClick = { menu = false; onDuplicate() },
-                    )
-                }
-            }
-    }
-}
 
 // ------------------------------------------------------------------------------ Header
-
-/**
- * The coming prayer under the app bar — its name and time, the countdown and the city — or, before
- * a city is picked, the invitation to pick one. Either opens the prayer-times screen.
- */
-@Composable
-private fun NextPrayerPanel(timetable: PrayerTimetable?, nowMinutes: Int, onClick: () -> Unit) {
-    val faint = Color.White.copy(alpha = 0.72f)
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = HeaderGlass,
-        contentColor = Color.White,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-    ) {
-        if (timetable == null) {
-            Row(Modifier.padding(horizontal = 14.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.LocationOn, null, tint = MustardLight, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(stringResource(R.string.day_pick_city), style = MaterialTheme.typography.titleSmall)
-            }
-            return@Surface
-        }
-        val next = timetable.next(nowMinutes)
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(next.prayer.icon, null, tint = MustardLight, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.prayer_next_label), style = MaterialTheme.typography.labelMedium, color = faint)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(next.prayer.label), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = formatClock(next.atMinutes),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Surface(shape = CircleShape, color = MustardLight.copy(alpha = 0.18f), contentColor = MustardLight) {
-                    Text(
-                        text = untilText(next.inMinutes),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.LocationOn, null, tint = faint, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = timetable.city.shownName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = faint,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 140.dp),
-                    )
-                }
-            }
-        }
-    }
-}
 
 /**
  * The coming prayer in one line, for the folded header: «🌙 العشاء ١٨:١٤ · بعد ١ س ٣٧ د». Opens
@@ -1178,26 +1653,6 @@ private fun NextPrayerLine(timetable: PrayerTimetable, nowMinutes: Int, onClick:
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-/**
- * The day view header's two greens for the time of day ([prayer] is the period going on): the
- * brand's own through the day, a fresher green at dawn and sunrise, warmed towards amber at
- * Maghrib, deeper at night. Animated, so a new period eases in.
- */
-@Composable
-private fun headerColors(prayer: Prayer?): Pair<Color, Color> {
-    val palette = LocalDhikraPalette.current
-    val (shade, amount) = when (prayer) {
-        Prayer.FAJR, Prayer.SUNRISE -> Color(0xFF3F8C6B) to 0.35f
-        Prayer.MAGHRIB -> Color(0xFF8E5A2C) to 0.3f
-        Prayer.ISHA -> Color(0xFF04120B) to 0.5f
-        else -> Color.Unspecified to 0f
-    }
-    fun mix(base: Color, by: Float) = if (amount == 0f) base else lerp(base, shade, by)
-    val top by animateColorAsState(mix(palette.headerStart, amount), tween(800), label = "headerTop")
-    val bottom by animateColorAsState(mix(palette.headerEnd, amount * 0.6f), tween(800), label = "headerBottom")
-    return top to bottom
 }
 
 /** The translucent white of the header's panels (the next prayer, the tabs). */
@@ -1267,13 +1722,26 @@ internal fun MainActionButton(icon: ImageVector, label: String, onClick: () -> U
 private sealed interface ScheduleItem {
     val key: String
 
-    /** A prayer opening its period; [previous] is the period before it (the rail comes down from it). */
-    data class PrayerBand(val period: DayPeriod, val previous: DayPeriod?, val first: Boolean, val continues: Boolean) : ScheduleItem {
+    /**
+     * A prayer opening its period, as its panel's header ([slice]: the panel's top, or all of it
+     * when the period holds nothing); [previous] is the period before it (the rail comes down from it).
+     */
+    data class PrayerBand(val period: DayPeriod, val previous: DayPeriod?, val first: Boolean, val continues: Boolean, val slice: Slice) : ScheduleItem {
         override val key = "prayer/" + period.prayer?.name
     }
 
-    /** A section or the current time inside [period]; [last] ends the day's rail. */
-    data class Entry(val period: DayPeriod, val entry: PeriodEntry, val firstOfDay: Boolean, val last: Boolean) : ScheduleItem {
+    /**
+     * A section or the current time inside [period]; [last] ends the day's rail. [slice] is its piece
+     * of the period's panel, [divider] whether a line parts it from the section above.
+     */
+    data class Entry(
+        val period: DayPeriod,
+        val entry: PeriodEntry,
+        val firstOfDay: Boolean,
+        val last: Boolean,
+        val slice: Slice = Slice.Middle,
+        val divider: Boolean = false,
+    ) : ScheduleItem {
         override val key = when (entry) {
             is PeriodEntry.Section -> "section/" + entry.section.id
             is PeriodEntry.Now -> "now"
@@ -1284,32 +1752,59 @@ private sealed interface ScheduleItem {
         override val key = "allDay"
     }
 
-    data class AllDay(val section: ProgramSection) : ScheduleItem {
+    data class AllDay(val section: ProgramSection, val slice: Slice, val divider: Boolean) : ScheduleItem {
         override val key = "allDay/" + section.id
     }
 }
 
+/** A row's piece of its panel: the top (rounded above), a middle, the bottom (rounded below), or all of it. */
+private enum class Slice { Top, Middle, Bottom, Single }
+
+private fun slice(top: Boolean, bottom: Boolean) = when {
+    top && bottom -> Slice.Single
+    top -> Slice.Top
+    bottom -> Slice.Bottom
+    else -> Slice.Middle
+}
+
+/**
+ * The schedule's rows: each prayer period one panel — its band as the header, its sections (and
+ * the current time, if it falls there) as the rows under it — then the sections with no time in a
+ * panel of their own.
+ */
 private fun scheduleRows(timeline: DayTimeline): List<ScheduleItem> = buildList {
     val periods = timeline.periods
     periods.forEachIndexed { index, period ->
         val lastPeriod = index == periods.lastIndex
-        if (period.prayer != null) {
-            add(ScheduleItem.PrayerBand(period, periods.getOrNull(index - 1), first = index == 0, continues = !lastPeriod || period.entries.isNotEmpty()))
+        val header = period.prayer != null
+        if (header) {
+            add(
+                ScheduleItem.PrayerBand(
+                    period, periods.getOrNull(index - 1), first = index == 0,
+                    continues = !lastPeriod || period.entries.isNotEmpty(),
+                    slice = if (period.entries.isEmpty()) Slice.Single else Slice.Top,
+                )
+            )
         }
         period.entries.forEachIndexed { at, entry ->
+            val previous = period.entries.getOrNull(at - 1)
             add(
                 ScheduleItem.Entry(
                     period = period,
                     entry = entry,
                     firstOfDay = period.prayer == null && at == 0,
                     last = lastPeriod && at == period.entries.lastIndex,
+                    slice = slice(top = !header && at == 0, bottom = at == period.entries.lastIndex),
+                    divider = entry is PeriodEntry.Section && previous is PeriodEntry.Section,
                 )
             )
         }
     }
     if (timeline.untimed.isNotEmpty()) {
         add(ScheduleItem.AllDayLabel)
-        timeline.untimed.forEach { add(ScheduleItem.AllDay(it)) }
+        timeline.untimed.forEachIndexed { at, section ->
+            add(ScheduleItem.AllDay(section, slice(top = at == 0, bottom = at == timeline.untimed.lastIndex), divider = at > 0))
+        }
     }
 }
 
@@ -1338,6 +1833,8 @@ private fun ScheduleRow(
     bottom: Color? = null,
     dot: Color? = null,
     gutter: @Composable () -> Unit = {},
+    /** Space above and below the content; 0 for the slices of a panel, which join. */
+    gap: Dp = 3.dp,
     content: @Composable () -> Unit,
 ) {
     Row(modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -1358,7 +1855,77 @@ private fun ScheduleRow(
                 .padding(start = 2.dp, end = RailInset * 2 + 2.dp, top = spaceAbove),
             contentAlignment = Alignment.CenterStart,
         ) { gutter() }
-        Box(Modifier.weight(1f).padding(top = spaceAbove + 3.dp, bottom = 3.dp)) { content() }
+        Box(Modifier.weight(1f).padding(top = spaceAbove + gap, bottom = gap)) { content() }
+    }
+}
+
+/** A period panel's outline: the slate of time for the period going on, else a quiet line. */
+@Composable
+private fun panelBorder(current: Boolean): Color =
+    if (current) LocalDhikraPalette.current.slate.accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+
+private fun panelBorderWidth(current: Boolean): Dp = if (current) 1.5.dp else 1.dp
+
+private val PanelRadius = 16.dp
+
+/**
+ * Draws a row's [slice] of a panel: its [fill], rounded at the panel's top or bottom, and the
+ * panel's outline — only the sides of a middle slice, so the slices join into one panel.
+ */
+private fun Modifier.panelSlice(slice: Slice, fill: Color, border: Color, borderWidth: Dp): Modifier = drawBehind {
+    val r = PanelRadius.toPx()
+    val stroke = borderWidth.toPx()
+    val top = slice == Slice.Top || slice == Slice.Single
+    val bottom = slice == Slice.Bottom || slice == Slice.Single
+    fun shape(extendTop: Float, extendBottom: Float) = Path().apply {
+        addRoundRect(
+            RoundRect(
+                rect = Rect(0f, -extendTop, size.width, size.height + extendBottom),
+                topLeft = CornerRadius(if (top) r else 0f),
+                topRight = CornerRadius(if (top) r else 0f),
+                bottomRight = CornerRadius(if (bottom) r else 0f),
+                bottomLeft = CornerRadius(if (bottom) r else 0f),
+            )
+        )
+    }
+    drawPath(shape(0f, 0f), fill)
+    // The outline, inset by half its width; an open edge is pushed out of the row and clipped off.
+    val inset = stroke / 2f
+    clipRect {
+        drawPath(
+            Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        rect = Rect(inset, if (top) inset else -stroke * 2, size.width - inset, if (bottom) size.height - inset else size.height + stroke * 2),
+                        topLeft = CornerRadius(if (top) r else 0f),
+                        topRight = CornerRadius(if (top) r else 0f),
+                        bottomRight = CornerRadius(if (bottom) r else 0f),
+                        bottomLeft = CornerRadius(if (bottom) r else 0f),
+                    )
+                )
+            },
+            border,
+            style = Stroke(stroke),
+        )
+    }
+}
+
+/** A row of a period panel (a section, or the current time): white, outlined, a line above it when [divider]. */
+@Composable
+private fun PanelSlice(slice: Slice, current: Boolean, divider: Boolean = false, content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .panelSlice(slice, fill = MaterialTheme.colorScheme.surfaceContainerLowest, border = panelBorder(current), borderWidth = panelBorderWidth(current))
+            .padding(bottom = if (slice == Slice.Bottom || slice == Slice.Single) 2.dp else 0.dp)
+    ) {
+        if (divider) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                modifier = Modifier.padding(horizontal = 14.dp),
+            )
+        }
+        content()
     }
 }
 
@@ -1391,7 +1958,7 @@ private fun GutterTime(
  * period going on, faded once over.
  */
 @Composable
-private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier) {
+private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier, slice: Slice? = null) {
     val prayer = period.prayer ?: return
     val scheme = MaterialTheme.colorScheme
     // The current prayer is a deeper shade of the bands' blue: that is what marks it as going on.
@@ -1399,13 +1966,20 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier) {
     val tint = if (period.current) blue.accent.copy(alpha = 0.22f).compositeOver(blue.container) else blue.container
     val accent = blue.accent
     val ink = blue.ink
+    val surface = MaterialTheme.colorScheme.surfaceContainerLowest
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 34.dp)
+            .heightIn(min = if (slice != null) 42.dp else 34.dp)
+            .then(
+                // As a panel's header: its top (or all of it), on the period's tint.
+                if (slice != null) {
+                    Modifier.panelSlice(slice, fill = tint.compositeOver(surface), border = panelBorder(period.current), borderWidth = panelBorderWidth(period.current))
+                } else {
+                    Modifier.clip(MaterialTheme.shapes.medium).background(tint)
+                }
+            )
             .alpha(if (period.passed) 0.6f else 1f)
-            .clip(MaterialTheme.shapes.medium)
-            .background(tint)
             .padding(horizontal = 12.dp, vertical = 3.dp)
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
@@ -1431,128 +2005,10 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier) {
     }
 }
 
-/** The colours of a section block: green for the day's timed sections, sand for the all-day ones. */
-private data class ChipColors(val container: Color, val border: Color, val accent: Color, val onAccent: Color, val ink: Color)
-
-@Composable
-private fun timedChipColors(): ChipColors {
-    val scheme = MaterialTheme.colorScheme
-    return ChipColors(
-        container = scheme.surfaceContainerLowest,
-        border = scheme.primary.copy(alpha = 0.32f),
-        accent = scheme.primary,
-        onAccent = scheme.onPrimary,
-        ink = scheme.onSurface,
-    )
-}
-
-/**
- * A section in the calendar: a strip and the section icon in green while to do, its title and
- * time, and at its end the steps done of all («٣/٩»). A finished section turns gold all over, as
- * the section's own steps do, with a check in place of the count. The whole block opens the section.
- */
-@Composable
-private fun SectionChip(
-    section: ProgramSection,
-    state: UiState,
-    colors: ChipColors,
-    onClick: () -> Unit,
-) {
-    val total = section.trackableItems.size
-    val done = state.completedIn(section)
-    val finished = total > 0 && done >= total
-    val shown = if (finished) doneChipColors() else colors
-    val steps = stringResource(R.string.steps_done, uiDigits(done), uiDigits(total))
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = shown.container,
-        border = BorderStroke(1.dp, shown.border),
-        // The steps done are read out: the groove only shows them.
-        modifier = Modifier.fillMaxWidth().semantics { if (total > 0) stateDescription = steps },
-    ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.width(4.dp).fillMaxHeight().background(shown.accent))
-            Column(Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 9.dp, bottom = 9.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(34.dp).clip(CircleShape).background(shown.accent.copy(alpha = 0.13f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(SectionIcon, null, tint = shown.accent, modifier = Modifier.size(19.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = section.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = shown.ink,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        section.reminderMinutes?.let { minutes ->
-                            Text(
-                                text = formatClock(minutes),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = shown.ink.copy(alpha = 0.7f),
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                    if (finished) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = stringResource(R.string.section_finished),
-                            tint = shown.accent,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    } else if (total > 0) {
-                        // Steps done of all, e.g. «٣/٩»; read out in full by the card's state.
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            shape = CircleShape,
-                            color = shown.accent.copy(alpha = 0.1f),
-                            contentColor = shown.accent,
-                            modifier = Modifier.clearAndSetSemantics {},
-                        ) {
-                            Text(
-                                text = uiDigits("$done/$total"),
-                                style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * A section all done: the gold of everything finished in the app (the section's own steps turn the
- * same) — a light golden tint and outline, a gold strip, icon and check — beside the green ones
- * still to do.
- */
-@Composable
-private fun doneChipColors(): ChipColors {
-    val scheme = MaterialTheme.colorScheme
-    val palette = LocalDhikraPalette.current
-    return ChipColors(
-        container = palette.done.copy(alpha = 0.06f).compositeOver(scheme.surfaceContainerLowest),
-        border = palette.done.copy(alpha = 0.5f),
-        accent = palette.doneText,
-        onAccent = scheme.onPrimary,
-        ink = scheme.onSurface.copy(alpha = 0.8f),
-    )
-}
-
 /** The current time across the schedule, like a calendar's: a line from the time column's dot. */
 @Composable
-private fun NowLine() {
-    Box(Modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
+private fun NowLine(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
         HorizontalDivider(thickness = 2.dp, color = NowColor())
     }
 }

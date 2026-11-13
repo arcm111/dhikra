@@ -137,6 +137,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import com.example.dhikra.ui.components.clearButton
 import com.example.dhikra.ui.components.DialogSystemBarIcons
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.height
+import com.example.dhikra.overlay.OverlayCounterView
+import kotlin.math.roundToInt
+import androidx.compose.material3.Switch
+import androidx.compose.ui.draw.alpha
+import com.example.dhikra.data.OverlayFade
 
 /** Name of the library collection holding entries of this type. */
 val ItemType.collectionName: Int
@@ -253,8 +262,30 @@ fun SettingsScreen(
     actions: SettingsActions,
     sectionSound: ReminderSound = ReminderSound.Default,
     onSectionSound: (ReminderSound) -> Unit = {},
+    /** The floating counter's size, a share of its default. */
+    overlayScale: Float = 1f,
+    onOverlayScale: (Float) -> Unit = {},
+    /** How the floating counter fades while left alone. */
+    overlayFade: OverlayFade = OverlayFade(),
+    onOverlayFade: (OverlayFade) -> Unit = {},
 ) {
+    var choosingOverlayFade by rememberSaveable { mutableStateOf(false) }
+    if (choosingOverlayFade) {
+        OverlayFadeDialog(
+            initial = overlayFade,
+            onConfirm = { onOverlayFade(it); choosingOverlayFade = false },
+            onDismiss = { choosingOverlayFade = false },
+        )
+    }
     var choosingSound by rememberSaveable { mutableStateOf(false) }
+    var choosingOverlaySize by rememberSaveable { mutableStateOf(false) }
+    if (choosingOverlaySize) {
+        OverlaySizeDialog(
+            initial = overlayScale,
+            onConfirm = { onOverlayScale(it); choosingOverlaySize = false },
+            onDismiss = { choosingOverlaySize = false },
+        )
+    }
     var choosingLanguage by rememberSaveable { mutableStateOf(false) }
     val activity = LocalActivity.current
     if (choosingLanguage) {
@@ -308,6 +339,28 @@ fun SettingsScreen(
                         leading = { RowIcon { Text(stringResource(R.string.language_glyph), style = MaterialTheme.typography.titleMedium) } },
                         subtitle = stringResource(AppLanguage.current.label),
                         onClick = { choosingLanguage = true },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsRow(
+                        title = stringResource(R.string.overlay_size),
+                        leading = { RowIcon { Icon(painterResource(R.drawable.ic_pop_out), null, Modifier.size(20.dp)) } },
+                        subtitle = stringResource(R.string.progress_percent, uiDigits((overlayScale * 100).roundToInt())),
+                        onClick = { choosingOverlaySize = true },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsRow(
+                        title = stringResource(R.string.overlay_fade),
+                        leading = { RowIcon { Icon(painterResource(R.drawable.ic_pop_out), null, Modifier.size(20.dp).alpha(0.5f)) } },
+                        subtitle = if (overlayFade.enabled) {
+                            stringResource(
+                                R.string.overlay_fade_summary,
+                                stringResource(R.string.progress_percent, uiDigits((overlayFade.opacity * 100).roundToInt())),
+                                uiDigits(overlayFade.delaySeconds),
+                            )
+                        } else {
+                            stringResource(R.string.overlay_fade_off)
+                        },
+                        onClick = { choosingOverlayFade = true },
                     )
                 }
             }
@@ -386,6 +439,121 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/**
+ * The floating counter's size: the bubble itself, drawn as it floats, and a slider from 60 % to
+ * 160 % of its default. A bubble shown over the apps takes the new size once saved.
+ */
+@Composable
+private fun OverlaySizeDialog(initial: Float, onConfirm: (Float) -> Unit, onDismiss: () -> Unit) {
+    var scale by remember { mutableFloatStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.overlay_size)) },
+        text = {
+            Column {
+                Box(
+                    // As tall as the largest bubble, so the dialog keeps its size while sliding.
+                    Modifier.fillMaxWidth().height(176.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AndroidView(
+                        factory = { context ->
+                            OverlayCounterView(context, onTap = {}, onLongPress = {}, onDrag = { _, _ -> }, onDragEnd = {})
+                                .apply { count = 33 }
+                        },
+                        update = { it.scale = scale },
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.progress_percent, uiDigits((scale * 100).roundToInt())),
+                    style = MaterialTheme.typography.titleSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Slider(
+                    value = scale,
+                    onValueChange = { scale = it },
+                    valueRange = OverlayCounterView.MIN_SCALE..OverlayCounterView.MAX_SCALE,
+                    steps = 9,
+                )
+                Text(
+                    text = stringResource(R.string.overlay_size_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(scale) }) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/**
+ * How the floating counter fades while left alone: on or off, how faint it turns, and after how
+ * many seconds without a touch. A touch always makes it solid again.
+ */
+@Composable
+private fun OverlayFadeDialog(initial: OverlayFade, onConfirm: (OverlayFade) -> Unit, onDismiss: () -> Unit) {
+    var enabled by remember { mutableStateOf(initial.enabled) }
+    var opacity by remember { mutableFloatStateOf(initial.opacity) }
+    var delay by remember { mutableFloatStateOf(initial.delaySeconds.toFloat()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.overlay_fade)) },
+        text = {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.overlay_fade_switch),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = stringResource(
+                        R.string.overlay_fade_opacity,
+                        stringResource(R.string.progress_percent, uiDigits((opacity * 100).roundToInt())),
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = opacity,
+                    onValueChange = { opacity = it },
+                    valueRange = OverlayFade.MIN_OPACITY..OverlayFade.MAX_OPACITY,
+                    steps = 6,
+                    enabled = enabled,
+                )
+                Text(
+                    text = stringResource(R.string.overlay_fade_delay, uiDigits(delay.roundToInt())),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = delay,
+                    onValueChange = { delay = it },
+                    valueRange = OverlayFade.MIN_DELAY_SECONDS.toFloat()..OverlayFade.MAX_DELAY_SECONDS.toFloat(),
+                    steps = OverlayFade.MAX_DELAY_SECONDS - OverlayFade.MIN_DELAY_SECONDS - 1,
+                    enabled = enabled,
+                )
+                Text(
+                    text = stringResource(R.string.overlay_fade_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(OverlayFade(enabled, (opacity * 10).roundToInt() / 10f, delay.roundToInt()))
+            }) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Composable

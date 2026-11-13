@@ -34,6 +34,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.dhikra.ui.theme.LocalDhikraPalette
+import androidx.compose.ui.platform.LocalDensity
+
+/** About the main view's header height (app bar, next prayer, tabs, status bar): the gradient's length. */
+private val HeaderGradientLength = 260.dp
 
 /** Flat top (it runs under the status bar), generously rounded bottom. */
 private val HeaderShape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)
@@ -53,11 +57,14 @@ fun DhikraHeader(
 ) {
     val palette = LocalDhikraPalette.current
     val (top, bottom) = colors ?: (palette.headerStart to palette.headerEnd)
+    // The gradient runs over the main view's header height whatever this header's own: every
+    // header has the same green at the same height, a short one showing the top of the tall one's.
+    val gradientEnd = with(LocalDensity.current) { HeaderGradientLength.toPx() }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .shadow(elevation = 8.dp, shape = HeaderShape)
-            .background(Brush.verticalGradient(listOf(top, bottom)))
+            .background(Brush.verticalGradient(listOf(top, bottom), startY = 0f, endY = gradientEnd))
             .starLattice(Color.White.copy(alpha = 0.05f))
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)

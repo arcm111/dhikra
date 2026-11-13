@@ -4,4 +4,22 @@
     <style name="Theme.Dhikra" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
+
+    <!-- A button of the floating counter's action bar: an icon, a quarter of the bar. -->
+    <style name="OverlayBarButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:padding">11dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:tint">#EBFFFFFF</item>
+    </style>
+
+    <!-- The hairline between two buttons of the floating counter's action bar. -->
+    <style name="OverlayBarDivider">
+        <item name="android:layout_width">1dp</item>
+        <item name="android:layout_height">18dp</item>
+        <item name="android:background">#2EFFFFFF</item>
+    </style>
 </resources>

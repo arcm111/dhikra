@@ -52,12 +52,13 @@ class DevicePrayerTimesTest {
     }
 
     @Test
-    fun timetableUsesTheCountrysMethodAndSchool() {
+    fun timetableUsesTheDefaultMethod_andTheCountrysSchool() {
         val day = "2026-11-08"
         val table = source.timetable("104515", day)!!
         val expected = PrayerCalculator.minutes(
             makkah.latitude, makkah.longitude, TimeZone.getTimeZone("Asia/Riyadh"), 2026, 11, 8,
-            PrayerMethod.UMM_AL_QURA, AsrMadhab.SHAFI,
+            // The Moonsighting Committee's method by default, even in Makkah.
+            PrayerMethod.MOON_SIGHTING_COMMITTEE, AsrMadhab.SHAFI,
         )
         assertEquals(expected, table.times)
         // Karachi reckons Asr by the Hanafi school: later than the majority's.

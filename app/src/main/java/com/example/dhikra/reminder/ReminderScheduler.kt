@@ -36,6 +36,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 import com.example.dhikra.ui.uiDigits
+import com.example.dhikra.data.SectionClock
 
 /**
  * Schedules one daily alarm per program section that has a reminder time, and one per prayer
@@ -74,7 +75,10 @@ object ReminderScheduler {
                 }
             } else {
                 null
-            } ?: section.reminderMinutes?.let(::nextTrigger) ?: return@mapNotNull null
+            } ?: section.reminderMinutes?.let { minutes ->
+                // A fixed time on Madinah's clock: its next moment in Madinah's day.
+                if (section.onMadinahClock) nextTrigger(minutes, Calendar.getInstance(SectionClock.MADINAH)) else nextTrigger(minutes)
+            } ?: return@mapNotNull null
             schedule(context, alarmManager, alarmIntent(context, section.id), trigger)
             section.id
         }.toSet()

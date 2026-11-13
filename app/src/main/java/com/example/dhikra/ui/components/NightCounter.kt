@@ -83,6 +83,18 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import com.example.dhikra.ui.uiDigits
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.requiredSize
+import com.example.dhikra.ui.theme.LocalDhikraPalette
 
 // The pieces of the night-time look shared by the full-screen reader: a misbaha-like counter dial,
 // the buttons and the dark palette of the texts.
@@ -132,10 +144,17 @@ internal fun CounterDial(
         label = "dialProgress",
     )
     val lit by animateColorAsState(if (complete) MustardLight else ForestLight, tween(600), label = "dialColor")
+    // Under the finger the pearl gives and the dial's glow brightens, so a press is plain to see;
+    // let go, it springs back.
     val pearlScale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
+        targetValue = if (pressed) 0.88f else 1f,
         animationSpec = spring(dampingRatio = 0.45f, stiffness = 700f),
         label = "pearlPress",
+    )
+    val glow by animateFloatAsState(
+        targetValue = if (pressed) 0.42f else 0.22f,
+        animationSpec = tween(if (pressed) 90 else 300),
+        label = "dialGlow",
     )
 
     // A wave leaves the pearl on every new count.
@@ -186,7 +205,7 @@ internal fun CounterDial(
 
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(lit.copy(alpha = 0.22f), Color.Transparent),
+                        colors = listOf(lit.copy(alpha = glow), Color.Transparent),
                         center = center,
                         radius = outer,
                     ),
@@ -378,8 +397,97 @@ internal fun LightNavigationBarIcons() {
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+/**
+ * A counter's controls on the night background: one rounded bar, undo on one side and reset on the
+ * other. A [center] button (the reader's play) sits in its middle, [centerSize] wide; without one,
+ * a faint line parts the two halves.
+ */
+@Composable
+internal fun CounterBar(
+    undoEnabled: Boolean,
+    resetEnabled: Boolean,
+    confirmReset: Boolean,
+    onUndo: () -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier,
+    centerSize: Dp = 48.dp,
+    center: (@Composable () -> Unit)? = null,
+) {
+    Box(modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .background(Color.White.copy(alpha = 0.07f), CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BarButton(UndoIcon, stringResource(R.string.counter_undo), onUndo, enabled = undoEnabled, modifier = Modifier.weight(1f))
+            if (center != null) {
+                Spacer(Modifier.width(centerSize + 8.dp))
+            } else {
+                Box(Modifier.width(1.dp).height(20.dp).background(Color.White.copy(alpha = 0.2f)))
+            }
+            BarButton(
+                Icons.Filled.Refresh,
+                stringResource(if (confirmReset) R.string.counter_reset_confirm else R.string.counter_reset),
+                onReset,
+                enabled = resetEnabled,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        center?.invoke()
+    }
+}
+
+/** A half of the counter bar: its icon and label, plain on the bar. */
+@Composable
+private fun BarButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean, modifier: Modifier) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = NightInk,
+            disabledContentColor = Color.White.copy(alpha = 0.35f),
+        ),
+        modifier = modifier.fillMaxHeight(),
+    ) {
+        Icon(icon, null, Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** The size of [PlayToggle] in the middle of a [CounterBar]. */
+val PlayButtonSize = 48.dp
+
+/**
+ * Reading along — play, or pause while playing — as in the section reader: quiet until used, a
+ * gold outline and icon on a faint gold glass, no shadow.
+ */
+@Composable
+fun PlayToggle(playing: Boolean, onToggle: () -> Unit, size: Dp = PlayButtonSize) {
+    Surface(
+        onClick = onToggle,
+        shape = CircleShape,
+        color = MustardLight.copy(alpha = if (playing) 0.3f else 0.14f).compositeOver(LocalDhikraPalette.current.nightEnd),
+        contentColor = MustardLight,
+        border = BorderStroke(1.dp, MustardLight.copy(alpha = 0.55f)),
+        modifier = Modifier.requiredSize(size),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (playing) {
+                Icon(painterResource(R.drawable.ic_pause), stringResource(R.string.pause), Modifier.size(22.dp))
+            } else {
+                Icon(Icons.Filled.PlayArrow, stringResource(R.string.play), Modifier.size(26.dp))
+            }
+        }
+    }
 }

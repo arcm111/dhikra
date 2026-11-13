@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The «العدّاد» widget: the day's counters, each counted on with its «+١». -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@drawable/widget_background" android:layoutDirection="rtl">
+    <TextView android:id="@+id/counters_header" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@drawable/widget_header" android:paddingStart="14dp" android:paddingEnd="14dp"
+        android:paddingTop="10dp" android:paddingBottom="10dp" android:textColor="#FFFFFFFF" android:textSize="15sp"
+        android:textStyle="bold" android:text="العدّاد اليومي" />
+    <LinearLayout android:id="@+id/counter1" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="10dp"
+        android:paddingTop="6dp" android:paddingBottom="6dp">
+        <TextView android:id="@+id/counter1_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:singleLine="true" android:ellipsize="end" android:textColor="#FF1B1C19" android:textSize="14sp" android:text="أستغفر الله الذي لا إله إلا هو الحي القيوم" />
+        <TextView android:id="@+id/counter1_count" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:textColor="#FFC2611A" android:textSize="14sp" android:textStyle="bold" android:text="٤٠٠/٥٠٠" />
+        <TextView android:id="@+id/counter1_plus" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="10dp" android:background="@drawable/widget_plus" android:gravity="center"
+            android:textColor="#FFC2611A" android:textSize="15sp" android:textStyle="bold" android:text="+١" />
+    </LinearLayout>
+    <ImageView android:id="@+id/dividerc2" android:layout_width="match_parent" android:layout_height="1dp" android:importantForAccessibility="no"
+        android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="#FFEAE6DD" />
+    <LinearLayout android:id="@+id/counter2" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="10dp"
+        android:paddingTop="6dp" android:paddingBottom="6dp">
+        <TextView android:id="@+id/counter2_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:singleLine="true" android:ellipsize="end" android:textColor="#FF1B1C19" android:textSize="14sp" android:text="سبحان الله وبحمده" />
+        <TextView android:id="@+id/counter2_count" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:textColor="#FFC2611A" android:textSize="14sp" android:textStyle="bold" android:text="٣٣/١٠٠" />
+        <TextView android:id="@+id/counter2_plus" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="10dp" android:background="@drawable/widget_plus" android:gravity="center"
+            android:textColor="#FFC2611A" android:textSize="15sp" android:textStyle="bold" android:text="+١" />
+    </LinearLayout>
+    <ImageView android:id="@+id/dividerc3" android:layout_width="match_parent" android:layout_height="1dp" android:importantForAccessibility="no"
+        android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="#FFEAE6DD" />
+    <LinearLayout android:id="@+id/counter3" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="10dp"
+        android:paddingTop="6dp" android:paddingBottom="6dp">
+        <TextView android:id="@+id/counter3_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:singleLine="true" android:ellipsize="end" android:textColor="#FF1B1C19" android:textSize="14sp" android:text="لا حول ولا قوة إلا بالله" />
+        <TextView android:id="@+id/counter3_count" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:textColor="#FFC2611A" android:textSize="14sp" android:textStyle="bold" android:text="٠/١٠٠" />
+        <TextView android:id="@+id/counter3_plus" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="10dp" android:background="@drawable/widget_plus" android:gravity="center"
+            android:textColor="#FFC2611A" android:textSize="15sp" android:textStyle="bold" android:text="+١" />
+    </LinearLayout>
+    <TextView android:id="@+id/counters_empty" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="14dp" android:textColor="#FF6B6A63" android:textSize="13sp" android:visibility="gone" />
+</LinearLayout>

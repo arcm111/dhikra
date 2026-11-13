@@ -87,23 +87,13 @@ data class PrayerSettings(
 }
 
 /**
- * The method and Asr school most used in each country (ISO 3166 code), from the authorities that
- * publish its timetables; anywhere else the Muslim World League and the majority Asr.
+ * The defaults when the user has not chosen: the Moonsighting Committee's method (لجنة رؤية الهلال)
+ * everywhere, and the Asr school most used in each country (ISO 3166 code).
  */
 object PrayerDefaults {
 
-    private val methods: Map<String, PrayerMethod> = buildMap {
-        listOf("SA", "YE").forEach { put(it, PrayerMethod.UMM_AL_QURA) }
-        listOf("EG", "SD", "SS", "LY", "SY", "LB", "JO", "PS", "IQ").forEach { put(it, PrayerMethod.EGYPTIAN) }
-        put("AE", PrayerMethod.DUBAI)
-        put("KW", PrayerMethod.KUWAIT)
-        put("QA", PrayerMethod.QATAR)
-        put("TR", PrayerMethod.TURKEY)
-        put("MA", PrayerMethod.MOROCCO)
-        listOf("PK", "IN", "BD", "AF").forEach { put(it, PrayerMethod.KARACHI) }
-        listOf("SG", "MY", "BN", "ID").forEach { put(it, PrayerMethod.SINGAPORE) }
-        listOf("US", "CA").forEach { put(it, PrayerMethod.NORTH_AMERICA) }
-    }
+    /** The method used until the user picks one, wherever the city. */
+    val METHOD = PrayerMethod.MOON_SIGHTING_COMMITTEE
 
     private val hanafi = setOf(
         "PK", "IN", "BD", "AF", "TR", // South Asia and Turkey
@@ -111,7 +101,8 @@ object PrayerDefaults {
         "BA", "AL", "XK", "MK", // the Balkans
     )
 
-    fun method(countryCode: String): PrayerMethod = methods[countryCode.uppercase()] ?: PrayerMethod.MUSLIM_WORLD_LEAGUE
+    @Suppress("UNUSED_PARAMETER")
+    fun method(countryCode: String): PrayerMethod = METHOD
 
     fun madhab(countryCode: String): AsrMadhab = if (countryCode.uppercase() in hanafi) AsrMadhab.HANAFI else AsrMadhab.SHAFI
 }

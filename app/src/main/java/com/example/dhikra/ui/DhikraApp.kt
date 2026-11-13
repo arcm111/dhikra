@@ -72,6 +72,7 @@ import kotlinx.coroutines.launch
 import com.example.dhikra.data.Favourites
 import com.example.dhikra.ui.counter.DailyCounterScreen
 import com.example.dhikra.ui.home.StepReader
+import com.example.dhikra.ui.prayer.FirstCityDialog
 
 private enum class AppDialog { RestoreDefault, ResetToday, TextSize, NewProgram, DeleteProgram }
 
@@ -167,6 +168,21 @@ fun DhikraApp(viewModel: MainViewModel) {
         return
     }
 
+    // Sharing the program followed: from the settings, and from the program tab.
+    val shareProgram: () -> Unit = {
+        scope.launch {
+            val uri = viewModel.prepareShareFile() ?: return@launch
+            val send = Intent(Intent.ACTION_SEND)
+                .setType(ProgramJson.MIME_TYPE)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .putExtra(Intent.EXTRA_SUBJECT, state.program.name)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            send.clipData = ClipData.newRawUri(state.program.name, uri)
+            context.startActivity(
+                Intent.createChooser(send, resources.getString(R.string.action_share))
+            )
+        }
+    }
     val homeActions = HomeActions(
         onSelectSection = viewModel::selectSection,
         onSelectProgram = viewModel::selectProgram,
@@ -191,23 +207,14 @@ fun DhikraApp(viewModel: MainViewModel) {
         onEditProgram = viewModel::editProgram,
         onSaveEntry = viewModel::saveEntry,
         onSaveGroup = viewModel::saveGroup,
+        onDuplicateProgram = { viewModel.duplicateProgram(resources.getString(R.string.section_copy, state.program.name)) },
+        onShareProgram = shareProgram,
+        onExportProgram = { exportLauncher.launch(viewModel.exportFileName()) },
+        onDeleteProgram = if (state.programs.size > 1) ({ dialog = AppDialog.DeleteProgram }) else null,
     )
     val settingsActions = SettingsActions(
         onTextSize = { dialog = AppDialog.TextSize },
-        onShare = {
-            scope.launch {
-                val uri = viewModel.prepareShareFile() ?: return@launch
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType(ProgramJson.MIME_TYPE)
-                    .putExtra(Intent.EXTRA_STREAM, uri)
-                    .putExtra(Intent.EXTRA_SUBJECT, state.program.name)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                send.clipData = ClipData.newRawUri(state.program.name, uri)
-                context.startActivity(
-                    Intent.createChooser(send, resources.getString(R.string.action_share))
-                )
-            }
-        },
+        onShare = shareProgram,
         onExport = { exportLauncher.launch(viewModel.exportFileName()) },
         onImport = {
             importLauncher.launch(arrayOf(ProgramJson.MIME_TYPE, "text/plain", "application/octet-stream"))
@@ -226,6 +233,20 @@ fun DhikraApp(viewModel: MainViewModel) {
         if (route != Route.HOME) screenStates.removeState(Route.HOME)
         backStack = Route.TODAY + Route.SEPARATOR + Route.HOME
         viewModel.consumeOpenSection()
+    }
+    // The first launch: ask for the user's city, which the prayer times and the schedule follow.
+    if (state.askCity && !state.loading) {
+        FirstCityDialog(
+            source = viewModel.prayerSource,
+            onPick = viewModel::chooseFirstCity,
+            onLater = viewModel::dismissCityQuestion,
+        )
+    }
+    // A widget's counter was tapped: show that counter, with the day view to go back to.
+    LaunchedEffect(state.openCounterRequest) {
+        val entryId = state.openCounterRequest ?: return@LaunchedEffect
+        backStack = Route.TODAY + Route.SEPARATOR + Route.COUNTER + entryId
+        viewModel.consumeOpenCounter()
     }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     AnimatedContent(
@@ -258,6 +279,10 @@ fun DhikraApp(viewModel: MainViewModel) {
                     actions = settingsActions,
                     sectionSound = state.sectionSound,
                     onSectionSound = viewModel::setSectionSound,
+                    overlayScale = state.overlayScale,
+                    onOverlayScale = viewModel::setOverlayScale,
+                    overlayFade = state.overlayFade,
+                    onOverlayFade = viewModel::setOverlayFade,
                 )
                 current == Route.PRAYER -> PrayerTimesScreen(
                     timetable = state.prayerTimes,
@@ -307,7 +332,9 @@ fun DhikraApp(viewModel: MainViewModel) {
                             entry = entry,
                             count = state.counterCount(entry.id),
                             textScale = state.textScale,
+                            lettersPerSecond = state.counterSpeed(entry.id),
                             onCount = { viewModel.countDhikr(entry.id) },
+                            onRepetitionRead = { elapsed -> viewModel.onCounterRepetitionRead(entry.id, entry.text, elapsed) },
                             onUndo = { viewModel.undoDhikr(entry.id) },
                             onReset = { viewModel.resetDhikr(entry.id) },
                             onClose = back,

@@ -17,6 +17,7 @@ import com.example.dhikra.ui.MainViewModel
 import com.example.dhikra.ui.localized
 import com.example.dhikra.ui.library.LocalQuranLookup
 import com.example.dhikra.ui.theme.DhikraTheme
+import com.example.dhikra.widget.Widgets
 
 class MainActivity : ComponentActivity() {
 
@@ -41,6 +42,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Back in front: what a home-screen widget counted meanwhile is read again, and the widgets redrawn. */
+    override fun onStart() {
+        super.onStart()
+        viewModel.reloadFromStorage()
+        Widgets.refresh(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
@@ -49,6 +57,7 @@ class MainActivity : ComponentActivity() {
     /** Handles reminder taps (open a section) and shared/opened program files (import). */
     private fun handleIntent(intent: Intent) {
         intent.getStringExtra(ReminderScheduler.EXTRA_SECTION_ID)?.let(viewModel::openSection)
+        intent.getStringExtra(Widgets.EXTRA_COUNTER_ID)?.let(viewModel::openCounter)
 
         val programUri: Uri? = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme == "content" }

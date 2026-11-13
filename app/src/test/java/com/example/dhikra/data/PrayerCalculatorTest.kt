@@ -138,10 +138,9 @@ class PrayerCalculatorTest {
 
     @Test
     fun countryDefaults() {
-        assertEquals(PrayerMethod.UMM_AL_QURA, PrayerDefaults.method("SA"))
-        assertEquals(PrayerMethod.EGYPTIAN, PrayerDefaults.method("eg"))
-        assertEquals(PrayerMethod.TURKEY, PrayerDefaults.method("TR"))
-        assertEquals(PrayerMethod.MUSLIM_WORLD_LEAGUE, PrayerDefaults.method("GB"))
+        // The Moonsighting Committee's method is the default wherever the city.
+        assertEquals(PrayerMethod.MOON_SIGHTING_COMMITTEE, PrayerDefaults.method("GB"))
+        assertEquals(PrayerMethod.MOON_SIGHTING_COMMITTEE, PrayerDefaults.method("SA"))
         assertEquals(AsrMadhab.HANAFI, PrayerDefaults.madhab("PK"))
         assertEquals(AsrMadhab.SHAFI, PrayerDefaults.madhab("SA"))
     }

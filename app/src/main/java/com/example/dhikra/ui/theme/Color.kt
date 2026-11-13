@@ -6,13 +6,15 @@ import androidx.compose.ui.graphics.Color
 
 // Brand palette. The six base colours are used as they are for fills, rules and ornaments; where a
 // colour becomes text on a light card it is deepened (same hue) to stay readable (≥ 4.5:1).
-/** Primary: dark green. */
-val Forest = Color(0xFF174B35)
-val ForestDeep = Color(0xFF113826)
+/** Primary: dark green, a little deeper than the softened #215B42 it was (the first was #174B35). */
+val Forest = Color(0xFF1B4E38)
+val ForestDeep = Color(0xFF133A28)
 /** The primary lightened for dark backgrounds. */
 val ForestLight = Color(0xFF8CC4A8)
 /** Secondary: orange, for calls to action and "now". */
 val Orange = Color(0xFFD98945)
+/** The secondary orange lightened, for dark backgrounds (the dark theme, the night cards). */
+val OrangeLight = Color(0xFFE9A46A)
 /** Accent 1: mustard, the decorative gold (stars, rules) and the Quran's colour. */
 val Mustard = Color(0xFFD6B85A)
 val MustardLight = Color(0xFFE6CF86)
@@ -22,6 +24,8 @@ val Rose = Color(0xFFC98286)
 val Sage = Color(0xFF8FA9A0)
 /** Accent 4: slate blue, the cards' labels, the tasks and the prayer rail. */
 val Slate = Color(0xFF7C91B0)
+/** The slate blue lightened, for dark backgrounds (the dark theme, the night cards): the colour of time. */
+val SlateLight = Color(0xFFA9BAD3)
 /** Accent 5: a muted violet, the adhkar and what is important. */
 val Purple = Color(0xFF957BC2)
 val Ivory = Color(0xFFF9F7F2)
@@ -135,12 +139,12 @@ val LightPalette = DhikraPalette(
     purple = Color(0xFF7A5BA6),
     ornament = Mustard,
     ornamentText = Color(0xFF866D21),
-    headerStart = Color(0xFF1F5E43),
+    headerStart = Color(0xFF215C43),
     headerEnd = ForestDeep,
     tabSelected = Color.White,
     onTabSelected = ForestDeep,
-    nightStart = Color(0xFF163F2D),
-    nightEnd = Color(0xFF07160F),
+    nightStart = Color(0xFF20523C),
+    nightEnd = Color(0xFF0F281D),
     done = Color(0xFFD9A043),
     doneText = Color(0xFF8C5A12),
     now = Color(0xFFD23F3F),
@@ -192,7 +196,7 @@ val DarkPalette = DhikraPalette(
     slate = ElementColors(
         container = Color(0xFF1A1E26),
         border = Color(0xFF333C4D),
-        accent = Color(0xFFA9BAD3),
+        accent = SlateLight,
         onAccent = Color(0xFF1A2840),
         ink = Color(0xFFE3E8F0),
         highlight = Color(0x407C91B0),
@@ -200,12 +204,12 @@ val DarkPalette = DhikraPalette(
     purple = Color(0xFFC3ACE6),
     ornament = Mustard,
     ornamentText = MustardLight,
-    headerStart = Color(0xFF194A35),
-    headerEnd = Color(0xFF0C271B),
+    headerStart = Color(0xFF225A42),
+    headerEnd = Color(0xFF143627),
     tabSelected = Color(0xFFD4EADF),
     onTabSelected = Color(0xFF0C271B),
-    nightStart = Color(0xFF133826),
-    nightEnd = Color(0xFF050F0A),
+    nightStart = Color(0xFF1C4A35),
+    nightEnd = Color(0xFF0C2017),
     done = Color(0xFFE5B261),
     doneText = Color(0xFFF0C987),
     now = Color(0xFFFF6E6E),

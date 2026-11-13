@@ -108,6 +108,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import com.example.dhikra.ui.components.clearButton
 import com.example.dhikra.ui.components.DialogSystemBarIcons
+import com.example.dhikra.data.SectionZone
+import com.example.dhikra.data.SectionClock
+import java.util.TimeZone
 
 private val SectionIcons = SectionIconChoices.map { it.first }
 
@@ -121,19 +124,26 @@ fun SectionEditorDialog(
     onSave: (ProgramSection) -> Unit,
     /** Today's prayer times, to show what a time tied to a prayer comes to. */
     timetable: PrayerTimetable? = null,
+    /** For a new section: the prayer its time is tied to at first (added to that prayer's time). */
+    prayer: Prayer? = null,
 ) {
     val context = LocalContext.current
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var icon by rememberSaveable { mutableStateOf(initial?.icon ?: SectionIcons.first()) }
-    var reminder by rememberSaveable { mutableStateOf(initial?.reminderMinutes) }
+    // A new section added to a prayer's time starts tied to that prayer (its reminder on).
+    var reminder by rememberSaveable {
+        mutableStateOf(initial?.reminderMinutes ?: if (initial == null && prayer != null) timetable?.at(prayer) ?: (5 * 60) else null)
+    }
     var lastReminder by rememberSaveable { mutableIntStateOf(initial?.reminderMinutes ?: (5 * 60)) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     // The section's messages, kept across rotation as "kind|text" lines.
     var notices by rememberSaveable(stateSaver = NoticesSaver) { mutableStateOf(initial?.notices.orEmpty()) }
     // A time tied to a prayer: the prayer, and the minutes after (or before) it.
-    var byPrayer by rememberSaveable { mutableStateOf(initial?.anchor != null) }
-    var anchorPrayer by rememberSaveable { mutableStateOf(initial?.anchor?.prayer ?: Prayer.FAJR) }
+    var byPrayer by rememberSaveable { mutableStateOf(initial?.anchor != null || (initial == null && prayer != null)) }
+    var anchorPrayer by rememberSaveable { mutableStateOf(initial?.anchor?.prayer ?: prayer ?: Prayer.FAJR) }
     var offset by rememberSaveable { mutableIntStateOf(initial?.anchor?.offsetMinutes ?: 0) }
+    // The clock a fixed time is read on: the user's own, or Madinah's.
+    var zone by rememberSaveable { mutableStateOf(initial?.zone ?: SectionZone.LOCAL) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
 
@@ -217,8 +227,28 @@ fun SectionEditorDialog(
                             onOffset = { offset = it },
                         )
                     } else {
+                        // Whose clock the time is on: the user's own, or Madinah's.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionZone.entries.forEach { choice ->
+                                FilterChip(
+                                    selected = zone == choice,
+                                    onClick = { zone = choice },
+                                    label = {
+                                        Text(stringResource(if (choice == SectionZone.MADINAH) R.string.section_zone_madinah else R.string.section_zone_local))
+                                    },
+                                )
+                            }
+                        }
                         OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
                             Text(formatClock(minutes), style = MaterialTheme.typography.titleMedium)
+                        }
+                        if (zone == SectionZone.MADINAH) {
+                            val local = timetable?.city?.timeZone?.let(TimeZone::getTimeZone) ?: TimeZone.getDefault()
+                            Text(
+                                text = stringResource(R.string.section_zone_local_equivalent, formatClock(SectionClock.madinahToLocal(minutes, local))),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -264,6 +294,7 @@ fun SectionEditorDialog(
                             reminderMinutes = reminder,
                             note = note.trim(),
                             anchor = anchor,
+                            zone = if (anchor == null) zone else SectionZone.LOCAL,
                             notices = notices.map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() },
                         ).withPrayerTimes(timetable)
                     )

@@ -20,6 +20,11 @@ android {
     }
 
     buildTypes {
+        // The debug build is an app of its own ("Dhikra Debug"), so it can sit beside the signed
+        // release on the same phone.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             optimization {
                 enable = true

@@ -107,6 +107,8 @@ import com.example.dhikra.ui.theme.EmphasizedAccelerate
 import com.example.dhikra.ui.theme.EmphasizedDecelerate
 import com.example.dhikra.ui.theme.LocalDhikraPalette
 import kotlin.math.absoluteValue
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.dhikra.ui.components.LocalSectionComplete
 
 /** Everything the home screen can ask for. */
 class HomeActions(
@@ -136,6 +138,11 @@ class HomeActions(
     val onToggleFavourite: (String) -> Unit = {},
     /** Editing from the section view (a step held down): the program, a library text or group. */
     val onEditProgram: ((com.example.dhikra.data.Program) -> com.example.dhikra.data.Program) -> Unit = {},
+    /** The program as a whole, from the program tab: a copy of it, sharing or exporting it, deleting it (null when it is the only one). */
+    val onDuplicateProgram: () -> Unit = {},
+    val onShareProgram: () -> Unit = {},
+    val onExportProgram: () -> Unit = {},
+    val onDeleteProgram: (() -> Unit)? = null,
     val onSaveEntry: (com.example.dhikra.data.LibraryEntry) -> Unit = {},
     val onSaveGroup: (com.example.dhikra.data.LibraryGroup) -> Unit = {},
 )
@@ -411,6 +418,7 @@ private fun SectionPage(
                 item.id == currentStepId -> StepState.Current
                 else -> StepState.Upcoming
             }
+            CompositionLocalProvider(LocalSectionComplete provides allDone) {
             TimelineRow(
                 segments = segments,
                 nodeCenter = item.nodeCenter,
@@ -430,6 +438,7 @@ private fun SectionPage(
                     textDone = state::doneCount,
                     onLongPress = { heldStep = it },
                 )
+            }
             }
         }
         if (allDone) {

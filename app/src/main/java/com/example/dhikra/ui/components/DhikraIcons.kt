@@ -251,6 +251,14 @@ val HomeIcon: ImageVector = lineIcon(
     "M6,9.2v9.8a1,1 0 0 0 1,1h3.4v-5.2h3.2v5.2h3.4a1,1 0 0 0 1,-1v-9.8",
 )
 
+/** A bell struck through: no alert set. */
+val BellOffIcon: ImageVector = lineIcon(
+    "DhikraBellOff",
+    "M12,4.2a5,5 0 0 1 5,5v3.6l1.6,2.6h-13.2l1.6,-2.6v-3.6a5,5 0 0 1 5,-5z",
+    "M10.2,18.4a1.9,1.9 0 0 0 3.6,0",
+    "M4.6,4.6l14.8,14.8",
+)
+
 val TaskIcon: ImageVector = lineIcon(
     "DhikraTask",
     "M7.8,4.6h8.4a1.6,1.6 0 0 1 1.6,1.6v12.9a1.6,1.6 0 0 1 -1.6,1.6h-8.4a1.6,1.6 0 0 1 -1.6,-1.6v-12.9a1.6,1.6 0 0 1 1.6,-1.6z",

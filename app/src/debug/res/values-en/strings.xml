@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The debug build's name on the home screen, apart from the signed app's. -->
+    <string name="app_name">Dhikra Debug</string>
+</resources>

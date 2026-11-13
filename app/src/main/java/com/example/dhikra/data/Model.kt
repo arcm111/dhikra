@@ -1,6 +1,7 @@
 package com.example.dhikra.data
 
 import java.util.UUID
+import java.util.TimeZone
 
 /** The kind of element inside a program section. Each kind has its own visual style. */
 enum class ItemType(val key: String) {
@@ -271,6 +272,11 @@ data class ProgramSection(
     val items: List<ProgramItem> = emptyList(),
     /** The prayer the section's time follows, day by day; null for a fixed time. */
     val anchor: SectionAnchor? = null,
+    /**
+     * The clock a fixed [reminderMinutes] is read on: local, or Madinah's (then converted for the
+     * day's schedule and reminders, see [inLocalClock]). Ignored for a section tied to a prayer.
+     */
+    val zone: SectionZone = SectionZone.LOCAL,
     /** Messages shown at the top of the section, above its steps, in the order given. */
     val notices: List<SectionNotice> = emptyList(),
 ) {
@@ -282,6 +288,13 @@ data class ProgramSection(
         val prayerTime = timetable?.at(anchor.prayer) ?: return this
         return copy(reminderMinutes = Math.floorMod(prayerTime + anchor.offsetMinutes, 24 * 60))
     }
+
+    /** True when this section's time is a fixed time on Madinah's clock. */
+    val onMadinahClock: Boolean get() = zone == SectionZone.MADINAH && anchor == null && reminderMinutes != null
+
+    /** This section with a Madinah-clock time read on [local]'s clock at [now], for the day's schedule. */
+    fun inLocalClock(local: TimeZone, now: Long = System.currentTimeMillis()): ProgramSection =
+        if (!onMadinahClock) this else copy(reminderMinutes = SectionClock.madinahToLocal(reminderMinutes!!, local, now))
 }
 
 data class Program(
@@ -313,9 +326,18 @@ data class Program(
     fun section(id: String?): ProgramSection? = sections.firstOrNull { it.id == id }
 
     /** The sections tied to a prayer at their times on the day of [timetable]. */
-    fun withPrayerTimes(timetable: PrayerTimetable?): Program =
-        if (timetable == null || sections.none { it.anchor != null }) this
-        else copy(sections = sections.map { it.withPrayerTimes(timetable) })
+    /**
+     * The program as the day's schedule: sections tied to a prayer at [timetable]'s times, and
+     * Madinah-clock times read on the local clock ([local], else the timetable city's, else the
+     * device's).
+     */
+    fun withPrayerTimes(timetable: PrayerTimetable?, local: TimeZone? = null, now: Long = System.currentTimeMillis()): Program {
+        val anchored = timetable != null && sections.any { it.anchor != null }
+        val madinah = sections.any { it.onMadinahClock }
+        if (!anchored && !madinah) return this
+        val zone = local ?: timetable?.city?.timeZone?.let(TimeZone::getTimeZone) ?: TimeZone.getDefault()
+        return copy(sections = sections.map { it.withPrayerTimes(timetable).inLocalClock(zone, now) })
+    }
 
     /** The program as displayed: library texts filled in, dangling references dropped. */
     fun resolvedWith(library: Library): Program = copy(
