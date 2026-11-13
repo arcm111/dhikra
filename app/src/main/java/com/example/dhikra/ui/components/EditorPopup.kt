@@ -85,7 +85,10 @@ fun EditorPopup(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // The header and the footer on a soft tint of what is edited, set apart from the white body.
-    val bars = barColor ?: accent.copy(alpha = 0.08f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    val scheme = MaterialTheme.colorScheme
+    val bars = barColor ?: accent.copy(alpha = 0.08f).compositeOver(scheme.surfaceContainerLow)
+    // The footer a light grey, a shade deeper than the body; the body a shade deeper than its white cards.
+    val footer = scheme.surfaceContainerHigh
     val line = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (dirty) confirmDiscard = true else onDismiss() }
@@ -106,7 +109,9 @@ fun EditorPopup(
         ) {
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                color = scheme.surfaceContainerLow,
+                // The program tab's section tiles' frame.
+                border = BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.55f)),
                 shadowElevation = 8.dp,
                 modifier = modifier
                     .widthIn(max = 560.dp)
@@ -126,7 +131,7 @@ fun EditorPopup(
                     HorizontalDivider(color = line)
                     content()
                     HorizontalDivider(color = line)
-                    Column(Modifier.fillMaxWidth().background(bars)) {
+                    Column(Modifier.fillMaxWidth().background(footer)) {
                         if (bottomBar != null) {
                             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), content = bottomBar)
                         }
@@ -145,7 +150,7 @@ fun EditorPopup(
                                             .align(Alignment.TopEnd)
                                             .size(12.dp)
                                             .clip(CircleShape)
-                                            .background(bars)
+                                            .background(footer)
                                             .padding(2.dp)
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.tertiary),

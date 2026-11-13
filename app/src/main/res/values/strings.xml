@@ -510,4 +510,6 @@
     <string name="shared_update_all">تحديث الكل (%1$s)</string>
     <string name="shared_save_copy">حفظ نسخة لهذا القسم فقط</string>
     <string name="change_selection">تغيير</string>
+    <string name="type_notice">رسالة</string>
+    <string name="notice_kind_label">نوع الرسالة</string>
 </resources>

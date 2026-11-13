@@ -13,9 +13,15 @@ enum class ItemType(val key: String) {
     DUA("dua"),
     DHIKR("dhikr"),
     QURAN("quran"),
-    HADITH("hadith");
+    HADITH("hadith"),
 
-    val isTrackable: Boolean get() = this != HEADING
+    /**
+     * A message among the steps (something to know, a warning, something important), only read:
+     * not counted, never opened in the reader. Its kind is the step's [ProgramItem.kind].
+     */
+    NOTICE("notice");
+
+    val isTrackable: Boolean get() = this != HEADING && this != NOTICE
 
     /** Texts that live in the library and are only referenced by the program. */
     val isContent: Boolean get() = this in CONTENT
@@ -178,7 +184,12 @@ data class ProgramItem(
      * step to be done, the reader choosing which (e.g. 2 of 5); 0 for all of them.
      */
     val choose: Int = 0,
+    /** For a [ItemType.NOTICE] step: how its message reads (information, warning, important). */
+    val kind: NoticeKind = NoticeKind.INFO,
 ) {
+    /** A [ItemType.NOTICE] step as the message it shows. */
+    val asNotice: SectionNotice get() = SectionNotice(kind, text)
+
     val isGroup: Boolean get() = groupId.isNotEmpty()
 
     /** A group step whose texts are a choice: only [choose] of them are needed. */
@@ -191,7 +202,7 @@ data class ProgramItem(
     val target: Int
         get() = when {
             type == ItemType.TASK -> 1
-            type == ItemType.HEADING -> 0
+            type == ItemType.HEADING || type == ItemType.NOTICE -> 0
             isChoice -> choose
             isGroup -> members.size
             else -> count.coerceAtLeast(1)
@@ -277,7 +288,10 @@ data class ProgramSection(
      * day's schedule and reminders, see [inLocalClock]). Ignored for a section tied to a prayer.
      */
     val zone: SectionZone = SectionZone.LOCAL,
-    /** Messages shown at the top of the section, above its steps, in the order given. */
+    /**
+     * Messages of older files, shown above the steps. They are read into [ItemType.NOTICE] steps at
+     * the top of [items] (see [ProgramJson]), so this stays empty once loaded.
+     */
     val notices: List<SectionNotice> = emptyList(),
 ) {
     val trackableItems: List<ProgramItem> get() = items.filter { it.type.isTrackable }

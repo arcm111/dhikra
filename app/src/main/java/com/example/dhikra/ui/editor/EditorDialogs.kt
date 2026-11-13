@@ -139,8 +139,6 @@ fun SectionEditorDialog(
     val startTime = remember { ReminderDraft.of(initial, prayer, timetable) }
     var time by rememberSaveable(stateSaver = ReminderDraft.Saver) { mutableStateOf(startTime) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
-    // The section's messages, kept across rotation as "kind|text" lines.
-    var notices by rememberSaveable(stateSaver = NoticesSaver) { mutableStateOf(initial?.notices.orEmpty()) }
     var showError by remember { mutableStateOf(false) }
 
     fun edited(): ProgramSection = time.applyTo(
@@ -148,16 +146,14 @@ fun SectionEditorDialog(
             title = title.trim(),
             icon = icon,
             note = note.trim(),
-            notices = notices.map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() },
         ),
         timetable,
     )
 
     val dirty = if (initial == null) {
-        title.isNotBlank() || note.isNotBlank() || notices.isNotEmpty()
+        title.isNotBlank() || note.isNotBlank()
     } else {
-        title.trim() != initial.title || icon != initial.icon || time != startTime || note.trim() != initial.note ||
-            notices != initial.notices
+        title.trim() != initial.title || icon != initial.icon || time != startTime || note.trim() != initial.note
     }
 
     EditorPopup(
@@ -193,7 +189,6 @@ fun SectionEditorDialog(
                 maxLines = 4,
                 modifier = Modifier.fillMaxWidth(),
             )
-            NoticesEditor(notices = notices, onChange = { notices = it })
         }
     }
 }
@@ -410,83 +405,6 @@ internal fun ReminderEditor(draft: ReminderDraft, timetable: PrayerTimetable?, o
     }
 }
 
-internal val NoticesSaver = listSaver<List<SectionNotice>, String>(
-    save = { list -> list.map { it.kind.key + "|" + it.text } },
-    restore = { saved -> saved.map { SectionNotice(NoticeKind.fromKey(it.substringBefore('|')), it.substringAfter('|')) } },
-)
-
-/**
- * The section's messages shown above its steps, compact: each one a line in its kind's colour, its
- * kind's icon first (a tap changes the kind), then its text and a remove button.
- */
-@Composable
-internal fun NoticesEditor(notices: List<SectionNotice>, onChange: (List<SectionNotice>) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PopupLabel(stringResource(R.string.notices_title)) {
-            PopupAddButton(stringResource(R.string.notice_add)) { onChange(notices + SectionNotice(NoticeKind.INFO, "")) }
-        }
-        notices.forEachIndexed { index, notice ->
-            NoticeRow(
-                notice = notice,
-                onChange = { changed -> onChange(notices.toMutableList().also { it[index] = changed }) },
-                onRemove = { onChange(notices.toMutableList().also { it.removeAt(index) }) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun NoticeRow(notice: SectionNotice, onChange: (SectionNotice) -> Unit, onRemove: () -> Unit) {
-    val accent = notice.kind.accent()
-    var menu by remember { mutableStateOf(false) }
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = accent.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(notice.kind.icon, stringResource(R.string.notice_kind) + ": " + stringResource(notice.kind.label), tint = accent)
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    NoticeKind.entries.forEach { kind ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(kind.label)) },
-                            leadingIcon = { Icon(kind.icon, null, tint = kind.accent()) },
-                            trailingIcon = if (kind == notice.kind) ({ Icon(Icons.Filled.Check, null) }) else null,
-                            onClick = { menu = false; onChange(notice.copy(kind = kind)) },
-                        )
-                    }
-                }
-            }
-            BasicTextField(
-                value = notice.text,
-                onValueChange = { onChange(notice.copy(text = it)) },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(accent),
-                modifier = Modifier.weight(1f).padding(vertical = 12.dp),
-                decorationBox = { field ->
-                    Box {
-                        if (notice.text.isEmpty()) {
-                            Text(
-                                stringResource(R.string.notice_text),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            )
-                        }
-                        field()
-                    }
-                },
-            )
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Close, stringResource(R.string.notice_remove), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
 /**
  * A section's time tied to a prayer: the prayer (the six times of the day) and how many minutes
  * after — or before — it, with what that comes to today.
@@ -558,7 +476,7 @@ private fun TimePickerDialog(initialMinutes: Int, onDismiss: () -> Unit, onConfi
 private val CountPresets = listOf(1, 3, 7, 10, 33, 100)
 
 /** Step types, in the order offered: library texts first, then tasks and headings. */
-private val StepTypes = ItemType.CONTENT + listOf(ItemType.TASK, ItemType.HEADING)
+private val StepTypes = ItemType.CONTENT + listOf(ItemType.TASK, ItemType.HEADING, ItemType.NOTICE)
 
 /**
  * Editor of one program step, as a compact popup. Quran, hadith, dua and dhikr steps read a single
@@ -587,6 +505,8 @@ fun ItemEditorDialog(
     var text by rememberSaveable { mutableStateOf(if (initial?.type?.isContent == true) "" else initial?.text.orEmpty()) }
     var countText by rememberSaveable { mutableStateOf((initial?.count ?: 1).toString()) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
+    // A message step: its kind (information, warning, important).
+    var kind by rememberSaveable { mutableStateOf(initial?.kind ?: NoticeKind.INFO) }
     var query by rememberSaveable { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
     var addingEntry by remember { mutableStateOf(false) }
@@ -627,6 +547,7 @@ fun ItemEditorDialog(
         entryId.isNotEmpty() || groupId.isNotEmpty() || title.isNotBlank() || text.isNotBlank() || note.isNotBlank()
     } else {
         type != initial.type || note.trim() != initial.note || when {
+            type == ItemType.NOTICE -> text.trim() != initial.text || kind != initial.kind
             !isContent -> title.trim() != initial.title || text.trim() != initial.text
             groupMode -> groupId != initial.groupId
             else -> entryId != initial.entryId || count != initial.count
@@ -637,11 +558,14 @@ fun ItemEditorDialog(
         when {
             isContent && groupMode && selectedGroup == null -> { showError = true; return }
             isContent && !groupMode && selectedEntry == null -> { showError = true; return }
+            type == ItemType.NOTICE && text.isBlank() -> { showError = true; return }
             !isContent && title.isBlank() && text.isBlank() -> { showError = true; return }
         }
-        val base = ProgramItem(id = initial?.id ?: newId(), type = type, note = if (type == ItemType.HEADING) "" else note.trim())
+        val quiet = type == ItemType.HEADING || type == ItemType.NOTICE
+        val base = ProgramItem(id = initial?.id ?: newId(), type = type, note = if (quiet) "" else note.trim())
         onSave(
             when {
+                type == ItemType.NOTICE -> base.copy(text = text.trim(), kind = kind)
                 !isContent -> base.copy(title = title.trim(), text = text.trim())
                 groupMode -> base.copy(groupId = selectedGroup!!.id)
                 else -> base.copy(entryId = selectedEntry!!.id, count = count)
@@ -768,6 +692,32 @@ fun ItemEditorDialog(
                         )
                     }
                 }
+            } else if (type == ItemType.NOTICE) {
+                // A message: its kind, in its colour and icon, then its words.
+                PopupLabel(stringResource(R.string.notice_kind_label))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    NoticeKind.entries.forEach { option ->
+                        FilterChip(
+                            selected = kind == option,
+                            onClick = { kind = option },
+                            label = { Text(stringResource(option.label)) },
+                            leadingIcon = { Icon(option.icon, null, Modifier.size(18.dp), tint = option.accent()) },
+                        )
+                    }
+                }
+                CompactTextField(
+                    value = text,
+                    onValueChange = { text = it; showError = false },
+                    trailingIcon = clearButton(text) { text = ""; showError = false },
+                    label = { Text(stringResource(R.string.notice_text)) },
+                    isError = showError,
+                    supportingText = if (showError) {
+                        { Text(stringResource(R.string.item_empty_error)) }
+                    } else null,
+                    minLines = 2,
+                    maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             } else {
                 CompactTextField(
                     value = title,
@@ -793,7 +743,7 @@ fun ItemEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (type != ItemType.HEADING && !listing) {
+            if (type != ItemType.HEADING && type != ItemType.NOTICE && !listing) {
                 CompactTextField(
                     value = note,
                     onValueChange = { note = it },

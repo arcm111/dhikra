@@ -353,6 +353,7 @@ val ItemType.icon: ImageVector
         ItemType.DHIKR -> BeadsIcon
         ItemType.TASK -> TaskIcon
         ItemType.HEADING -> StarOrnamentIcon
+        ItemType.NOTICE -> InfoIcon
     }
 
 /**

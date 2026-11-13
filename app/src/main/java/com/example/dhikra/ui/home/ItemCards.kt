@@ -1,5 +1,6 @@
 package com.example.dhikra.ui.home
 
+import com.example.dhikra.ui.components.SectionNoticeCard
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -110,6 +111,11 @@ fun ProgramItemView(
 ) {
     when {
         item.type == ItemType.HEADING -> HeadingItem(item, modifier, onLongPress)
+        // A message among the steps: the section's notice card, only read; held, it is edited.
+        item.type == ItemType.NOTICE -> SectionNoticeCard(
+            item.asNotice,
+            modifier.pointerInput(item.id) { detectTapGestures(onLongPress = { onLongPress(item) }) },
+        )
         item.type == ItemType.TASK -> TaskItem(item, done >= 1, textScale, current, onSetComplete, modifier, onLongPress)
         item.isGroup -> GroupCard(item, done, current, onOpenText, textDone, modifier, onLongPress)
         else -> ReadingCard(item, done, current, onOpen, modifier, onLongPress)
@@ -123,6 +129,7 @@ fun ProgramItemView(
 val ItemType.nodeCenter: Dp
     get() = when (this) {
         ItemType.HEADING -> 17.dp
+        ItemType.NOTICE -> 24.dp
         else -> 32.dp
     }
 
@@ -138,6 +145,7 @@ fun ItemType.colors(): ElementColors {
         ItemType.HADITH -> palette.hadith
         ItemType.DHIKR -> palette.dhikr
         ItemType.TASK, ItemType.HEADING -> palette.task
+        ItemType.NOTICE -> palette.slate
     }
 }
 
@@ -145,6 +153,7 @@ val ItemType.label: Int
     get() = when (this) {
         ItemType.TASK -> R.string.type_task
         ItemType.HEADING -> R.string.type_heading
+        ItemType.NOTICE -> R.string.type_notice
         ItemType.DUA -> R.string.type_dua
         ItemType.DHIKR -> R.string.type_dhikr
         ItemType.QURAN -> R.string.type_quran

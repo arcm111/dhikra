@@ -103,3 +103,34 @@ class SectionEditTest {
         assertEquals(2, saved.program.sections.size)
     }
 }
+
+class NoticeStepTest {
+    private val legacy = """
+        { "format": "dhikra.store", "version": 1, "active": "p",
+          "library": [], "programs": [ { "id": "p", "name": "P", "sections": [
+            { "id": "s1", "title": "S", "notices": [ { "kind": "warning", "text": "Mind the time" }, { "kind": "info", "text": "Read slowly" } ],
+              "items": [ { "id": "t1", "type": "task", "text": "Pray" } ] } ] } ] }
+    """.trimIndent()
+
+    @Test
+    fun legacyMessagesBecomeStepsOnTopWithStableIds() {
+        val section = ProgramJson.decodeStore(legacy).active.sections.single()
+        assertTrue(section.notices.isEmpty())
+        assertEquals(listOf(ItemType.NOTICE, ItemType.NOTICE, ItemType.TASK), section.items.map { it.type })
+        assertEquals(listOf("s1-notice-0", "s1-notice-1"), section.items.take(2).map { it.id })
+        assertEquals(NoticeKind.WARNING, section.items[0].kind)
+        assertEquals("Read slowly", section.items[1].text)
+        // Read twice, the same ids: the program stays the same program.
+        assertEquals(section, ProgramJson.decodeStore(legacy).active.sections.single())
+    }
+
+    @Test
+    fun messageStepsAreNotCountedAndRoundTrip() {
+        val store = ProgramJson.decodeStore(legacy)
+        val section = store.active.sections.single()
+        assertEquals(1, section.trackableItems.size)
+        assertEquals(0, section.items[0].target)
+        val again = ProgramJson.decodeStore(ProgramJson.encodeStore(store)).active.sections.single()
+        assertEquals(section.items, again.items)
+    }
+}

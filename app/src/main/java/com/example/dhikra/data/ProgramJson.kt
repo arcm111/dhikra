@@ -271,6 +271,7 @@ object ProgramJson {
         } else {
             putIfNotBlank("title", item.title)
             putIfNotBlank("text", item.text)
+            if (item.type == ItemType.NOTICE) put("kind", item.kind.key)
         }
         if (item.count > 1) put("count", item.count)
         putIfNotBlank("note", item.note)
@@ -292,23 +293,30 @@ object ProgramJson {
 
     private fun decodeSection(json: JSONObject, context: DecodeContext): ProgramSection {
         val itemsJson = json.optJSONArray("items") ?: JSONArray()
+        val id = uniqueId(json.optString("id"), context.usedIds)
+        // The messages of older files become message steps at the top, with ids that stay the same.
+        val notices = json.optJSONArray("notices")?.let { array ->
+            (0 until array.length()).mapNotNull { i ->
+                val notice = array.optJSONObject(i) ?: return@mapNotNull null
+                val text = notice.optString("text").trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                ProgramItem(
+                    id = uniqueId("$id-notice-$i", context.usedIds),
+                    type = ItemType.NOTICE,
+                    text = text,
+                    kind = NoticeKind.fromKey(notice.optString("kind")),
+                )
+            }
+        }.orEmpty()
         return ProgramSection(
-            id = uniqueId(json.optString("id"), context.usedIds),
+            id = id,
             title = json.optString("title").trim(),
             icon = json.optString("icon").ifBlank { "🕌" },
             reminderMinutes = parseTime24(json.optString("reminder")),
             zone = SectionZone.fromKey(json.optString("zone")),
             note = json.optString("note").trim(),
-            notices = json.optJSONArray("notices")?.let { array ->
-                (0 until array.length()).mapNotNull { i ->
-                    val notice = array.optJSONObject(i) ?: return@mapNotNull null
-                    val text = notice.optString("text").trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                    SectionNotice(NoticeKind.fromKey(notice.optString("kind")), text)
-                }
-            }.orEmpty(),
             anchor = Prayer.entries.firstOrNull { it.name.equals(json.optString("prayer"), ignoreCase = true) }
                 ?.let { SectionAnchor(it, json.optInt("offset", 0).coerceIn(-MAX_OFFSET, MAX_OFFSET)) },
-            items = (0 until itemsJson.length()).mapNotNull { i ->
+            items = notices + (0 until itemsJson.length()).mapNotNull { i ->
                 decodeItem(itemsJson.getJSONObject(i), context)
             },
         )
@@ -326,6 +334,7 @@ object ProgramJson {
                 title = json.optString("title").trim(),
                 text = json.optString("text").trim(),
                 note = note,
+                kind = NoticeKind.fromKey(json.optString("kind")),
             )
         }
         val groupId = json.optString("group").trim()

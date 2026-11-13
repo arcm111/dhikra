@@ -21,7 +21,8 @@ data class ReaderPage(val item: ProgramItem, val step: ProgramItem, val indexInG
  */
 fun readerPages(section: ProgramSection): List<ReaderPage> = section.items.flatMap { step ->
     when {
-        step.type == ItemType.HEADING -> emptyList()
+        // Headings and messages are only read on the section's page, not in the reader.
+        step.type == ItemType.HEADING || step.type == ItemType.NOTICE -> emptyList()
         step.isGroup -> step.members.mapIndexed { index, member -> ReaderPage(member, step, index) }
         else -> listOf(ReaderPage(step, step))
     }

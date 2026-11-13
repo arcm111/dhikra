@@ -99,6 +99,8 @@ import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.NoteIcon
 import com.example.dhikra.ui.components.PopupLabel
 import com.example.dhikra.ui.components.icon
+import com.example.dhikra.ui.components.label
+import com.example.dhikra.ui.components.accent
 import com.example.dhikra.ui.components.reorderable
 import com.example.dhikra.ui.components.rememberReorderState
 import com.example.dhikra.ui.components.sectionIcon
@@ -235,14 +237,26 @@ internal fun SectionEditPopup(
     )
 
     EditorPopup(
+        // The section's own settings — icon, title, time — in the header, in its tile's colour; its
+        // steps in the body below.
         title = {
-            SectionHeader(
-                section = section,
-                isNew = isNew,
-                titleError = titleError,
-                onTitle = { draft.section = draft.section.copy(title = it); titleError = false },
-                onIcon = { draft.section = draft.section.copy(icon = it) },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionHeader(
+                    section = section,
+                    isNew = isNew,
+                    titleError = titleError,
+                    onTitle = { draft.section = draft.section.copy(title = it); titleError = false },
+                    onIcon = { draft.section = draft.section.copy(icon = it) },
+                )
+                TimeChip(section.withPrayerTimes(timetable), onClick = { sub = SubEditor.Time })
+            }
+        },
+        headerActions = {
+            if (onDelete != null) {
+                IconButton(onClick = { sub = SubEditor.Delete }) {
+                    Icon(Icons.Filled.Delete, stringResource(R.string.delete_section), tint = MaterialTheme.colorScheme.error)
+                }
+            }
         },
         onDismiss = onDismiss,
         onSave = ::save,
@@ -275,22 +289,8 @@ internal fun SectionEditPopup(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "time") { TimeChip(section.withPrayerTimes(timetable), onClick = { sub = SubEditor.Time }) }
-            item(key = "note") {
-                InlineTextField(
-                    value = section.note,
-                    onValueChange = { draft.section = draft.section.copy(note = it) },
-                    label = stringResource(R.string.section_description),
-                    placeholder = stringResource(R.string.section_description_hint),
-                )
-            }
-            item(key = "notices") {
-                NoticesEditor(notices = section.notices, onChange = { draft.section = draft.section.copy(notices = it) })
-            }
             item(key = "stepsHeader") {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    // The section's details above, its steps below.
-                    HorizontalDivider(Modifier.padding(bottom = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     PopupLabel(text = stringResource(R.string.steps_title, uiDigits(section.items.size)))
                     if (section.items.size > 1) {
                         Text(
@@ -300,6 +300,13 @@ internal fun SectionEditPopup(
                         )
                     }
                 }
+            }
+            // The section's description, as the note on top of its steps (as in the section's page).
+            item(key = "note") {
+                DescriptionNote(
+                    value = section.note,
+                    onValueChange = { draft.section = draft.section.copy(note = it) },
+                )
             }
             if (section.items.isEmpty()) {
                 item(key = "empty") {
@@ -339,15 +346,6 @@ internal fun SectionEditPopup(
                         // Moved only after a long press: a scroll or a tap never moves it by mistake.
                         .reorderable(reorder, key) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
                 )
-            }
-            if (onDelete != null) {
-                item(key = "delete") {
-                    TextButton(onClick = { sub = SubEditor.Delete }, modifier = Modifier.padding(top = 4.dp)) {
-                        Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.delete_section), color = MaterialTheme.colorScheme.error)
-                    }
-                }
             }
         }
     }
@@ -547,87 +545,78 @@ private fun SectionHeader(
     }
 }
 
-/** The section's time as a chip in its colour (grey when it has none); a tap edits it. */
+/**
+ * The section's time, in the header: one line in its colour (grey when it has none) on a pale chip,
+ * with the bell and a pencil; a tap edits it.
+ */
 @Composable
 private fun TimeChip(section: ProgramSection, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val tone = if (section.reminderMinutes == null) scheme.onSurfaceVariant else sectionTone(section)
+    val none = section.reminderMinutes == null
+    val tone = if (none) scheme.onSurfaceVariant else sectionTone(section)
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.medium,
-        color = tone.copy(alpha = 0.08f),
+        color = scheme.surfaceContainerLowest.copy(alpha = 0.7f),
         border = BorderStroke(1.dp, tone.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (section.reminderMinutes == null) BellOffIcon else Icons.Filled.Notifications,
-                null,
-                tint = tone,
-                modifier = Modifier.size(18.dp),
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (none) BellOffIcon else Icons.Filled.Notifications, stringResource(R.string.section_time_title), tint = tone, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                sectionTimeText(section),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = tone,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(R.string.section_time_title), style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
-                Text(
-                    sectionTimeText(section),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = if (section.reminderMinutes == null) scheme.onSurfaceVariant else tone,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Icon(Icons.Filled.Edit, stringResource(R.string.section_time_title), tint = tone.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Edit, null, tint = tone.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
         }
     }
 }
 
 /**
- * A field typed into in place, without a heavy frame: a soft box with its [label] over the text and a
- * pencil while it is not being typed into; its border turns the accent colour while it is.
+ * The section's description, as the note on top of its steps — as its page shows it: a faint ⓘ and
+ * the words — typed into in place, a pencil saying so while it is not.
  */
 @Composable
-private fun InlineTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
-) {
+private fun DescriptionNote(value: String, onValueChange: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val ink = scheme.onSurfaceVariant
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    // A tap anywhere on the box (its label too) puts the cursor in the field.
     Surface(
         onClick = { focus.requestFocus() },
         shape = MaterialTheme.shapes.medium,
-        color = scheme.surfaceContainerLow,
-        border = BorderStroke(if (focused) 1.5.dp else 1.dp, if (focused) scheme.primary else scheme.outlineVariant.copy(alpha = 0.7f)),
-        modifier = modifier.fillMaxWidth(),
+        color = if (focused) scheme.surfaceContainerLowest else Color.Transparent,
+        border = BorderStroke(1.dp, if (focused) scheme.primary else scheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = if (focused) scheme.primary else scheme.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    textStyle = textStyle.copy(color = scheme.onSurface),
-                    cursorBrush = SolidColor(scheme.primary),
-                    maxLines = 6,
-                    modifier = Modifier.weight(1f).padding(top = 2.dp).focusRequester(focus).onFocusChanged { focused = it.isFocused },
-                    decorationBox = { field ->
-                        Box {
-                            if (value.isEmpty()) Text(placeholder, style = textStyle, color = scheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            field()
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Outlined.Info, stringResource(R.string.section_description), tint = ink.copy(alpha = 0.55f), modifier = Modifier.padding(top = 2.dp).size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = ink),
+                cursorBrush = SolidColor(scheme.primary),
+                maxLines = 6,
+                modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { focused = it.isFocused },
+                decorationBox = { field ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(stringResource(R.string.section_description_hint), style = MaterialTheme.typography.bodyMedium, color = ink.copy(alpha = 0.55f))
                         }
-                    },
-                )
-                if (!focused) {
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Filled.Edit, null, tint = scheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
-                }
+                        field()
+                    }
+                },
+            )
+            if (!focused) {
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Filled.Edit, null, tint = ink.copy(alpha = 0.5f), modifier = Modifier.padding(top = 2.dp).size(15.dp))
             }
         }
     }
@@ -663,6 +652,10 @@ private fun StepCard(
         HeadingRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, modifier)
         return
     }
+    if (item.type == ItemType.NOTICE) {
+        NoticeStepRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, modifier)
+        return
+    }
     Surface(
         shape = MaterialTheme.shapes.large,
         color = scheme.surfaceContainerLowest,
@@ -671,7 +664,7 @@ private fun StepCard(
     ) {
         Column {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 10.dp, bottom = 10.dp, end = 4.dp),
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 7.dp, bottom = 7.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(width = 34.dp, height = 40.dp), contentAlignment = Alignment.Center) {
@@ -683,9 +676,9 @@ private fun StepCard(
                     )
                 }
                 Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.16f).compositeOver(scheme.surfaceContainerLowest)),
+                    Modifier.size(32.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.16f).compositeOver(scheme.surfaceContainerLowest)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(shown.type.icon, null, tint = colors.accent, modifier = Modifier.size(20.dp)) }
+                ) { Icon(shown.type.icon, stringResource(shown.type.label), tint = colors.accent, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
@@ -695,16 +688,14 @@ private fun StepCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val details = listOfNotNull(
-                        stringResource(shown.type.label),
-                        when {
-                            shown.isChoice -> stringResource(R.string.group_choose, uiDigits(shown.choose), uiDigits(shown.members.size))
-                            shown.isGroup -> stringResource(R.string.group_count, uiDigits(shown.members.size))
-                            shown.type == ItemType.TASK && shown.title.isNotBlank() -> shown.text.ifBlank { null }
-                            else -> null
-                        },
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // A second line only when there is something to add: the kind is the icon's to tell.
+                    val details = when {
+                        shown.isChoice -> stringResource(R.string.group_choose, uiDigits(shown.choose), uiDigits(shown.members.size))
+                        shown.isGroup -> stringResource(R.string.group_count, uiDigits(shown.members.size))
+                        shown.type == ItemType.TASK && shown.title.isNotBlank() -> shown.text.ifBlank { null }
+                        else -> null
+                    }
+                    if (edited || item.note.isNotBlank() || details != null) Row(verticalAlignment = Alignment.CenterVertically) {
                         if (edited) {
                             MarkPill(stringResource(R.string.edited), scheme.tertiary)
                             Spacer(Modifier.width(6.dp))
@@ -714,7 +705,7 @@ private fun StepCard(
                             Spacer(Modifier.width(4.dp))
                         }
                         Text(
-                            details.joinToString("  ·  "),
+                            details.orEmpty(),
                             style = MaterialTheme.typography.labelMedium,
                             color = scheme.onSurfaceVariant,
                             maxLines = 1,
@@ -812,6 +803,68 @@ private fun HeadingRow(
             onDuplicate = onDuplicate,
             onDelete = onDelete,
         )
+    }
+}
+
+/**
+ * A message step: read-only on the section's page, so here a compact line in its kind's colour — its
+ * icon and words on a soft tint — with the handle and menu of a step. A tap edits it.
+ */
+@Composable
+private fun NoticeStepRow(
+    item: ProgramItem,
+    edited: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onEdit: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val accent = item.kind.accent()
+    Surface(
+        onClick = onEdit,
+        shape = MaterialTheme.shapes.large,
+        color = accent.copy(alpha = 0.10f).compositeOver(scheme.surfaceContainerLowest),
+        border = BorderStroke(if (edited) 1.5.dp else 1.dp, if (edited) scheme.tertiary.copy(alpha = 0.7f) else accent.copy(alpha = 0.45f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(width = 34.dp, height = 36.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    painterResource(R.drawable.ic_drag_handle),
+                    stringResource(R.string.reorder_handle),
+                    tint = scheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Icon(item.kind.icon, stringResource(item.kind.label), tint = accent, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                item.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurface,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+            )
+            if (edited) {
+                Spacer(Modifier.width(6.dp))
+                MarkPill(stringResource(R.string.edited), scheme.tertiary)
+            }
+            StepMenu(
+                contentLabel = null,
+                canMoveUp = canMoveUp,
+                canMoveDown = canMoveDown,
+                onEdit = onEdit,
+                onEditContent = {},
+                onMove = onMove,
+                onDuplicate = onDuplicate,
+                onDelete = onDelete,
+            )
+        }
     }
 }
 

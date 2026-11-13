@@ -3,6 +3,7 @@ package com.example.dhikra.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProgramEditTest {
@@ -150,17 +151,21 @@ class ProgramEditTest {
     }
 
     @Test
-    fun sectionNotices_roundTripThroughJson_inOrder_andBlankOnesAreDropped() {
+    fun sectionNotices_becomeMessageSteps_inOrder_andBlankOnesAreDropped() {
         val notices = listOf(
             SectionNotice(NoticeKind.IMPORTANT, "لا تؤخر الصلاة"),
+            SectionNotice(NoticeKind.INFO, "  "),
             SectionNotice(NoticeKind.INFO, "تقرأ بعد كل صلاة"),
             SectionNotice(NoticeKind.WARNING, "انتبه للوقت"),
         )
         val program = Program(name = "p", id = "p", sections = listOf(ProgramSection(id = "s", title = "s", notices = notices)))
         val decoded = ProgramJson.decode(ProgramJson.encode(ProgramBundle(program, library))).program
-        assertEquals(notices, decoded.sections[0].notices)
+        // Read back, the section's messages are message steps at its top, the blank one left out.
+        assertEquals(emptyList<SectionNotice>(), decoded.sections[0].notices)
+        assertEquals(notices.filter { it.text.isNotBlank() }, decoded.sections[0].items.map { it.asNotice })
+        assertTrue(decoded.sections[0].items.all { it.type == ItemType.NOTICE })
         // A section without messages has none.
         val plain = ProgramJson.decode(ProgramJson.encode(ProgramBundle(this.program, library))).program
-        assertEquals(emptyList<SectionNotice>(), plain.sections[0].notices)
+        assertTrue(plain.sections[0].items.none { it.type == ItemType.NOTICE })
     }
 }

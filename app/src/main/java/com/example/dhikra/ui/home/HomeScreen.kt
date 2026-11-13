@@ -414,7 +414,8 @@ private fun SectionPage(
                 topReached = index <= currentIndex,
                 bottomReached = index + 1 <= currentIndex,
             )
-            val heading = item.type == ItemType.HEADING
+            // Headings and messages take a small node: they are not steps to do.
+            val heading = item.type == ItemType.HEADING || item.type == ItemType.NOTICE
             val stepState = when {
                 state.isComplete(item) -> StepState.Done
                 item.id == currentStepId -> StepState.Current

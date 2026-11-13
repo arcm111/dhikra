@@ -848,7 +848,7 @@ private fun PageTexts(
                 ItemType.QURAN -> ReadingStyles.quran(textScale)
                 ItemType.HADITH -> ReadingStyles.hadith(textScale)
                 ItemType.DUA -> ReadingStyles.dua(textScale)
-                ItemType.DHIKR, ItemType.TASK, ItemType.HEADING -> ReadingStyles.dhikr(textScale)
+                ItemType.DHIKR, ItemType.TASK, ItemType.HEADING, ItemType.NOTICE -> ReadingStyles.dhikr(textScale)
             }
             ReaderText(
                 text = text,

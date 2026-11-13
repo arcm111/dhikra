@@ -480,4 +480,6 @@
     <string name="shared_update_all">Update all (%1$s)</string>
     <string name="shared_save_copy">Save a copy for this section</string>
     <string name="change_selection">Change</string>
+    <string name="type_notice">Message</string>
+    <string name="notice_kind_label">Message type</string>
 </resources>
