@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -246,13 +248,24 @@ internal fun SectionEditPopup(
         onSave = ::save,
         dirty = draft.dirty,
         accent = sectionTone(section),
+        // The header (and footer) in the tinted colour of the section's tile in the program tab.
+        barColor = sectionHeaderColor(section),
         unsavedDot = true,
         // Adding a step, at hand at the bottom whatever the scroll.
         footerStart = {
-            OutlinedButton(onClick = { sub = SubEditor.Step(null) }, contentPadding = PaddingValues(start = 12.dp, end = 16.dp)) {
-                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+            val green = MaterialTheme.colorScheme.primary
+            OutlinedButton(
+                onClick = { sub = SubEditor.Step(null) },
+                contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+                border = BorderStroke(1.5.dp, green),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = green.copy(alpha = 0.10f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest),
+                    contentColor = green,
+                ),
+            ) {
+                Icon(Icons.Filled.Add, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.add_step), maxLines = 1)
+                Text(stringResource(R.string.add_step), fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         },
     ) {
@@ -275,7 +288,9 @@ internal fun SectionEditPopup(
                 NoticesEditor(notices = section.notices, onChange = { draft.section = draft.section.copy(notices = it) })
             }
             item(key = "stepsHeader") {
-                Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // The section's details above, its steps below.
+                    HorizontalDivider(Modifier.padding(bottom = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     PopupLabel(text = stringResource(R.string.steps_title, uiDigits(section.items.size)))
                     if (section.items.size > 1) {
                         Text(
@@ -407,6 +422,17 @@ internal fun SectionEditPopup(
 private fun sharedNotice(steps: Int): String? =
     if (steps > 0) stringResource(R.string.shared_edit_notice, uiDigits(steps)) else null
 
+/** A grey the sections' header colours are muted towards. */
+private val HeaderShade = Color(0xFF6B7470)
+
+/**
+ * The tinted top of a section's tile in the program tab — the colour of how its time is set, a little
+ * muted — also the section editor's header, so the two read as the same thing.
+ */
+@Composable
+internal fun sectionHeaderColor(section: ProgramSection): Color =
+    lerp(sectionTone(section), HeaderShade, 0.35f).copy(alpha = 0.32f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
+
 /** The colour of how a section's time is set: Madinah's clock, a prayer's very time, or otherwise. */
 @Composable
 internal fun sectionTone(section: ProgramSection): Color {
@@ -439,11 +465,12 @@ private fun SectionHeader(
             Surface(
                 onClick = { picking = true },
                 shape = CircleShape,
-                color = scheme.primaryContainer,
+                // As on the section's tile: a pale disc, the icon in the colour of how its time is set.
+                color = scheme.surfaceContainerLowest.copy(alpha = 0.75f),
                 modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(sectionIcon(section.icon), stringResource(R.string.change_icon), tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                    Icon(sectionIcon(section.icon), stringResource(R.string.change_icon), tint = sectionTone(section), modifier = Modifier.size(24.dp))
                 }
             }
             Box(
@@ -474,7 +501,7 @@ private fun SectionHeader(
             val line = when {
                 titleError -> scheme.error
                 focused -> scheme.primary
-                else -> scheme.outlineVariant
+                else -> scheme.onSurfaceVariant.copy(alpha = 0.35f)
             }
             BasicTextField(
                 value = section.title,

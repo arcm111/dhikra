@@ -80,10 +80,12 @@ fun EditorPopup(
     bottomBar: (@Composable ColumnScope.() -> Unit)? = null,
     /** A dot on the save button while [dirty]: there are unsaved changes. */
     unsavedDot: Boolean = false,
+    /** The header's and the footer's colour, when not the soft tint of [accent]. */
+    barColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // The header and the footer on a soft tint of what is edited, set apart from the white body.
-    val bars = accent.copy(alpha = 0.08f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    val bars = barColor ?: accent.copy(alpha = 0.08f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
     val line = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (dirty) confirmDiscard = true else onDismiss() }

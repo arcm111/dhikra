@@ -183,6 +183,7 @@ import com.example.dhikra.ui.components.LocalSectionComplete
 import com.example.dhikra.data.ProgramItem
 import com.example.dhikra.data.Prayer
 import com.example.dhikra.ui.theme.OrangeLight
+import com.example.dhikra.ui.theme.Orange
 import com.example.dhikra.ui.home.ProgramItemView
 import com.example.dhikra.ui.home.nodeCenter
 import com.example.dhikra.ui.components.HeadingNode
@@ -310,13 +311,21 @@ private fun DayView(
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut(),
                 ) {
-                    HeaderProgress(
-                        timeline = timeline,
-                        ordered = timeline.sectionsInOrder(sections),
-                        state = state,
-                        message = progressMessage(timeline, sections, state),
-                        onClick = { scope.launch { pager.animateScrollToPage(DayTab.Calendar.ordinal) } },
-                    )
+                    // The prayer time going on, on the header's glass; without a city, the way to choose it.
+                    val timetable = state.prayerTimes
+                    val headerCard = Modifier.padding(horizontal = 12.dp)
+                    if (timetable != null) {
+                        PrayerTimeCard(
+                            timeline = timeline,
+                            city = timetable.city.shownName,
+                            nowMinutes = nowMinutes,
+                            onClick = actions.onOpenPrayerTimes,
+                            inHeader = true,
+                            modifier = headerCard,
+                        )
+                    } else {
+                        ChooseCityCard(onClick = actions.onOpenPrayerTimes, inHeader = true, modifier = headerCard)
+                    }
                 }
                 DayTabBar(
                     selected = pager.targetPage,
@@ -370,21 +379,17 @@ private fun DayView(
                 DayTab.Home -> LazyColumn(Modifier.fillMaxSize(), state = listStates.getValue(DayTab.Home), contentPadding = contentPadding) {
                     // What to do now, as three panels: today's progress, the sections of the period at
                     // hand, and the daily counters.
-                    item(key = "prayerTime") {
-                        // The time of the prayer going on and the day's prayers; without a city, the
-                        // way to choose it.
-                        val timetable = state.prayerTimes
-                        if (timetable != null) {
-                            PrayerTimeCard(
-                                timeline = timeline,
-                                city = timetable.city.shownName,
-                                nowMinutes = nowMinutes,
-                                onClick = actions.onOpenPrayerTimes,
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        } else {
-                            ChooseCityCard(onClick = actions.onOpenPrayerTimes, modifier = Modifier.padding(start = 8.dp))
-                        }
+                    item(key = "progress") {
+                        // Today's progress through the whole program, on a light card (opens the day).
+                        ProgressCard(
+                            timeline = timeline,
+                            ordered = timeline.sectionsInOrder(sections),
+                            state = state,
+                            message = progressMessage(timeline, sections, state),
+                            onClick = { scope.launch { pager.animateScrollToPage(DayTab.Calendar.ordinal) } },
+                            light = true,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
                     }
                     item(key = "now") {
                         // Within the prayer time going on: the section(s) whose time came last, and
@@ -603,7 +608,15 @@ private fun homeCardColor(): Color =
  * prayers on a 24-hour line. Opens the prayer times.
  */
 @Composable
-private fun PrayerTimeCard(timeline: DayTimeline, city: String, nowMinutes: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun PrayerTimeCard(
+    timeline: DayTimeline,
+    city: String,
+    nowMinutes: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** On the header's glass (its pattern already behind it), rather than its own dark green. */
+    inHeader: Boolean = false,
+) {
     val periods = timeline.periods
     val index = timeline.currentIndex
     val period = periods.getOrNull(index) ?: return
@@ -614,11 +627,17 @@ private fun PrayerTimeCard(timeline: DayTimeline, city: String, nowMinutes: Int,
     val left = minutesLeft(period.end, nowMinutes)
     // The light orange of the top bar's progress ring, always.
     val accent = OrangeLight
-    Surface(onClick = onClick, shape = MaterialTheme.shapes.large, color = homeCardColor(), contentColor = NightInk, modifier = modifier.fillMaxWidth()) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = if (inHeader) HeaderGlass else homeCardColor(),
+        contentColor = NightInk,
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Row(
             Modifier
                 .height(IntrinsicSize.Min)
-                .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
+                .then(if (inHeader) Modifier else Modifier.starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp))
         ) {
             Box(
                 Modifier
@@ -740,11 +759,17 @@ private const val TIMER_TICKS = 48
 
 /** No city chosen yet: the place of the prayer-time card asks for it (opens the prayer times). */
 @Composable
-private fun ChooseCityCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(onClick = onClick, shape = MaterialTheme.shapes.large, color = homeCardColor(), contentColor = NightInk, modifier = modifier.fillMaxWidth()) {
+private fun ChooseCityCard(onClick: () -> Unit, modifier: Modifier = Modifier, inHeader: Boolean = false) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = if (inHeader) HeaderGlass else homeCardColor(),
+        contentColor = NightInk,
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Row(
             Modifier
-                .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp)
+                .then(if (inHeader) Modifier else Modifier.starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp))
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1445,38 +1470,47 @@ internal fun TabHeading(title: String, description: String, modifier: Modifier =
 }
 
 /**
- * Today's progress through the whole program, on the top bar's glass: a ring with the share of
- * steps done, a line saying what is left (or that the day is complete), the steps done, and beside
- * them the sections as a small borderless table — a column per prayer time, headed by its first
- * letter, with a small rounded box for each of its sections, gold once finished. Opens the day.
+ * Today's progress through the whole program: a ring with the share of steps done, a line saying
+ * what is left (or that the day is complete), the steps done, and beside them the sections as a
+ * small borderless table — a column per prayer time, headed by its first letter, with a small
+ * rounded box for each of its sections, gold once finished. Opens the day. [light]: a card of the
+ * page (white, outlined in green, dark text) rather than the dark green header's glass.
  */
 @Composable
-private fun HeaderProgress(
+private fun ProgressCard(
     timeline: DayTimeline,
     ordered: List<ProgramSection>,
     state: UiState,
     message: String?,
     onClick: () -> Unit,
+    light: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val withSteps = ordered.filter { it.trackableItems.isNotEmpty() }
     val total = withSteps.sumOf { it.trackableItems.size }
     val done = withSteps.sumOf { state.completedIn(it).coerceAtMost(it.trackableItems.size) }
     val fraction = if (total == 0) 0f else done.toFloat() / total
+    val scheme = MaterialTheme.colorScheme
+    val ink = if (light) scheme.onSurface else Color.White
+    val soft = if (light) scheme.onSurfaceVariant else Color.White.copy(alpha = 0.72f)
+    // The orange of the ring and the gold of the line, a shade deeper on white.
+    val ring = if (light) Orange else OrangeLight
+    val highlight = if (light) MustardDeep else MustardLight
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
-        color = HeaderGlass,
-        contentColor = Color.White,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        color = if (light) scheme.surfaceContainerLowest else HeaderGlass,
+        contentColor = ink,
+        border = if (light) BorderStroke(1.dp, scheme.primary.copy(alpha = 0.22f)) else null,
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     progress = { fraction },
                     modifier = Modifier.fillMaxSize(),
-                    // The secondary orange, in its lighter shade for the dark green.
-                    color = OrangeLight,
-                    trackColor = Color.White.copy(alpha = 0.14f),
+                    color = ring,
+                    trackColor = if (light) scheme.onSurface.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.14f),
                     strokeWidth = 5.dp,
                     strokeCap = StrokeCap.Round,
                     gapSize = 0.dp,
@@ -1485,18 +1519,18 @@ private fun HeaderProgress(
                     text = stringResource(R.string.progress_percent, uiDigits(Math.round(fraction * 100))),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = ink,
                 )
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.today_progress), style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Text(stringResource(R.string.today_progress), style = MaterialTheme.typography.titleMedium, color = ink)
                 if (message != null) {
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
-                        color = MustardLight,
+                        color = highlight,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1504,10 +1538,10 @@ private fun HeaderProgress(
                 Text(
                     text = stringResource(R.string.progress_steps, uiDigits(done), uiDigits(total)),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.72f),
+                    color = soft,
                 )
             }
-            SectionTable(timeline, state, Modifier.padding(start = 8.dp))
+            SectionTable(timeline, state, light, Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -1519,7 +1553,8 @@ private fun HeaderProgress(
  * going on stands out. Sections with no time make a last column. Without prayer times, one row.
  */
 @Composable
-private fun SectionTable(timeline: DayTimeline, state: UiState, modifier: Modifier = Modifier) {
+private fun SectionTable(timeline: DayTimeline, state: UiState, light: Boolean, modifier: Modifier = Modifier) {
+    val faint = if (light) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
     val palette = LocalDhikraPalette.current
     fun finished(section: ProgramSection) = state.completedIn(section) >= section.trackableItems.size
     val all = timeline.periods.flatMap { it.sections } + timeline.untimed
@@ -1535,7 +1570,7 @@ private fun SectionTable(timeline: DayTimeline, state: UiState, modifier: Modifi
             Modifier
                 .size(6.dp)
                 .clip(RoundedCornerShape(1.5.dp))
-                .background(if (isDone) palette.done else Color.White.copy(alpha = 0.22f))
+                .background(if (isDone) palette.done else faint)
         )
     }
     val timed = timeline.periods.any { it.prayer != null }
@@ -1559,19 +1594,20 @@ private fun SectionTable(timeline: DayTimeline, state: UiState, modifier: Modifi
             TableColumn(
                 header = headers[index],
                 current = period.current,
+                light = light,
                 dots = period.sections.filter { it.trackableItems.isNotEmpty() }.map(::finished),
                 dot = dot,
             )
         }
         if (untimed.isNotEmpty()) {
-            TableColumn(header = "•", current = false, dots = untimed.map(::finished), dot = dot)
+            TableColumn(header = "•", current = false, light = light, dots = untimed.map(::finished), dot = dot)
         }
     }
 }
 
 /** One column of [SectionTable]: its header, and a dot per section under it. */
 @Composable
-private fun TableColumn(header: String, current: Boolean, dots: List<Boolean>, dot: @Composable (Boolean) -> Unit) {
+private fun TableColumn(header: String, current: Boolean, light: Boolean, dots: List<Boolean>, dot: @Composable (Boolean) -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1581,7 +1617,11 @@ private fun TableColumn(header: String, current: Boolean, dots: List<Boolean>, d
             text = header,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
-            color = if (current) MustardLight else Color.White.copy(alpha = 0.6f),
+            color = when {
+                current -> if (light) MustardDeep else MustardLight
+                light -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> Color.White.copy(alpha = 0.6f)
+            },
             maxLines = 1,
         )
         dots.forEach { dot(it) }
@@ -1634,6 +1674,9 @@ private fun NextPrayerLine(timetable: PrayerTimetable, nowMinutes: Int, onClick:
         )
     }
 }
+
+/** The gold of the progress card's line on a light card: [MustardLight] would be too pale on white. */
+private val MustardDeep = Color(0xFFA9862C)
 
 /** The translucent white of the header's panels (the next prayer, the tabs). */
 private val HeaderGlass = Color.White.copy(alpha = 0.10f)

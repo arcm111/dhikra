@@ -75,6 +75,7 @@ import com.example.dhikra.ui.components.sectionIcon
 import com.example.dhikra.ui.editor.SectionEditPopup
 import com.example.dhikra.ui.editor.newSection
 import com.example.dhikra.ui.editor.sectionTone
+import com.example.dhikra.ui.editor.sectionHeaderColor
 import androidx.compose.runtime.LaunchedEffect
 import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.home.HomeActions
@@ -480,7 +481,7 @@ private fun SectionTile(
     val scheme = MaterialTheme.colorScheme
     val tone = sectionTone(section)
     // The header: the colour a little muted and a shade deeper than the steps' light tiles, to tell them apart.
-    val header = lerp(tone, HeaderShade, 0.35f).copy(alpha = 0.32f).compositeOver(scheme.surfaceContainerLowest)
+    val header = sectionHeaderColor(section)
     var menu by remember { mutableStateOf(false) }
     Surface(
         onClick = onOpen,
@@ -543,7 +544,7 @@ private fun SectionTile(
                 }
             }
             Column(
-                Modifier.fillMaxWidth().weight(0.5f).padding(horizontal = 7.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth().weight(0.5f).padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
@@ -558,8 +559,6 @@ private fun SectionTile(
     }
 }
 
-/** A grey the tiles' header colours are muted towards. */
-private val HeaderShade = Color(0xFF6B7470)
 
 /** The last tile of a prayer time: dashed, to add a section to it. */
 @Composable
