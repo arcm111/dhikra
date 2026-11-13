@@ -888,7 +888,8 @@ private fun PickRow(title: String, detail: String, selected: Boolean, accent: Co
         Row(Modifier.padding(start = 14.dp, end = 12.dp, top = 11.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, color = if (selected) accent else scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (detail.isNotBlank()) {
+                // The opening words, unless they are the title again (a short dhikr titled by its words).
+                if (detail.isNotBlank() && detail.trim() != title.trim()) {
                     Text(detail, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }

@@ -766,7 +766,8 @@ private fun HeadingRow(
             color = ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            // The rule takes the rest of the row, so the menu lines up with the cards' menus.
+            modifier = Modifier.widthIn(max = 220.dp),
         )
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f).height(1.dp).background(scheme.outlineVariant))
