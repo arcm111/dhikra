@@ -47,7 +47,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.platform.LocalResources
 import com.example.dhikra.data.Program
-import com.example.dhikra.ui.editor.SectionEditorDialog
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.ui.graphics.StrokeCap
@@ -240,9 +239,6 @@ private fun DayView(
     nowMinutes: Int,
 ) {
     val sections = state.schedule.sections
-    var addingSection by rememberSaveable { mutableStateOf(false) }
-    // The prayer time a new section is added to (its time tied to that prayer), if any.
-    var addingPrayer by rememberSaveable { mutableStateOf<Prayer?>(null) }
     var pickingCounter by rememberSaveable { mutableStateOf(false) }
     if (pickingCounter) {
         CounterPickerDialog(
@@ -253,18 +249,6 @@ private fun DayView(
                 pickingCounter = false
             },
             onDismiss = { pickingCounter = false },
-        )
-    }
-    if (addingSection) {
-        SectionEditorDialog(
-            initial = null,
-            prayer = addingPrayer,
-            timetable = state.prayerTimes,
-            onDismiss = { addingSection = false },
-            onSave = { section ->
-                onEditProgram { it.upsertSection(section) }
-                addingSection = false
-            },
         )
     }
     val resources = LocalResources.current
@@ -379,10 +363,6 @@ private fun DayView(
                     actions = actions,
                     timeline = timeline,
                     onEditProgram = onEditProgram,
-                    onAddSection = { prayer ->
-                        addingPrayer = prayer
-                        addingSection = true
-                    },
                     listState = listStates.getValue(DayTab.Program),
                     contentPadding = contentPadding,
                     bottomInset = padding.calculateBottomPadding(),

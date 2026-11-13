@@ -455,4 +455,28 @@
     <string name="drag_to_reorder">Drag to reorder</string>
     <string name="day_now_at">Now · %1$s</string>
     <string name="prayer_mock_note">Approximate sample times for display only; don\'t rely on them yet.</string>
+    <!-- Section editor popup -->
+    <string name="discard_title">Discard changes?</string>
+    <string name="discard_message">Your edits aren\'t saved yet and will be lost if you close.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
+    <string name="unsaved_changes">Unsaved changes</string>
+    <string name="done">Done</string>
+    <string name="section_time_title">Time &amp; reminder</string>
+    <string name="notice_kind">Message type</string>
+    <string name="change_icon">Change icon</string>
+    <string name="section_description">Description</string>
+    <string name="section_description_hint">Add a short description of the section…</string>
+    <string name="steps_title">Steps (%1$s)</string>
+    <string name="steps_empty">No steps yet, add the first one</string>
+    <string name="delete_section">Delete section</string>
+    <string name="edited">Edited</string>
+    <string name="shared_with">Shared · %1$s</string>
+    <string name="step_missing">Text removed from the library</string>
+    <string name="shared_edit_notice">Also read by %1$s steps in other sections. When you save the section you can update them all or keep a copy for this section only.</string>
+    <string name="shared_save_title">Shared content changed</string>
+    <string name="shared_save_message">Some of what you edited is also read by other sections; updating it changes %1$s of their steps:</string>
+    <string name="shared_save_hint">Saving a copy leaves the original as it is for the other sections, and this section reads the edited copy.</string>
+    <string name="shared_update_all">Update all (%1$s)</string>
+    <string name="shared_save_copy">Save a copy for this section</string>
 </resources>

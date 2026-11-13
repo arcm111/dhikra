@@ -1,5 +1,10 @@
 package com.example.dhikra.ui.library
 
+import com.example.dhikra.ui.components.EditorPopup
+import com.example.dhikra.ui.components.EditorPopupTitle
+import com.example.dhikra.ui.components.PopupBody
+import com.example.dhikra.ui.components.PopupNotice
+
 import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.selection.selectable
@@ -959,6 +964,10 @@ fun EntryEditorDialog(
      */
     sharedCount: Int = 0,
     onSaveAsNew: ((LibraryEntry) -> Unit)? = null,
+    /** Something to know shown at the top (e.g. that other steps read the text too). */
+    notice: String? = null,
+    /** The save button's label, when not «حفظ» (e.g. «تم» back in the section being edited). */
+    saveLabel: String? = null,
 ) {
     var savingAsNew by remember { mutableStateOf(false) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
@@ -1046,24 +1055,35 @@ fun EntryEditorDialog(
         )
     }
 
-    // Edge to edge: the window is not resized for the keyboard; the content alone makes room for it
-    // (and the system bars) once. Resized and padded both, the fields were pushed up twice.
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            DialogSystemBarIcons()
-            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                EditorTopBar(
-                    title = stringResource(if (initial == null) R.string.new_entry else R.string.edit_entry),
-                    onClose = onDismiss,
-                    onSave = ::save,
-                    onDelete = if (onDelete != null) ({ confirmDelete = true }) else null,
-                )
-                HorizontalDivider()
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = type.colors().accent)
+    val dirty = if (initial == null) {
+        title.isNotBlank() || description.isNotBlank() || opening.isNotBlank() || text.isNotBlank() || sura != 0
+    } else {
+        title.trim() != initial.title || description.trim() != initial.description || opening.trim() != initial.opening ||
+            (!isQuran && text.trim() != initial.text) || (isQuran && sura != 0 && ref != initial.quran)
+    }
+    EditorPopup(
+        title = {
+            EditorPopupTitle(
+                title = stringResource(if (initial == null) R.string.new_entry else R.string.edit_entry),
+                subtitle = stringResource(type.collectionName),
+                subtitleColor = type.colors().accent,
+            )
+        },
+        onDismiss = onDismiss,
+        onSave = ::save,
+        dirty = dirty,
+        accent = type.colors().accent,
+        saveLabel = saveLabel ?: stringResource(R.string.save),
+        headerActions = {
+            if (onDelete != null) {
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+    ) {
+                PopupBody {
+                    notice?.let { PopupNotice(it) }
                     if (onSaveAsNew != null && sharedCount > 1) {
                         SharedNotice(
                             text = stringResource(R.string.shared_text_notice, uiDigits(sharedCount)),
@@ -1148,14 +1168,12 @@ fun EntryEditorDialog(
                             },
                             textStyle = (if (isQuran) ReadingStyles.quran(0.85f) else ReadingStyles.dua(0.9f))
                                 .copy(textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurface),
-                            minLines = 5,
-                            maxLines = 16,
+                            minLines = 4,
+                            maxLines = 12,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
-            }
-        }
     }
 
     if (confirmDelete && onDelete != null && initial != null) {
@@ -1229,24 +1247,6 @@ private fun SaveAsNewDialog(initialName: String, onDismiss: () -> Unit, onSave: 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
-}
-
-/** Top row of the full-screen editors: close, title, an optional delete and the save button. */
-@Composable
-private fun EditorTopBar(title: String, onClose: () -> Unit, onSave: () -> Unit, onDelete: (() -> Unit)?) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onClose) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-        if (onDelete != null) {
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
-            }
-        }
-        Button(onClick = onSave, modifier = Modifier.padding(end = 8.dp)) { Text(stringResource(R.string.save)) }
-    }
 }
 
 // ------------------------------------------------------------------------------ Groups
@@ -1392,6 +1392,9 @@ fun GroupEditorDialog(
     /** As in [EntryEditorDialog]: how many places read the group, and saving the edits as a new group. */
     sharedCount: Int = 0,
     onSaveAsNew: ((LibraryGroup) -> Unit)? = null,
+    /** As in [EntryEditorDialog]: something to know at the top, and the save button's label. */
+    notice: String? = null,
+    saveLabel: String? = null,
 ) {
     var savingAsNew by remember { mutableStateOf(false) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
@@ -1437,27 +1440,39 @@ fun GroupEditorDialog(
         )
     }
 
-    // Edge to edge: the window is not resized for the keyboard; the content alone makes room for it
-    // (and the system bars) once. Resized and padded both, the fields were pushed up twice.
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            DialogSystemBarIcons()
-            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                EditorTopBar(
-                    title = stringResource(if (initial == null) R.string.new_group else R.string.edit_group),
-                    onClose = onDismiss,
-                    onSave = ::save,
-                    onDelete = if (onDelete != null) ({ confirmDelete = true }) else null,
-                )
-                HorizontalDivider()
+    val dirty = if (initial == null) {
+        title.isNotBlank() || description.isNotBlank() || items.isNotEmpty()
+    } else {
+        title.trim() != initial.title || description.trim() != initial.description || items != initial.items ||
+            (required.takeIf { it in 1 until items.size } ?: 0) != initial.required
+    }
+    EditorPopup(
+        title = {
+            EditorPopupTitle(
+                title = stringResource(if (initial == null) R.string.new_group else R.string.edit_group),
+                subtitle = stringResource(type.collectionName),
+                subtitleColor = accent,
+            )
+        },
+        onDismiss = onDismiss,
+        onSave = ::save,
+        dirty = dirty,
+        accent = accent,
+        saveLabel = saveLabel ?: stringResource(R.string.save),
+        headerActions = {
+            if (onDelete != null) {
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+    ) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f, fill = false),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    item(key = "collection") {
-                        Text(stringResource(type.collectionName), style = MaterialTheme.typography.labelLarge, color = accent)
-                    }
+                    notice?.let { text -> item(key = "notice") { PopupNotice(text) } }
                     if (onSaveAsNew != null && sharedCount > 1) {
                         item(key = "shared") {
                             SharedNotice(
@@ -1562,8 +1577,6 @@ fun GroupEditorDialog(
                         )
                     }
                 }
-            }
-        }
     }
 
     if (writingEntry) {
@@ -1577,6 +1590,7 @@ fun GroupEditorDialog(
                 showErrors = false
                 writingEntry = false
             },
+            saveLabel = saveLabel,
         )
     }
 

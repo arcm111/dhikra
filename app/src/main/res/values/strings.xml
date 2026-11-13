@@ -485,4 +485,28 @@
     <string name="drag_to_reorder">اسحب لإعادة الترتيب</string>
     <string name="day_now_at">الآن · %1$s</string>
     <string name="prayer_mock_note">مواقيت تجريبية تقريبية للعرض فقط، لا يُعتمد عليها بعد.</string>
+    <!-- Section editor popup -->
+    <string name="discard_title">تجاهل التغييرات؟</string>
+    <string name="discard_message">لم تُحفظ تعديلاتك بعد، وستضيع إن أغلقت.</string>
+    <string name="discard">تجاهل</string>
+    <string name="keep_editing">متابعة التعديل</string>
+    <string name="unsaved_changes">تغييرات غير محفوظة</string>
+    <string name="done">تم</string>
+    <string name="section_time_title">الوقت والتذكير</string>
+    <string name="notice_kind">نوع الرسالة</string>
+    <string name="change_icon">تغيير الأيقونة</string>
+    <string name="section_description">الوصف</string>
+    <string name="section_description_hint">أضف وصفًا قصيرًا للقسم…</string>
+    <string name="steps_title">الخطوات (%1$s)</string>
+    <string name="steps_empty">لا خطوات بعد، أضف أول خطوة</string>
+    <string name="delete_section">حذف القسم</string>
+    <string name="edited">معدّل</string>
+    <string name="shared_with">مشترك · %1$s</string>
+    <string name="step_missing">نص محذوف من المكتبة</string>
+    <string name="shared_edit_notice">تقرؤه أيضًا %1$s خطوات في أقسام أخرى. عند حفظ القسم ستختار تحديثها كلها أو حفظ نسخة لهذا القسم فقط.</string>
+    <string name="shared_save_title">تعديل محتوى مشترك</string>
+    <string name="shared_save_message">بعض ما عدّلته تقرؤه أقسام أخرى أيضًا، وتحديثه يغيّر %1$s خطوات فيها:</string>
+    <string name="shared_save_hint">حفظ نسخة يُبقي الأصل كما هو للأقسام الأخرى، ويجعل هذا القسم يقرأ النسخة المعدّلة.</string>
+    <string name="shared_update_all">تحديث الكل (%1$s)</string>
+    <string name="shared_save_copy">حفظ نسخة لهذا القسم فقط</string>
 </resources>

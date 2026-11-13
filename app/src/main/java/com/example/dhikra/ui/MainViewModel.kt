@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dhikra.R
 import com.example.dhikra.data.ArabicText
+import com.example.dhikra.data.SectionEdit
 import com.example.dhikra.data.Favourites
 import com.example.dhikra.data.DailyCounter
 import com.example.dhikra.data.DefaultProgram
@@ -476,6 +477,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Applies an edit to the program; it is persisted (debounced) and reminders rescheduled. */
     fun editProgram(transform: (Program) -> Program) = edit { it.copy(program = transform(it.program)) }
+
+    /**
+     * Saves a section edited in the program tab's popup — the section and the library texts and
+     * groups changed with it — all at once.
+     */
+    fun saveSectionEdit(change: SectionEdit) = edit { change.applyTo(it) }
 
     /** Adds or updates an entry of the library collections. */
     fun saveEntry(entry: LibraryEntry) = edit { it.copy(library = it.library.upsert(entry)) }

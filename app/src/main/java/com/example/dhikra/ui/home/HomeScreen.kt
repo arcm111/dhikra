@@ -145,6 +145,8 @@ class HomeActions(
     val onDeleteProgram: (() -> Unit)? = null,
     val onSaveEntry: (com.example.dhikra.data.LibraryEntry) -> Unit = {},
     val onSaveGroup: (com.example.dhikra.data.LibraryGroup) -> Unit = {},
+    /** Saves a section edited in the program tab: the section and the library texts and groups it changed, at once. */
+    val onSaveSectionEdit: (com.example.dhikra.data.SectionEdit) -> Unit = {},
 )
 
 private const val KEY_NOTE = "note"

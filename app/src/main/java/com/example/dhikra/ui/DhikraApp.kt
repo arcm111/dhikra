@@ -207,6 +207,7 @@ fun DhikraApp(viewModel: MainViewModel) {
         onEditProgram = viewModel::editProgram,
         onSaveEntry = viewModel::saveEntry,
         onSaveGroup = viewModel::saveGroup,
+        onSaveSectionEdit = viewModel::saveSectionEdit,
         onDuplicateProgram = { viewModel.duplicateProgram(resources.getString(R.string.section_copy, state.program.name)) },
         onShareProgram = shareProgram,
         onExportProgram = { exportLauncher.launch(viewModel.exportFileName()) },

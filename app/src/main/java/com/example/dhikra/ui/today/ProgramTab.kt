@@ -72,7 +72,10 @@ import com.example.dhikra.data.ProgramSection
 import com.example.dhikra.ui.UiState
 import com.example.dhikra.ui.components.ProgramIcon
 import com.example.dhikra.ui.components.sectionIcon
-import com.example.dhikra.ui.editor.SectionEditorDialog
+import com.example.dhikra.ui.editor.SectionEditPopup
+import com.example.dhikra.ui.editor.newSection
+import com.example.dhikra.ui.editor.sectionTone
+import androidx.compose.runtime.LaunchedEffect
 import com.example.dhikra.ui.formatClock
 import com.example.dhikra.ui.home.HomeActions
 import com.example.dhikra.ui.home.colors
@@ -86,6 +89,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.lerp
+
+/** What the editor popup is open on: the section [sectionId], or a new one added to [prayer]'s time (or none). */
+private data class EditTarget(val sectionId: String?, val prayer: Prayer?)
 
 /** One group of the program tab: the sections of a prayer time, or those without a time. */
 private data class SectionGroup(
@@ -116,8 +122,8 @@ private fun DayTimeline.sectionGroups(): List<SectionGroup> = buildList {
  * The program tab, where the program is edited: a heading saying so, the program itself (its name,
  * counts and actions — rename, duplicate, share, export, delete), then the sections of one prayer time
  * (picked in a bar at the bottom), each time a grid of small square tiles in the step
- * cards' style. A tile opens its section's steps to edit; its menu edits its details, duplicates or
- * deletes it; a dashed tile and each time's «+ قسم» add one to that time.
+ * cards' style. A tile opens its section in the editor popup — details, steps and their texts, saved
+ * together; its menu also duplicates or deletes it; a dashed tile adds one to that time.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -126,7 +132,6 @@ internal fun ProgramTab(
     actions: HomeActions,
     timeline: DayTimeline,
     onEditProgram: ((Program) -> Program) -> Unit,
-    onAddSection: (Prayer?) -> Unit,
     listState: LazyListState,
     contentPadding: PaddingValues,
     /** The room the system bars take at the bottom (the bar of prayer times sits above it). */
@@ -141,19 +146,36 @@ internal fun ProgramTab(
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = groups.firstOrNull { it.key == picked } ?: groups.firstOrNull { it.current } ?: groups.firstOrNull()
     val shown = if (timed) listOfNotNull(selected) else groups
-    var editing by remember { mutableStateOf<ProgramSection?>(null) }
+    // The section open in the editor popup: one of the program's, or a new one.
+    var editing by remember { mutableStateOf<EditTarget?>(null) }
     var deleting by remember { mutableStateOf<ProgramSection?>(null) }
     var renaming by rememberSaveable { mutableStateOf(false) }
-    editing?.let { section ->
-        SectionEditorDialog(
-            initial = state.program.section(section.id) ?: section,
-            timetable = state.prayerTimes,
-            onDismiss = { editing = null },
-            onSave = { saved ->
-                onEditProgram { it.upsertSection(saved) }
-                editing = null
-            },
-        )
+    editing?.let { target ->
+        val stored = target.sectionId?.let(state.program::section)
+        val initial = stored ?: remember(target) { newSection(target.prayer, state.prayerTimes) }
+        if (target.sectionId != null && stored == null) {
+            // Deleted meanwhile.
+            LaunchedEffect(target) { editing = null }
+        } else {
+            SectionEditPopup(
+                initial = initial,
+                isNew = stored == null,
+                library = state.library,
+                programs = state.programs.ifEmpty { listOf(state.program) },
+                timetable = state.prayerTimes,
+                onDismiss = { editing = null },
+                onSave = { edit ->
+                    actions.onSaveSectionEdit(edit)
+                    editing = null
+                },
+                onDelete = stored?.let { section ->
+                    {
+                        onEditProgram { it.removeSection(section.id) }
+                        editing = null
+                    }
+                },
+            )
+        }
     }
     deleting?.let { section ->
         AlertDialog(
@@ -222,12 +244,11 @@ internal fun ProgramTab(
                             pair.forEach { section ->
                                 val cell = Modifier.weight(1f).aspectRatio(TILE_ASPECT)
                                 if (section == null) {
-                                    AddSectionTile(onClick = { onAddSection(group.prayer) }, modifier = cell)
+                                    AddSectionTile(onClick = { editing = EditTarget(null, group.prayer) }, modifier = cell)
                                 } else {
                                     SectionTile(
                                         section = section,
-                                        onOpen = { actions.onEditSection(section.id) },
-                                        onEditDetails = { editing = section },
+                                        onOpen = { editing = EditTarget(section.id, null) },
                                         onDuplicate = {
                                             onEditProgram { program ->
                                                 program.duplicateSection(section.id) { title -> resources.getString(R.string.section_copy, title) }
@@ -452,13 +473,12 @@ private fun GroupHeader(group: SectionGroup) {
 private fun SectionTile(
     section: ProgramSection,
     onOpen: () -> Unit,
-    onEditDetails: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val tone = timingColor(section)
+    val tone = sectionTone(section)
     // The header: the colour a little muted and a shade deeper than the steps' light tiles, to tell them apart.
     val header = lerp(tone, HeaderShade, 0.35f).copy(alpha = 0.32f).compositeOver(scheme.surfaceContainerLowest)
     var menu by remember { mutableStateOf(false) }
@@ -504,11 +524,19 @@ private fun SectionTile(
                         Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more), tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.edit_steps)) }, onClick = { menu = false; onOpen() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.edit_details)) }, onClick = { menu = false; onEditDetails() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.duplicate)) }, onClick = { menu = false; onDuplicate() })
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.edit_section)) },
+                            leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                            onClick = { menu = false; onOpen() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.duplicate)) },
+                            leadingIcon = { Icon(Icons.Filled.Add, null) },
+                            onClick = { menu = false; onDuplicate() },
+                        )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.delete), color = scheme.error) },
+                            leadingIcon = { Icon(Icons.Filled.Delete, null, tint = scheme.error) },
                             onClick = { menu = false; onDelete() },
                         )
                     }
@@ -532,18 +560,6 @@ private fun SectionTile(
 
 /** A grey the tiles' header colours are muted towards. */
 private val HeaderShade = Color(0xFF6B7470)
-
-/** How a section's time is set, as its tile's colour: on another city's clock, at a prayer's time, or otherwise. */
-@Composable
-private fun timingColor(section: ProgramSection): Color {
-    val palette = LocalDhikraPalette.current
-    return when {
-        section.onMadinahClock -> palette.purple
-        // At the prayer's very time; a time before or after it is like any other.
-        section.anchor?.offsetMinutes == 0 -> palette.quran.accent
-        else -> palette.dua.accent
-    }
-}
 
 /** The last tile of a prayer time: dashed, to add a section to it. */
 @Composable
