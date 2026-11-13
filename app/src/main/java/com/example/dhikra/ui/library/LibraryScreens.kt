@@ -1,5 +1,6 @@
 package com.example.dhikra.ui.library
 
+import com.example.dhikra.ui.components.CompactTextField
 import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.EditorPopupTitle
 import com.example.dhikra.ui.components.PopupBody
@@ -847,7 +848,7 @@ private fun CollectionTab(label: Int, count: Int, selected: Boolean, onClick: ()
 
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    OutlinedTextField(
+    CompactTextField(
         value = query,
         onValueChange = onQueryChange,
         placeholder = { Text(stringResource(R.string.search)) },
@@ -1103,7 +1104,7 @@ fun EntryEditorDialog(
                             showErrors = showErrors && !legacyText,
                         )
                     }
-                    OutlinedTextField(
+                    CompactTextField(
                         value = title,
                         onValueChange = { title = it },
                         trailingIcon = clearButton(title) { title = "" },
@@ -1115,7 +1116,7 @@ fun EntryEditorDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
+                    CompactTextField(
                         value = description,
                         onValueChange = { description = it },
                         trailingIcon = clearButton(description) { description = "" },
@@ -1126,7 +1127,7 @@ fun EntryEditorDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     if (hasOpening) {
-                        OutlinedTextField(
+                        CompactTextField(
                             value = opening,
                             onValueChange = { opening = it },
                             trailingIcon = clearButton(opening) { opening = "" },
@@ -1150,7 +1151,7 @@ fun EntryEditorDialog(
                         }
                     }
                     if (!isQuran || legacyText) {
-                        OutlinedTextField(
+                        CompactTextField(
                             value = text,
                             onValueChange = { text = it },
                             trailingIcon = clearButton(text) { text = "" },
@@ -1232,7 +1233,7 @@ private fun SaveAsNewDialog(initialName: String, onDismiss: () -> Unit, onSave: 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.save_as_new_message), style = MaterialTheme.typography.bodyMedium)
-                OutlinedTextField(
+                CompactTextField(
                     value = name,
                     onValueChange = { name = it },
                     trailingIcon = clearButton(name) { name = "" },
@@ -1482,7 +1483,7 @@ fun GroupEditorDialog(
                         }
                     }
                     item(key = "title") {
-                        OutlinedTextField(
+                        CompactTextField(
                             value = title,
                             onValueChange = { title = it },
                             trailingIcon = clearButton(title) { title = "" },
@@ -1496,7 +1497,7 @@ fun GroupEditorDialog(
                         )
                     }
                     item(key = "description") {
-                        OutlinedTextField(
+                        CompactTextField(
                             value = description,
                             onValueChange = { description = it },
                             trailingIcon = clearButton(description) { description = "" },

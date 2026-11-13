@@ -1,5 +1,6 @@
 package com.example.dhikra.ui.library
 
+import com.example.dhikra.ui.components.CompactTextField
 import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -110,7 +111,7 @@ fun QuranPassagePicker(
                 if (!open) query = ""
             },
         ) {
-            OutlinedTextField(
+            CompactTextField(
                 value = if (expanded) query else selected?.let { surahLabel(it) }.orEmpty(),
                 onValueChange = {
                     query = it
@@ -234,7 +235,7 @@ private fun ayahCount(count: Int): String =
 
 @Composable
 private fun AyahField(label: Int, value: String, error: String?, modifier: Modifier, onValueChange: (String) -> Unit) {
-    OutlinedTextField(
+    CompactTextField(
         value = value,
         onValueChange = { typed -> onValueChange(typed.filter { it.isDigit() }.take(3)) },
         label = { Text(stringResource(label)) },

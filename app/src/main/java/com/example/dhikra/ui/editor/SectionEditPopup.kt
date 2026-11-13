@@ -94,6 +94,7 @@ import com.example.dhikra.data.withCopiesOfShared
 import com.example.dhikra.ui.components.BellOffIcon
 import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.NoteIcon
+import com.example.dhikra.ui.components.PopupAddButton
 import com.example.dhikra.ui.components.PopupLabel
 import com.example.dhikra.ui.components.UnsavedNote
 import com.example.dhikra.ui.components.icon
@@ -252,8 +253,8 @@ internal fun SectionEditPopup(
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f, fill = false),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "time") { TimeChip(section.withPrayerTimes(timetable), onClick = { sub = SubEditor.Time }) }
             item(key = "note") {
@@ -270,13 +271,9 @@ internal fun SectionEditPopup(
             item(key = "stepsHeader") {
                 PopupLabel(
                     text = stringResource(R.string.steps_title, uiDigits(section.items.size)),
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                 ) {
-                    TextButton(onClick = { sub = SubEditor.Step(null) }, contentPadding = PaddingValues(horizontal = 10.dp)) {
-                        Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.add_step))
-                    }
+                    PopupAddButton(stringResource(R.string.add_step)) { sub = SubEditor.Step(null) }
                 }
             }
             if (section.items.isEmpty()) {
@@ -433,7 +430,7 @@ private fun SectionHeader(
                 onClick = { picking = true },
                 shape = CircleShape,
                 color = scheme.primaryContainer,
-                modifier = Modifier.size(42.dp),
+                modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(sectionIcon(section.icon), stringResource(R.string.change_icon), tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
@@ -482,7 +479,7 @@ private fun SectionHeader(
                         val stroke = (if (focused || titleError) 2.dp else 1.dp).toPx()
                         drawLine(line, Offset(0f, size.height - stroke / 2), Offset(size.width, size.height - stroke / 2), stroke)
                     }
-                    .padding(bottom = 4.dp),
+                    .padding(top = 2.dp, bottom = 6.dp),
                 decorationBox = { field ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.weight(1f)) {
@@ -499,15 +496,16 @@ private fun SectionHeader(
                     }
                 },
             )
-            Text(
-                text = if (titleError) stringResource(R.string.section_empty_error)
-                else stringResource(if (isNew) R.string.new_section else R.string.edit_section),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (titleError) scheme.error else scheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            if (titleError) {
+                Text(
+                    text = stringResource(R.string.section_empty_error),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.error,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }
@@ -524,16 +522,16 @@ private fun TimeChip(section: ProgramSection, onClick: () -> Unit) {
         border = BorderStroke(1.dp, tone.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 if (section.reminderMinutes == null) BellOffIcon else Icons.Filled.Notifications,
                 null,
                 tint = tone,
                 modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.section_time_title), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(stringResource(R.string.section_time_title), style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 Text(
                     sectionTimeText(section),
                     style = MaterialTheme.typography.bodyMedium,
@@ -572,8 +570,8 @@ private fun InlineTextField(
         border = BorderStroke(if (focused) 1.5.dp else 1.dp, if (focused) scheme.primary else scheme.outlineVariant.copy(alpha = 0.7f)),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = if (focused) scheme.primary else scheme.onSurfaceVariant)
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = if (focused) scheme.primary else scheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(
                     value = value,
@@ -626,17 +624,17 @@ private fun StepCard(
     val colors = shown.type.colors()
     val edited = draft.stepEdited(item)
     Surface(
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         color = scheme.surfaceContainerLowest,
         border = BorderStroke(if (edited) 1.5.dp else 1.dp, if (edited) scheme.tertiary.copy(alpha = 0.7f) else scheme.primary.copy(alpha = 0.35f)),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 4.dp, bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 10.dp, bottom = 10.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(width = 30.dp, height = 40.dp).then(handle), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(width = 34.dp, height = 40.dp).then(handle), contentAlignment = Alignment.Center) {
                     Icon(
                         painterResource(R.drawable.ic_drag_handle),
                         stringResource(R.string.reorder_handle),
@@ -645,15 +643,14 @@ private fun StepCard(
                     )
                 }
                 Box(
-                    Modifier.size(32.dp).clip(MaterialTheme.shapes.small).background(colors.accent.copy(alpha = 0.18f).compositeOver(scheme.surfaceContainerLowest)),
+                    Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.16f).compositeOver(scheme.surfaceContainerLowest)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(shown.type.icon, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
+                ) { Icon(shown.type.icon, null, tint = colors.accent, modifier = Modifier.size(20.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         text = shown.title.ifBlank { shown.text }.ifBlank { stringResource(if (resolved == null) R.string.step_missing else R.string.untitled) },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = if (resolved == null) scheme.error else scheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -678,7 +675,7 @@ private fun StepCard(
                         }
                         Text(
                             details.joinToString("  ·  "),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             color = scheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -734,11 +731,11 @@ private fun ContentPanel(
         shape = MaterialTheme.shapes.small,
         color = colors.container,
         border = if (colors.border.alpha > 0f) BorderStroke(1.dp, colors.border) else null,
-        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
     ) {
-        Column(Modifier.padding(vertical = 2.dp)) {
+        Column(Modifier.padding(vertical = 4.dp)) {
             if (item.isGroup) {
-                Row(Modifier.padding(start = 10.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.group_texts_count, uiDigits(item.members.size)),
                         style = MaterialTheme.typography.labelMedium,
@@ -756,6 +753,7 @@ private fun ContentPanel(
                 }
                 HorizontalDivider(color = colors.accent.copy(alpha = 0.15f))
                 item.members.forEachIndexed { index, member ->
+                    if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = colors.accent.copy(alpha = 0.08f))
                     ContentLine(
                         number = index + 1,
                         title = member.title,
@@ -807,21 +805,21 @@ private fun ContentLine(
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 10.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (number != null) {
-            Text(uiDigits(number), style = MaterialTheme.typography.labelMedium, color = accent, modifier = Modifier.widthIn(min = 22.dp))
+            Text(uiDigits(number), style = MaterialTheme.typography.labelLarge, color = accent, modifier = Modifier.widthIn(min = 26.dp))
         }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (title != null) {
-                Text(title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             // The opening words, unless they are the title again (a short dhikr titled by its words).
             if (title == null || preview.trim() != title.trim()) {
                 Text(
                     uiDigits(preview),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = ink.copy(alpha = 0.75f),
                     maxLines = if (title == null) 2 else 1,
                     overflow = TextOverflow.Ellipsis,

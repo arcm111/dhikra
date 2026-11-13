@@ -1,5 +1,6 @@
 package com.example.dhikra.ui.editor
 
+import com.example.dhikra.ui.components.CompactTextField
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
@@ -93,6 +94,7 @@ import com.example.dhikra.reminder.ReminderScheduler
 import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.EditorPopupTitle
 import com.example.dhikra.ui.components.PopupBody
+import com.example.dhikra.ui.components.PopupAddButton
 import com.example.dhikra.ui.components.PopupLabel
 import com.example.dhikra.ui.components.SectionIconChoices
 import com.example.dhikra.ui.components.accent
@@ -164,7 +166,7 @@ fun SectionEditorDialog(
         dirty = dirty,
     ) {
         PopupBody {
-            OutlinedTextField(
+            CompactTextField(
                 value = title,
                 onValueChange = { title = it; showError = false },
                 trailingIcon = clearButton(title) { title = ""; showError = false },
@@ -179,7 +181,7 @@ fun SectionEditorDialog(
             PopupLabel(stringResource(R.string.section_icon))
             SectionIconRow(selected = icon, onPick = { icon = it })
             ReminderEditor(draft = time, timetable = timetable, onChange = { time = it })
-            OutlinedTextField(
+            CompactTextField(
                 value = note,
                 onValueChange = { note = it },
                 trailingIcon = clearButton(note) { note = "" },
@@ -416,16 +418,9 @@ internal val NoticesSaver = listSaver<List<SectionNotice>, String>(
  */
 @Composable
 internal fun NoticesEditor(notices: List<SectionNotice>, onChange: (List<SectionNotice>) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PopupLabel(stringResource(R.string.notices_title)) {
-            TextButton(
-                onClick = { onChange(notices + SectionNotice(NoticeKind.INFO, "")) },
-                contentPadding = PaddingValues(horizontal = 10.dp),
-            ) {
-                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.notice_add))
-            }
+            PopupAddButton(stringResource(R.string.notice_add)) { onChange(notices + SectionNotice(NoticeKind.INFO, "")) }
         }
         notices.forEachIndexed { index, notice ->
             NoticeRow(
@@ -468,7 +463,7 @@ private fun NoticeRow(notice: SectionNotice, onChange: (SectionNotice) -> Unit, 
                 onValueChange = { onChange(notice.copy(text = it)) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(accent),
-                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+                modifier = Modifier.weight(1f).padding(vertical = 12.dp),
                 decorationBox = { field ->
                     Box {
                         if (notice.text.isEmpty()) {
@@ -692,7 +687,7 @@ fun ItemEditorDialog(
             }
             if (isContent && groupMode) {
                 if (groups.isEmpty()) EmptyNote(stringResource(R.string.groups_empty))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     shownGroups.forEach { group ->
                         PickRow(
                             title = group.title,
@@ -709,7 +704,7 @@ fun ItemEditorDialog(
                 }
             } else if (isContent) {
                 if (entries.isEmpty()) EmptyNote(stringResource(R.string.collection_empty))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     shown.forEach { entry ->
                         PickRow(
                             title = entry.title,
@@ -722,7 +717,7 @@ fun ItemEditorDialog(
                 }
                 CountEditor(countText = countText, count = count, accent = accent, onCountTextChange = { countText = it })
             } else {
-                OutlinedTextField(
+                CompactTextField(
                     value = title,
                     onValueChange = { title = it; showError = false },
                     trailingIcon = clearButton(title) { title = ""; showError = false },
@@ -731,7 +726,7 @@ fun ItemEditorDialog(
                     isError = showError,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                CompactTextField(
                     value = text,
                     onValueChange = { text = it; showError = false },
                     trailingIcon = clearButton(text) { text = ""; showError = false },
@@ -747,7 +742,7 @@ fun ItemEditorDialog(
                 )
             }
             if (type != ItemType.HEADING) {
-                OutlinedTextField(
+                CompactTextField(
                     value = note,
                     onValueChange = { note = it },
                     trailingIcon = clearButton(note) { note = "" },
@@ -803,14 +798,10 @@ private fun CountAndSearch(
     onQuery: (String) -> Unit,
 ) {
     PopupLabel(label, color = if (error) MaterialTheme.colorScheme.error else Color.Unspecified) {
-        TextButton(onClick = onAdd, contentPadding = PaddingValues(horizontal = 10.dp)) {
-            Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(addLabel)
-        }
+        PopupAddButton(addLabel, onAdd)
     }
     if (searchable) {
-        OutlinedTextField(
+        CompactTextField(
             value = query,
             onValueChange = onQuery,
             trailingIcon = clearButton(query) { onQuery("") },
@@ -839,8 +830,8 @@ private fun PickRow(title: String, detail: String, selected: Boolean, accent: Co
         border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) accent else scheme.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        Row(Modifier.padding(start = 14.dp, end = 12.dp, top = 11.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, color = if (selected) accent else scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (detail.isNotBlank()) {
                     Text(detail, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -872,7 +863,7 @@ private fun CountEditor(
         OutlinedIconStep("−", stringResource(R.string.decrease)) {
             onCountTextChange((count - 1).coerceAtLeast(1).toString())
         }
-        OutlinedTextField(
+        CompactTextField(
             value = countText,
             onValueChange = { value -> onCountTextChange(value.filter { it.isDigit() }.take(6)) },
             singleLine = true,

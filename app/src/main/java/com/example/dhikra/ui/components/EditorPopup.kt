@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
@@ -106,7 +107,7 @@ fun EditorPopup(
                 Column {
                     Box(Modifier.fillMaxWidth().height(4.dp).background(accent.copy(alpha = 0.7f)))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 6.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) { title() }
@@ -117,7 +118,7 @@ fun EditorPopup(
                     content()
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { footerStart() }
@@ -159,8 +160,8 @@ fun EditorPopupTitle(title: String, subtitle: String? = null, subtitleColor: Col
 @Composable
 fun ColumnScope.PopupBody(
     modifier: Modifier = Modifier,
-    spacing: Arrangement.Vertical = Arrangement.spacedBy(10.dp),
-    padding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    spacing: Arrangement.Vertical = Arrangement.spacedBy(14.dp),
+    padding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -176,7 +177,7 @@ fun PopupLabel(text: String, modifier: Modifier = Modifier, color: Color = Color
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleSmall,
             color = if (color == Color.Unspecified) MaterialTheme.colorScheme.onSurfaceVariant else color,
             modifier = Modifier.weight(1f),
         )
@@ -210,10 +211,24 @@ fun PopupNotice(text: String, modifier: Modifier = Modifier) {
         border = BorderStroke(1.dp, scheme.secondary.copy(alpha = 0.2f)),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.Top) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.Info, null, tint = scheme.onSecondaryContainer, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(10.dp))
             Text(text, style = MaterialTheme.typography.bodySmall, color = scheme.onSecondaryContainer)
         }
+    }
+}
+
+/** The «+ add» button at the end of a [PopupLabel]: as tall as the heading's line, not a full row. */
+@Composable
+fun PopupAddButton(text: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 10.dp),
+        modifier = Modifier.height(34.dp),
+    ) {
+        Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text)
     }
 }

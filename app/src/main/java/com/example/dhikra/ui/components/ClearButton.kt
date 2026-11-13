@@ -4,6 +4,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.example.dhikra.R
@@ -17,8 +21,14 @@ fun clearButton(value: String, onClear: () -> Unit): (@Composable () -> Unit)? =
         null
     } else {
         {
-            IconButton(onClick = onClear) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.clear_text))
+            // Small and quiet: it stays out of the text's way.
+            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.clear_text),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }
