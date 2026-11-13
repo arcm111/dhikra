@@ -240,17 +240,15 @@ internal fun SectionEditPopup(
         // The section's own settings — icon, title, time — in the header, in its tile's colour; its
         // steps in the body below.
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader(
-                    section = section,
-                    isNew = isNew,
-                    titleError = titleError,
-                    onTitle = { draft.section = draft.section.copy(title = it); titleError = false },
-                    onIcon = { draft.section = draft.section.copy(icon = it) },
-                )
-                TimeChip(section.withPrayerTimes(timetable), onClick = { sub = SubEditor.Time })
-            }
+            SectionHeader(
+                section = section,
+                isNew = isNew,
+                titleError = titleError,
+                onTitle = { draft.section = draft.section.copy(title = it); titleError = false },
+                onIcon = { draft.section = draft.section.copy(icon = it) },
+            )
         },
+        headerExtra = { TimeChip(section.withPrayerTimes(timetable), onClick = { sub = SubEditor.Time }) },
         headerActions = {
             if (onDelete != null) {
                 IconButton(onClick = { sub = SubEditor.Delete }) {
@@ -765,7 +763,6 @@ private fun HeadingRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .background(scheme.surfaceContainerLowest)
             .clickable(onClick = onEdit)
             .padding(top = 2.dp, bottom = 2.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

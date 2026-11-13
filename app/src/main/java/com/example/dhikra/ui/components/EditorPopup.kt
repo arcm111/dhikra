@@ -80,8 +80,10 @@ fun EditorPopup(
     bottomBar: (@Composable ColumnScope.() -> Unit)? = null,
     /** A dot on the save button while [dirty]: there are unsaved changes. */
     unsavedDot: Boolean = false,
-    /** The header's and the footer's colour, when not the soft tint of [accent]. */
+    /** The header's colour, when not the soft tint of [accent]. */
     barColor: Color? = null,
+    /** More of the header, under the title row and as wide as the card (a section's time...). */
+    headerExtra: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // The header and the footer on a soft tint of what is edited, set apart from the white body.
@@ -120,13 +122,18 @@ fun EditorPopup(
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
             ) {
                 Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().background(bars).padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.weight(1f)) { title() }
-                        headerActions()
-                        IconButton(onClick = close) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+                    Column(Modifier.fillMaxWidth().background(bars).padding(top = 14.dp, bottom = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(Modifier.weight(1f)) { title() }
+                            headerActions()
+                            IconButton(onClick = close) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+                        }
+                        if (headerExtra != null) {
+                            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp), content = headerExtra)
+                        }
                     }
                     HorizontalDivider(color = line)
                     content()
