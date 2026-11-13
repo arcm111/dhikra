@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -94,11 +95,8 @@ import com.example.dhikra.data.withCopiesOfShared
 import com.example.dhikra.ui.components.BellOffIcon
 import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.NoteIcon
-import com.example.dhikra.ui.components.PopupAddButton
 import com.example.dhikra.ui.components.PopupLabel
-import com.example.dhikra.ui.components.UnsavedNote
 import com.example.dhikra.ui.components.icon
-import com.example.dhikra.ui.components.reorderHandle
 import com.example.dhikra.ui.components.reorderable
 import com.example.dhikra.ui.components.rememberReorderState
 import com.example.dhikra.ui.components.sectionIcon
@@ -248,7 +246,15 @@ internal fun SectionEditPopup(
         onSave = ::save,
         dirty = draft.dirty,
         accent = sectionTone(section),
-        footerStart = { UnsavedNote(draft.dirty) },
+        unsavedDot = true,
+        // Adding a step, at hand at the bottom whatever the scroll.
+        footerStart = {
+            OutlinedButton(onClick = { sub = SubEditor.Step(null) }, contentPadding = PaddingValues(start = 12.dp, end = 16.dp)) {
+                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.add_step), maxLines = 1)
+            }
+        },
     ) {
         LazyColumn(
             state = listState,
@@ -269,11 +275,15 @@ internal fun SectionEditPopup(
                 NoticesEditor(notices = section.notices, onChange = { draft.section = draft.section.copy(notices = it) })
             }
             item(key = "stepsHeader") {
-                PopupLabel(
-                    text = stringResource(R.string.steps_title, uiDigits(section.items.size)),
-                    modifier = Modifier.padding(top = 6.dp),
-                ) {
-                    PopupAddButton(stringResource(R.string.add_step)) { sub = SubEditor.Step(null) }
+                Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    PopupLabel(text = stringResource(R.string.steps_title, uiDigits(section.items.size)))
+                    if (section.items.size > 1) {
+                        Text(
+                            stringResource(R.string.reorder_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        )
+                    }
                 }
             }
             if (section.items.isEmpty()) {
@@ -293,7 +303,6 @@ internal fun SectionEditPopup(
                     resolved = item.resolvedWith(draft.library),
                     draft = draft,
                     readers = readers,
-                    handle = Modifier.reorderHandle(reorder, key) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
                     canMoveUp = index > 0,
                     canMoveDown = index < section.items.lastIndex,
                     onEdit = { sub = SubEditor.Step(item) },
@@ -312,6 +321,7 @@ internal fun SectionEditPopup(
                             placementSpec = if (reorder.isDragging(key)) null
                             else spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold),
                         )
+                        // Moved only after a long press: a scroll or a tap never moves it by mistake.
                         .reorderable(reorder, key) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
                 )
             }
@@ -608,7 +618,6 @@ private fun StepCard(
     resolved: ProgramItem?,
     draft: SectionDraft,
     readers: LibraryReaders,
-    handle: Modifier,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onEdit: () -> Unit,
@@ -623,6 +632,10 @@ private fun StepCard(
     val shown = resolved ?: item
     val colors = shown.type.colors()
     val edited = draft.stepEdited(item)
+    if (item.type == ItemType.HEADING) {
+        HeadingRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, modifier)
+        return
+    }
     Surface(
         shape = MaterialTheme.shapes.large,
         color = scheme.surfaceContainerLowest,
@@ -634,7 +647,7 @@ private fun StepCard(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 10.dp, bottom = 10.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(width = 34.dp, height = 40.dp).then(handle), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(width = 34.dp, height = 40.dp), contentAlignment = Alignment.Center) {
                     Icon(
                         painterResource(R.drawable.ic_drag_handle),
                         stringResource(R.string.reorder_handle),
@@ -709,6 +722,68 @@ private fun StepCard(
                 ContentPanel(item = resolved, draft = draft, readers = readers, onEditEntry = onEditEntry, onEditGroup = onEditGroup)
             }
         }
+    }
+}
+
+/**
+ * A heading step, set apart from the steps and quieter than them: no card, its title small and grey
+ * with a rule running on from it, as a divider between the steps it groups. A tap edits it.
+ */
+@Composable
+private fun HeadingRow(
+    item: ProgramItem,
+    edited: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onEdit: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val ink = scheme.onSurfaceVariant
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(scheme.surfaceContainerLowest)
+            .clickable(onClick = onEdit)
+            .padding(top = 2.dp, bottom = 2.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(width = 34.dp, height = 36.dp), contentAlignment = Alignment.Center) {
+            Icon(
+                painterResource(R.drawable.ic_drag_handle),
+                stringResource(R.string.reorder_handle),
+                tint = ink.copy(alpha = 0.4f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Text(
+            text = item.title.ifBlank { item.text }.ifBlank { stringResource(R.string.untitled) },
+            style = MaterialTheme.typography.labelLarge,
+            color = ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(scheme.outlineVariant))
+        if (edited) {
+            Spacer(Modifier.width(8.dp))
+            MarkPill(stringResource(R.string.edited), scheme.tertiary)
+        }
+        StepMenu(
+            contentLabel = null,
+            canMoveUp = canMoveUp,
+            canMoveDown = canMoveDown,
+            onEdit = onEdit,
+            onEditContent = {},
+            onMove = onMove,
+            onDuplicate = onDuplicate,
+            onDelete = onDelete,
+        )
     }
 }
 

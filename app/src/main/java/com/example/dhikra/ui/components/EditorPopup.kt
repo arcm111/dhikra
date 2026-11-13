@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,8 +76,15 @@ fun EditorPopup(
     accent: Color = MaterialTheme.colorScheme.primary,
     headerActions: @Composable RowScope.() -> Unit = {},
     footerStart: @Composable RowScope.() -> Unit = {},
+    /** Something kept at the bottom, over the buttons, while the body scrolls (a search field...). */
+    bottomBar: (@Composable ColumnScope.() -> Unit)? = null,
+    /** A dot on the save button while [dirty]: there are unsaved changes. */
+    unsavedDot: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // The header and the footer on a soft tint of what is edited, set apart from the white body.
+    val bars = accent.copy(alpha = 0.08f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    val line = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (dirty) confirmDiscard = true else onDismiss() }
     // Edge to edge: the window is not resized for the keyboard; the card makes room for it (and the
@@ -105,26 +113,44 @@ fun EditorPopup(
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
             ) {
                 Column {
-                    Box(Modifier.fillMaxWidth().height(4.dp).background(accent.copy(alpha = 0.7f)))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 12.dp),
+                        modifier = Modifier.fillMaxWidth().background(bars).padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) { title() }
                         headerActions()
                         IconButton(onClick = close) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    HorizontalDivider(color = line)
                     content()
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { footerStart() }
-                        TextButton(onClick = close) { Text(stringResource(R.string.cancel)) }
-                        Spacer(Modifier.width(4.dp))
-                        Button(onClick = onSave, enabled = saveEnabled && dirty) { Text(saveLabel) }
+                    HorizontalDivider(color = line)
+                    Column(Modifier.fillMaxWidth().background(bars)) {
+                        if (bottomBar != null) {
+                            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), content = bottomBar)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { footerStart() }
+                            TextButton(onClick = close) { Text(stringResource(R.string.cancel)) }
+                            Spacer(Modifier.width(4.dp))
+                            Box {
+                                Button(onClick = onSave, enabled = saveEnabled && dirty) { Text(saveLabel) }
+                                if (unsavedDot && dirty) {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(bars)
+                                            .padding(2.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.tertiary),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -479,4 +479,5 @@
     <string name="shared_save_hint">Saving a copy leaves the original as it is for the other sections, and this section reads the edited copy.</string>
     <string name="shared_update_all">Update all (%1$s)</string>
     <string name="shared_save_copy">Save a copy for this section</string>
+    <string name="change_selection">Change</string>
 </resources>

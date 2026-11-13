@@ -5,6 +5,9 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -587,6 +590,8 @@ fun ItemEditorDialog(
     var query by rememberSaveable { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
     var addingEntry by remember { mutableStateOf(false) }
+    // Changing what the step reads: the list (and its search at the bottom) shows again.
+    var changing by rememberSaveable { mutableStateOf(false) }
 
     val count = ArabicText.toLatinDigits(countText).toIntOrNull()?.coerceIn(1, ProgramJson.MAX_COUNT) ?: 1
     val isContent = type.isContent
@@ -606,6 +611,16 @@ fun ItemEditorDialog(
         val q = ArabicText.searchKey(query)
         val found = if (q.isEmpty()) groups else groups.filter { ArabicText.searchKey(it.title + " " + it.description).contains(q) }
         found.sortedByDescending { it.id in pinned }
+    }
+
+    // The list of texts (or groups) shows until one is chosen, then only the one chosen does.
+    val chosen = if (groupMode) selectedGroup != null else selectedEntry != null
+    val listing = isContent && (changing || !chosen)
+    val listSize = if (groupMode) groups.size else entries.size
+    fun picked() {
+        changing = false
+        query = ""
+        showError = false
     }
 
     val dirty = if (initial == null) {
@@ -641,6 +656,21 @@ fun ItemEditorDialog(
         dirty = dirty,
         accent = accent,
         saveLabel = saveLabel ?: stringResource(R.string.save),
+        // While choosing from a list, its search stays at hand at the bottom.
+        bottomBar = if (listing && listSize > 0) {
+            {
+                CompactTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    trailingIcon = clearButton(query) { query = "" },
+                    placeholder = { Text(stringResource(R.string.search)) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    singleLine = true,
+                    shape = CircleShape,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else null,
     ) {
         PopupBody {
             // The kind of step: all of them in view (two short rows), the one chosen filled.
@@ -668,15 +698,16 @@ fun ItemEditorDialog(
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     ) { Text(stringResource(R.string.step_group)) }
                 }
-                CountAndSearch(
-                    label = stringResource(if (groupMode) R.string.pick_group else R.string.pick_entry),
-                    error = showError,
-                    addLabel = stringResource(if (groupMode) R.string.add_group else R.string.add_entry),
-                    onAdd = { if (groupMode) addingGroup = true else addingEntry = true },
-                    searchable = (if (groupMode) groups.size else entries.size) > 5,
-                    query = query,
-                    onQuery = { query = it },
-                )
+                if (listing) {
+                    PopupLabel(
+                        stringResource(if (groupMode) R.string.pick_group else R.string.pick_entry),
+                        color = if (showError) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    ) {
+                        PopupAddButton(stringResource(if (groupMode) R.string.add_group else R.string.add_entry)) {
+                            if (groupMode) addingGroup = true else addingEntry = true
+                        }
+                    }
+                }
                 if (showError) {
                     Text(
                         stringResource(if (groupMode) R.string.pick_group_error else R.string.pick_entry_error),
@@ -685,7 +716,29 @@ fun ItemEditorDialog(
                     )
                 }
             }
-            if (isContent && groupMode) {
+            if (isContent && !listing) {
+                // The text or group chosen, and a way to choose another.
+                if (groupMode) {
+                    val group = selectedGroup!!
+                    ChosenCard(
+                        title = group.title,
+                        detail = group.items.mapNotNull { library.entry(it.entryId)?.title }.joinToString(stringResource(R.string.list_separator)),
+                        badge = stringResource(R.string.group_texts_count, uiDigits(group.items.size)),
+                        accent = accent,
+                        onChange = { changing = true },
+                    )
+                } else {
+                    val entry = selectedEntry!!
+                    ChosenCard(
+                        title = entry.title,
+                        detail = entry.text,
+                        badge = entry.description.ifBlank { null },
+                        accent = accent,
+                        onChange = { changing = true },
+                    )
+                    CountEditor(countText = countText, count = count, accent = accent, onCountTextChange = { countText = it })
+                }
+            } else if (isContent && groupMode) {
                 if (groups.isEmpty()) EmptyNote(stringResource(R.string.groups_empty))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     shownGroups.forEach { group ->
@@ -698,7 +751,7 @@ fun ItemEditorDialog(
                             ).joinToString(" · "),
                             selected = group.id == groupId,
                             accent = accent,
-                            onClick = { groupId = group.id; showError = false },
+                            onClick = { groupId = group.id; picked() },
                         )
                     }
                 }
@@ -711,11 +764,10 @@ fun ItemEditorDialog(
                             detail = entry.description.ifBlank { entry.text },
                             selected = entry.id == entryId,
                             accent = accent,
-                            onClick = { entryId = entry.id; showError = false },
+                            onClick = { entryId = entry.id; picked() },
                         )
                     }
                 }
-                CountEditor(countText = countText, count = count, accent = accent, onCountTextChange = { countText = it })
             } else {
                 CompactTextField(
                     value = title,
@@ -741,7 +793,7 @@ fun ItemEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (type != ItemType.HEADING) {
+            if (type != ItemType.HEADING && !listing) {
                 CompactTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -762,7 +814,7 @@ fun ItemEditorDialog(
             onSave = { entry ->
                 onSaveEntry(entry)
                 entryId = entry.id
-                showError = false
+                picked()
                 addingEntry = false
             },
             saveLabel = saveLabel,
@@ -777,7 +829,7 @@ fun ItemEditorDialog(
             onSave = { group ->
                 onSaveGroup(group)
                 groupId = group.id
-                showError = false
+                picked()
                 addingGroup = false
             },
             onSaveEntry = onSaveEntry,
@@ -786,31 +838,34 @@ fun ItemEditorDialog(
     }
 }
 
-/** Over a list to pick from: its label and an «add» button, then a search field for a long list. */
+/**
+ * What a step reads, once chosen: a card in the collection's colours with its title, a line about it
+ * ([badge]) and its opening words, and a button to choose another.
+ */
 @Composable
-private fun CountAndSearch(
-    label: String,
-    error: Boolean,
-    addLabel: String,
-    onAdd: () -> Unit,
-    searchable: Boolean,
-    query: String,
-    onQuery: (String) -> Unit,
-) {
-    PopupLabel(label, color = if (error) MaterialTheme.colorScheme.error else Color.Unspecified) {
-        PopupAddButton(addLabel, onAdd)
-    }
-    if (searchable) {
-        CompactTextField(
-            value = query,
-            onValueChange = onQuery,
-            trailingIcon = clearButton(query) { onQuery("") },
-            placeholder = { Text(stringResource(R.string.search)) },
-            leadingIcon = { Icon(Icons.Filled.Search, null) },
-            singleLine = true,
-            shape = CircleShape,
-            modifier = Modifier.fillMaxWidth(),
-        )
+private fun ChosenCard(title: String, detail: String, badge: String?, accent: Color, onChange: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = accent.copy(alpha = 0.07f).compositeOver(scheme.surfaceContainerLowest),
+        border = BorderStroke(1.5.dp, accent.copy(alpha = 0.6f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(accent.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.Check, null, tint = accent, modifier = Modifier.size(18.dp)) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                badge?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                if (detail.isNotBlank() && detail.trim() != title.trim()) {
+                    Text(uiDigits(detail), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            TextButton(onClick = onChange) { Text(stringResource(R.string.change_selection)) }
+        }
     }
 }
 
