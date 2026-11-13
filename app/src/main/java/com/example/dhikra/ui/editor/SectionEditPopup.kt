@@ -488,7 +488,7 @@ private fun SectionHeader(
                         Box(Modifier.weight(1f)) {
                             if (section.title.isEmpty()) {
                                 Text(
-                                    stringResource(if (isNew) R.string.new_section else R.string.section_title),
+                                    stringResource(R.string.section_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = scheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 )
@@ -501,8 +501,7 @@ private fun SectionHeader(
             )
             Text(
                 text = if (titleError) stringResource(R.string.section_empty_error)
-                else stringResource(if (isNew) R.string.new_section else R.string.edit_section) + "  ·  " +
-                    stringResource(R.string.section_steps_count, uiDigits(section.trackableItems.size)),
+                else stringResource(if (isNew) R.string.new_section else R.string.edit_section),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (titleError) scheme.error else scheme.onSurfaceVariant,
                 maxLines = 1,
@@ -741,10 +740,10 @@ private fun ContentPanel(
             if (item.isGroup) {
                 Row(Modifier.padding(start = 10.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.group_items) + " (" + uiDigits(item.members.size) + ")",
+                        stringResource(R.string.group_texts_count, uiDigits(item.members.size)),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.accent,
-                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1,
                     )
                     Spacer(Modifier.width(6.dp))
                     Marks(edited = draft.groupEdited(item.groupId), shared = readers.ofGroup(item.groupId).size)
@@ -818,13 +817,16 @@ private fun ContentLine(
             if (title != null) {
                 Text(title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(
-                uiDigits(preview),
-                style = MaterialTheme.typography.labelSmall,
-                color = ink.copy(alpha = 0.75f),
-                maxLines = if (title == null) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // The opening words, unless they are the title again (a short dhikr titled by its words).
+            if (title == null || preview.trim() != title.trim()) {
+                Text(
+                    uiDigits(preview),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ink.copy(alpha = 0.75f),
+                    maxLines = if (title == null) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Spacer(Modifier.width(6.dp))
         Marks(edited = edited, shared = shared)
@@ -931,10 +933,12 @@ private fun SharedSaveDialog(impact: SharedImpact, onUpdateAll: () -> Unit, onSa
             }
         },
         confirmButton = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Button(onClick = onUpdateAll) { Text(stringResource(R.string.shared_update_all, uiDigits(impact.steps))) }
-                OutlinedButton(onClick = onSaveCopy) { Text(stringResource(R.string.shared_save_copy)) }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.keep_editing)) }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(onClick = onUpdateAll, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shared_update_all, uiDigits(impact.steps)))
+                }
+                OutlinedButton(onClick = onSaveCopy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.shared_save_copy)) }
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.keep_editing)) }
             }
         },
     )

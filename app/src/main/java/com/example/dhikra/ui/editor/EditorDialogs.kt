@@ -569,6 +569,7 @@ private val StepTypes = ItemType.CONTENT + listOf(ItemType.TASK, ItemType.HEADIN
  * have their own), and every step can have a note. [saveLabel] names the save button («تم» when the
  * step only goes back to the section being edited).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ItemEditorDialog(
     initial: ProgramItem?,
@@ -647,8 +648,8 @@ fun ItemEditorDialog(
         saveLabel = saveLabel ?: stringResource(R.string.save),
     ) {
         PopupBody {
-            // The kind of step: one row of chips that scrolls.
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // The kind of step: all of them in view (two short rows), the one chosen filled.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 StepTypes.forEach { option ->
                     FilterChip(
                         selected = type == option,
