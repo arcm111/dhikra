@@ -482,4 +482,6 @@
     <string name="change_selection">Change</string>
     <string name="type_notice">Message</string>
     <string name="notice_kind_label">Message type</string>
+    <string name="add_step_above">Add a step above</string>
+    <string name="move_to_top">Move to top</string>
 </resources>

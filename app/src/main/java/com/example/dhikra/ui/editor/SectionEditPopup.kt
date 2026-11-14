@@ -26,6 +26,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.materialIcon
+import androidx.compose.material.icons.materialPath
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -141,9 +144,15 @@ private class SectionDraft(val start: ProgramSection, val base: Library) {
         section = section.copy(items = transform(section.items))
     }
 
-    fun upsertStep(item: ProgramItem) = items { list ->
+    /** Replaces the step, or adds it: above the step [before] when given, else at the end. */
+    fun upsertStep(item: ProgramItem, before: String? = null) = items { list ->
         val index = list.indexOfFirst { it.id == item.id }
-        if (index < 0) list + item else list.toMutableList().also { it[index] = item }
+        val at = before?.let { id -> list.indexOfFirst { it.id == id } } ?: -1
+        when {
+            index >= 0 -> list.toMutableList().also { it[index] = item }
+            at >= 0 -> list.toMutableList().also { it.add(at, item) }
+            else -> list + item
+        }
     }
 
     fun moveStep(itemId: String, delta: Int) = items { list ->
@@ -171,7 +180,8 @@ internal fun newSection(prayer: Prayer?, timetable: PrayerTimetable?): ProgramSe
 
 /** What is open over the section editor. */
 private sealed interface SubEditor {
-    data class Step(val item: ProgramItem?) : SubEditor
+    /** A step to edit, or a new one ([item] null) — placed above the step [before] when given, else last. */
+    data class Step(val item: ProgramItem?, val before: String? = null) : SubEditor
     data class Entry(val entryId: String) : SubEditor
     data class Group(val groupId: String) : SubEditor
     data object Time : SubEditor
@@ -329,6 +339,8 @@ internal fun SectionEditPopup(
                     onEditEntry = { sub = SubEditor.Entry(it) },
                     onEditGroup = { sub = SubEditor.Group(item.groupId) },
                     onMove = { draft.moveStep(item.id, it) },
+                    onAddAbove = { sub = SubEditor.Step(null, before = item.id) },
+                    onMoveToTop = { draft.moveStep(item.id, -index) },
                     onDuplicate = {
                         draft.items { list ->
                             val at = list.indexOfFirst { it.id == item.id }
@@ -357,7 +369,7 @@ internal fun SectionEditPopup(
             onSaveEntry = draft::putEntry,
             onSaveGroup = draft::putGroup,
             onDismiss = close,
-            onSave = { draft.upsertStep(it); close() },
+            onSave = { draft.upsertStep(it, before = open.before); close() },
             saveLabel = done,
         )
         is SubEditor.Entry -> {
@@ -640,6 +652,9 @@ private fun StepCard(
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    /** A new step right above this one; this step to the top of the section. */
+    onAddAbove: () -> Unit,
+    onMoveToTop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -647,11 +662,11 @@ private fun StepCard(
     val colors = shown.type.colors()
     val edited = draft.stepEdited(item)
     if (item.type == ItemType.HEADING) {
-        HeadingRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, modifier)
+        HeadingRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, onAddAbove, onMoveToTop, modifier)
         return
     }
     if (item.type == ItemType.NOTICE) {
-        NoticeStepRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, modifier)
+        NoticeStepRow(item, edited, canMoveUp, canMoveDown, onEdit, onMove, onDuplicate, onDelete, onAddAbove, onMoveToTop, modifier)
         return
     }
     Surface(
@@ -732,6 +747,8 @@ private fun StepCard(
                     onMove = onMove,
                     onDuplicate = onDuplicate,
                     onDelete = onDelete,
+                    onAddAbove = onAddAbove,
+                    onMoveToTop = onMoveToTop,
                 )
             }
             if (resolved != null && item.type.isContent) {
@@ -755,6 +772,9 @@ private fun HeadingRow(
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    /** A new step right above this one; this step to the top of the section. */
+    onAddAbove: () -> Unit,
+    onMoveToTop: () -> Unit,
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -799,6 +819,8 @@ private fun HeadingRow(
             onMove = onMove,
             onDuplicate = onDuplicate,
             onDelete = onDelete,
+            onAddAbove = onAddAbove,
+            onMoveToTop = onMoveToTop,
         )
     }
 }
@@ -817,6 +839,9 @@ private fun NoticeStepRow(
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    /** A new step right above this one; this step to the top of the section. */
+    onAddAbove: () -> Unit,
+    onMoveToTop: () -> Unit,
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -860,6 +885,8 @@ private fun NoticeStepRow(
                 onMove = onMove,
                 onDuplicate = onDuplicate,
                 onDelete = onDelete,
+                onAddAbove = onAddAbove,
+                onMoveToTop = onMoveToTop,
             )
         }
     }
@@ -1022,6 +1049,9 @@ private fun StepMenu(
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    /** A new step right above this one; this step to the top of the section. */
+    onAddAbove: () -> Unit,
+    onMoveToTop: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -1032,6 +1062,8 @@ private fun StepMenu(
             fun pick(action: () -> Unit): () -> Unit = { open = false; action() }
             MenuRow(R.string.edit_item, Icons.Filled.Edit, pick(onEdit))
             if (contentLabel != null) MenuRow(contentLabel, Icons.Outlined.Edit, pick(onEditContent))
+            MenuRow(R.string.add_step_above, Icons.Filled.AddCircle, pick(onAddAbove))
+            if (canMoveUp) MenuRow(R.string.move_to_top, MoveToTopIcon, pick(onMoveToTop))
             if (canMoveUp) MenuRow(R.string.move_up, Icons.Filled.KeyboardArrowUp, pick { onMove(-1) })
             if (canMoveDown) MenuRow(R.string.move_down, Icons.Filled.KeyboardArrowDown, pick { onMove(1) })
             MenuRow(R.string.duplicate, Icons.Filled.Add, pick(onDuplicate))
@@ -1041,6 +1073,14 @@ private fun StepMenu(
                 onClick = pick(onDelete),
             )
         }
+    }
+}
+
+/** Two chevrons up: to the top of the section. */
+private val MoveToTopIcon: ImageVector = materialIcon("DhikraMoveToTop") {
+    materialPath {
+        moveTo(7.41f, 18.41f); lineTo(12f, 13.83f); lineTo(16.59f, 18.41f); lineTo(18f, 17f); lineTo(12f, 11f); lineTo(6f, 17f); close()
+        moveTo(7.41f, 11.41f); lineTo(12f, 6.83f); lineTo(16.59f, 11.41f); lineTo(18f, 10f); lineTo(12f, 4f); lineTo(6f, 10f); close()
     }
 }
 

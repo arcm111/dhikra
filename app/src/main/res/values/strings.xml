@@ -512,4 +512,6 @@
     <string name="change_selection">تغيير</string>
     <string name="type_notice">رسالة</string>
     <string name="notice_kind_label">نوع الرسالة</string>
+    <string name="add_step_above">إضافة خطوة فوقها</string>
+    <string name="move_to_top">نقل إلى الأعلى</string>
 </resources>
