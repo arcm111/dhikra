@@ -2055,6 +2055,17 @@
           "prayer": "sunrise",
           "items": [
             {
+              "id": "shurooq_adiya",
+              "type": "dua",
+              "group": "group_sabah"
+            },
+            {
+              "id": "shurooq_kahf",
+              "type": "quran",
+              "entry": "kahf_1_10",
+              "note": "ورد تحصين: يقرأ يومياً بدون إهمال"
+            },
+            {
               "id": "sabah-heading",
               "type": "heading",
               "title": "أذكار الصباح النبوية"
