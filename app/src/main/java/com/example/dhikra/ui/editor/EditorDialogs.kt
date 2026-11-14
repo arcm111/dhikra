@@ -28,6 +28,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
@@ -574,7 +576,17 @@ fun ItemEditorDialog(
     }
 
     EditorPopup(
-        title = { EditorPopupTitle(stringResource(if (initial == null) R.string.new_item else R.string.edit_item)) },
+        // The kind of step, in the header: a pill that opens the list of kinds.
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(if (initial == null) R.string.new_item else R.string.edit_item),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                StepTypeSelector(selected = type, onSelect = { type = it; showError = false })
+            }
+        },
         onDismiss = onDismiss,
         onSave = ::save,
         dirty = dirty,
@@ -597,17 +609,6 @@ fun ItemEditorDialog(
         } else null,
     ) {
         PopupBody {
-            // The kind of step: all of them in view (two short rows), the one chosen filled.
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                StepTypes.forEach { option ->
-                    FilterChip(
-                        selected = type == option,
-                        onClick = { type = option; showError = false },
-                        label = { Text(stringResource(option.label)) },
-                        leadingIcon = { Icon(option.icon, null, Modifier.size(18.dp), tint = option.colors().accent) },
-                    )
-                }
-            }
             if (isContent) {
                 // A single text of the collection, or one of its groups of texts.
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -785,6 +786,50 @@ fun ItemEditorDialog(
             onSaveEntry = onSaveEntry,
             saveLabel = saveLabel,
         )
+    }
+}
+
+/**
+ * The kind of step, as a selector: a pill in the kind's colour — its icon, its name and a ▾ — that
+ * opens the list of kinds (each with its icon, the one chosen checked).
+ */
+@Composable
+private fun StepTypeSelector(selected: ItemType, onSelect: (ItemType) -> Unit) {
+    val accent = selected.colors().accent
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            onClick = { open = true },
+            shape = MaterialTheme.shapes.medium,
+            color = accent.copy(alpha = 0.12f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest),
+            border = BorderStroke(1.5.dp, accent.copy(alpha = 0.6f)),
+        ) {
+            Row(
+                Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(selected.icon, null, tint = accent, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(selected.label),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent,
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Filled.ArrowDropDown, stringResource(R.string.item_type), tint = accent)
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            StepTypes.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.label), fontWeight = if (option == selected) FontWeight.SemiBold else null) },
+                    leadingIcon = { Icon(option.icon, null, tint = option.colors().accent) },
+                    trailingIcon = if (option == selected) ({ Icon(Icons.Filled.Check, null, tint = option.colors().accent) }) else null,
+                    onClick = { open = false; onSelect(option) },
+                )
+            }
+        }
     }
 }
 
