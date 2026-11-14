@@ -18,7 +18,7 @@ object DefaultProgram {
      * Version of this default content. Data seeded from an older version is replaced by these
      * defaults on the next launch, see [ProgramRepository.load].
      */
-    const val VERSION = 5
+    const val VERSION = 6
 
     /** Id of the default program among the user's programs: the one a newer [VERSION] replaces. */
     const val PROGRAM_ID = "default"
