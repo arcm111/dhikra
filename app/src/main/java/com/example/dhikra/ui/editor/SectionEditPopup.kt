@@ -438,8 +438,15 @@ private val HeaderShade = Color(0xFF6B7470)
  * muted — also the section editor's header, so the two read as the same thing.
  */
 @Composable
-internal fun sectionHeaderColor(section: ProgramSection): Color =
-    lerp(sectionTone(section), HeaderShade, 0.35f).copy(alpha = 0.32f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
+internal fun sectionHeaderColor(section: ProgramSection): Color = tintedHeader(sectionTone(section))
+
+/**
+ * The tinted header of the program's cards (the section tiles, the editor, the day's prayer panels):
+ * [tone] a little muted, at [strength] over white.
+ */
+@Composable
+internal fun tintedHeader(tone: Color, strength: Float = 0.32f): Color =
+    lerp(tone, HeaderShade, 0.35f).copy(alpha = strength).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
 
 /** The colour of how a section's time is set: Madinah's clock, a prayer's very time, or otherwise. */
 @Composable

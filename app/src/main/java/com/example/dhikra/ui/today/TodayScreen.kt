@@ -1,5 +1,9 @@
 package com.example.dhikra.ui.today
 
+import com.example.dhikra.ui.editor.tintedHeader
+import com.example.dhikra.ui.editor.sectionHeaderColor
+import com.example.dhikra.ui.editor.sectionTone
+import com.example.dhikra.ui.prayer.rememberSecondOfDay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.mutableIntStateOf
@@ -321,6 +325,7 @@ private fun DayView(
                             nowMinutes = nowMinutes,
                             onClick = actions.onOpenPrayerTimes,
                             inHeader = true,
+                            timeZone = timetable.city.timeZone,
                             modifier = headerCard,
                         )
                     } else {
@@ -616,6 +621,8 @@ private fun PrayerTimeCard(
     modifier: Modifier = Modifier,
     /** On the header's glass (its pattern already behind it), rather than its own dark green. */
     inHeader: Boolean = false,
+    /** The prayer times' city's time zone, for the countdown's seconds. */
+    timeZone: String? = null,
 ) {
     val periods = timeline.periods
     val index = timeline.currentIndex
@@ -623,10 +630,15 @@ private fun PrayerTimeCard(
     val prayer = period.prayer ?: return
     val next = periods[(index + 1) % periods.size]
     val nextPrayer = next.prayer ?: return
-    val share = periodShare(period.start, period.end, nowMinutes)
-    val left = minutesLeft(period.end, nowMinutes)
-    // The light orange of the top bar's progress ring, always.
-    val accent = OrangeLight
+    // The countdown: in minutes (h:mm) while an hour or more is left, then in seconds (m:ss).
+    val lastHour = minutesLeft(period.end, nowMinutes) <= 60
+    val second = rememberSecondOfDay(timeZone, everySecond = lastHour)
+    val secondsLeft = Math.floorMod(period.end * 60 - second, SECONDS_PER_DAY)
+    val length = Math.floorMod(period.end - period.start, 24 * 60).let { if (it == 0) 24 * 60 else it } * 60
+    val share = (Math.floorMod(second - period.start * 60, SECONDS_PER_DAY).toFloat() / length).coerceIn(0f, 1f)
+    val underHour = secondsLeft < 3600
+    // The dial: the light gold of the day's line while time is ample, its orange in the last hour.
+    val accent = if (underHour) OrangeLight else MustardLight
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
@@ -649,7 +661,7 @@ private fun PrayerTimeCard(
               // The countdown to the next prayer: its name above the ring, its time below.
               Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 10.dp)) {
                 Text(
-                    text = stringResource(R.string.prayer_until, stringResource(nextPrayer.label)),
+                    text = stringResource(nextPrayer.label),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
                     color = accent,
@@ -659,34 +671,21 @@ private fun PrayerTimeCard(
                 Spacer(Modifier.height(6.dp))
                 Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
                     TimerRing(elapsed = share, color = accent, modifier = Modifier.fillMaxSize())
-                    // The time left: «٤٨ د», or «١ س» over «٥ د».
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val ink = Color.White
-                        val hours = left / 60
-                        val minutes = left % 60
-                        if (hours > 0) {
-                            Text(
-                                text = stringResource(R.string.prayer_hours_short, uiDigits(hours)),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = ink,
-                                lineHeight = 16.sp,
-                            )
-                            Text(
-                                text = stringResource(R.string.prayer_minutes_short, uiDigits(minutes)),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = ink.copy(alpha = 0.8f),
-                                lineHeight = 13.sp,
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(R.string.prayer_minutes_short, uiDigits(minutes)),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = ink,
-                            )
-                        }
+                    // The time left: «٧:٣٤» (h:mm), and in the last hour «٤٥:٠٩» (m:ss).
+                    val clock = if (underHour) {
+                        "%d:%02d".format(secondsLeft / 60, secondsLeft % 60)
+                    } else {
+                        "%d:%02d".format(secondsLeft / 3600, secondsLeft % 3600 / 60)
                     }
+                    val spoken = untilDescription(secondsLeft)
+                    Text(
+                        text = uiDigits(clock),
+                        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        modifier = Modifier.semantics { contentDescription = spoken },
+                    )
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -751,6 +750,20 @@ private fun TimerRing(elapsed: Float, color: Color, modifier: Modifier = Modifie
                 cap = StrokeCap.Round,
             )
         }
+    }
+}
+
+private const val SECONDS_PER_DAY = 24 * 3600
+
+/** The time left, read aloud: «٧ س ٣٤ د». */
+@Composable
+private fun untilDescription(secondsLeft: Int): String {
+    val hours = secondsLeft / 3600
+    val minutes = secondsLeft % 3600 / 60
+    return if (hours > 0) {
+        stringResource(R.string.prayer_hours_short, uiDigits(hours)) + " " + stringResource(R.string.prayer_minutes_short, uiDigits(minutes))
+    } else {
+        stringResource(R.string.prayer_minutes_short, uiDigits(minutes))
     }
 }
 
@@ -1335,6 +1348,8 @@ private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -
     val finished = total > 0 && done >= total
     val scheme = MaterialTheme.colorScheme
     val accent = if (finished) LocalDhikraPalette.current.doneText else scheme.primary
+    // As on the section's tile in the program tab: its icon, and the colour of how its time is set.
+    val tone = sectionTone(section)
     val steps = stringResource(R.string.steps_done, uiDigits(done), uiDigits(total))
     Row(
         modifier = Modifier
@@ -1345,10 +1360,10 @@ private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.size(38.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+            modifier = Modifier.size(38.dp).clip(CircleShape).background(sectionHeaderColor(section)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(SectionIcon, null, tint = accent, modifier = Modifier.size(20.dp))
+            Icon(sectionIcon(section.icon), null, tint = if (finished) accent else tone, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -1360,7 +1375,12 @@ private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -
                 overflow = TextOverflow.Ellipsis,
             )
             section.reminderMinutes?.let {
-                Text(formatClock(it), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                Text(
+                    formatClock(it),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (finished) scheme.onSurfaceVariant else tone,
+                )
             }
         }
         if (finished) {
@@ -1882,14 +1902,15 @@ private fun ScheduleRow(
     }
 }
 
-/** A period panel's outline: the slate of time for the period going on, else a quiet line. */
+/** A period panel's outline: the green frame of the program's section tiles, firmer for the period going on. */
 @Composable
 private fun panelBorder(current: Boolean): Color =
-    if (current) LocalDhikraPalette.current.slate.accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+    MaterialTheme.colorScheme.primary.copy(alpha = if (current) 0.85f else 0.55f)
 
-private fun panelBorderWidth(current: Boolean): Dp = if (current) 1.5.dp else 1.dp
+private fun panelBorderWidth(current: Boolean): Dp = if (current) 2.dp else 1.5.dp
 
-private val PanelRadius = 16.dp
+/** The section tiles' corners. */
+private val PanelRadius = 12.dp
 
 /**
  * Draws a row's [slice] of a panel: its [fill], rounded at the panel's top or bottom, and the
@@ -1986,14 +2007,15 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier, slice: 
     val scheme = MaterialTheme.colorScheme
     // The current prayer is a deeper shade of the bands' blue: that is what marks it as going on.
     val blue = LocalDhikraPalette.current.slate
-    val tint = if (period.current) blue.accent.copy(alpha = 0.22f).compositeOver(blue.container) else blue.container
+    // The tinted header of the program's section tiles, in the blue of time; deeper while going on.
+    val tint = tintedHeader(blue.accent, strength = if (period.current) 0.5f else 0.3f)
     val accent = blue.accent
     val ink = blue.ink
     val surface = MaterialTheme.colorScheme.surfaceContainerLowest
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = if (slice != null) 42.dp else 34.dp)
+            .heightIn(min = if (slice != null) 48.dp else 34.dp)
             .then(
                 // As a panel's header: its top (or all of it), on the period's tint.
                 if (slice != null) {
@@ -2007,8 +2029,12 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier, slice: 
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(prayer.icon, null, tint = accent, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
+        // As on a section tile: the icon on a pale disc.
+        Box(
+            Modifier.size(28.dp).clip(CircleShape).background(surface.copy(alpha = 0.75f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(prayer.icon, null, tint = accent, modifier = Modifier.size(17.dp)) }
+        Spacer(Modifier.width(10.dp))
         Text(
             text = stringResource(prayer.label),
             style = MaterialTheme.typography.titleSmall,
