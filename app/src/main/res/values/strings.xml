@@ -35,6 +35,12 @@
     <string name="reader_position">الخطوة %1$s من %2$s</string>
     <string name="reader_group_position">%1$s • %2$s من %3$s</string>
     <string name="reader_done_hint">بعد القراءة اضغط «تمّ»</string>
+    <string name="reader_next_page">الصفحة التالية</string>
+    <string name="reader_next_text">النص التالي</string>
+    <string name="reader_pages_hint">اقرأ الصفحات كلها ثم اضغط «تمّ»</string>
+    <string name="reader_group_hint">اقرأ نصوص المجموعة كلها ثم اضغط «تمّ»</string>
+    <string name="reader_page_position">الصفحة %1$s من %2$s</string>
+    <string name="reader_text_position">النص %1$s من %2$s</string>
     <string name="mark_done">تمّ</string>
     <string name="undo_done">تراجع</string>
     <string name="note_label">ملاحظة</string>

@@ -36,6 +36,12 @@
     <string name="reader_position">Step %1$s of %2$s</string>
     <string name="reader_group_position">%1$s • %2$s of %3$s</string>
     <string name="reader_done_hint">After reading, tap “Done”</string>
+    <string name="reader_next_page">Next page</string>
+    <string name="reader_next_text">Next text</string>
+    <string name="reader_pages_hint">Read every page, then tap “Done”</string>
+    <string name="reader_group_hint">Read every text of the group, then tap “Done”</string>
+    <string name="reader_page_position">Page %1$s of %2$s</string>
+    <string name="reader_text_position">Text %1$s of %2$s</string>
     <string name="mark_done">Done</string>
     <string name="undo_done">Undo</string>
     <string name="note_label">Note</string>
