@@ -145,6 +145,10 @@ class HomeActions(
     val onDeleteProgram: (() -> Unit)? = null,
     val onSaveEntry: (com.example.dhikra.data.LibraryEntry) -> Unit = {},
     val onSaveGroup: (com.example.dhikra.data.LibraryGroup) -> Unit = {},
+    /** The library tab: deleting a text or a group, and saving a copy of a group (the copy, the original's id). */
+    val onDeleteEntry: (String) -> Unit = {},
+    val onDeleteGroup: (String) -> Unit = {},
+    val onSaveGroupCopy: (com.example.dhikra.data.LibraryGroup, String) -> Unit = { copy, _ -> onSaveGroup(copy) },
     /** Saves a section edited in the program tab: the section and the library texts and groups it changed, at once. */
     val onSaveSectionEdit: (com.example.dhikra.data.SectionEdit) -> Unit = {},
 )

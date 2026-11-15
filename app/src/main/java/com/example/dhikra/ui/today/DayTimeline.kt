@@ -184,22 +184,24 @@ fun labelRows(positions: List<Float>, minGap: Float): List<Int> {
 data class NowAndNext(val now: List<ProgramSection>, val next: List<ProgramSection>)
 
 /**
- * Within the prayer time from [periodStart] to [periodEnd] (minutes of the day; it may run past
- * midnight): [NowAndNext.now], the timed sections whose time came last at [nowMinutes] — all of them
- * when several share that time — and [NowAndNext.next], those still ahead before the next prayer
- * whose time comes first, all of them when several share it. Sections without a time are left out.
+ * [NowAndNext.now]: within the prayer time from [periodStart] to [periodEnd] (minutes of the day; it
+ * may run past midnight), the timed sections whose time came last at [nowMinutes] — all of them when
+ * several share that time. [NowAndNext.next]: the sections whose time comes first after [nowMinutes],
+ * whatever prayer time they belong to (past midnight, tomorrow's first) — all of them when several
+ * share it. Sections without a time are left out.
  */
 fun nowAndNext(sections: List<ProgramSection>, periodStart: Int, periodEnd: Int, nowMinutes: Int): NowAndNext {
     fun offset(minutes: Int) = Math.floorMod(minutes - periodStart, MINUTES_PER_DAY)
-    val length = offset(periodEnd).let { if (it == 0) MINUTES_PER_DAY else it }
     val now = offset(nowMinutes)
     val timed = sections.filter { it.reminderMinutes != null }.map { it to offset(it.reminderMinutes!!) }
     val due = timed.filter { (_, at) -> at <= now }
-    val ahead = timed.filter { (_, at) -> at in (now + 1) until length }
     val latest = due.maxOfOrNull { it.second }
-    val earliest = ahead.minOfOrNull { it.second }
-    return NowAndNext(
-        now = due.filter { it.second == latest }.map { it.first },
-        next = ahead.filter { it.second == earliest }.map { it.first },
-    )
+    val current = due.filter { it.second == latest }.map { it.first }
+    // The next to do, across the whole day: the soonest after now that is not already «now».
+    val ahead = sections
+        .filter { it.reminderMinutes != null && it !in current }
+        .map { it to Math.floorMod(it.reminderMinutes!! - nowMinutes, MINUTES_PER_DAY) }
+        .filter { (_, inMinutes) -> inMinutes > 0 }
+    val soonest = ahead.minOfOrNull { it.second }
+    return NowAndNext(now = current, next = ahead.filter { it.second == soonest }.map { it.first })
 }

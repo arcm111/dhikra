@@ -1,5 +1,8 @@
 package com.example.dhikra.ui.library
 
+import kotlinx.coroutines.launch
+import androidx.compose.ui.text.font.FontWeight
+import com.example.dhikra.ui.home.label
 import com.example.dhikra.ui.components.CompactTextField
 import com.example.dhikra.ui.components.EditorPopup
 import com.example.dhikra.ui.components.EditorPopupTitle
@@ -1834,4 +1837,268 @@ private fun <T> List<T>.moved(index: Int, delta: Int): List<T> {
     val target = index + delta
     if (index !in indices || target !in indices) return this
     return toMutableList().also { it.add(target, it.removeAt(index)) }
+}
+
+// ------------------------------------------------------------------------------ Library tab
+
+/**
+ * The library tab of the day view: one collection at a time, its texts or its groups listed right
+ * there to read, search and edit — the collections switched in a bar at the bottom (as the program
+ * tab switches prayer times). [heading] goes first (the tab's title).
+ */
+@Composable
+fun LibraryTab(
+    library: Library,
+    programs: List<Program>,
+    favourites: List<String>,
+    onSave: (LibraryEntry) -> Unit,
+    onDelete: (String) -> Unit,
+    onSaveGroup: (LibraryGroup) -> Unit,
+    onDeleteGroup: (String) -> Unit,
+    onSaveGroupCopy: (LibraryGroup, String) -> Unit,
+    onToggleFavourite: (String) -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    contentPadding: PaddingValues,
+    /** The room the system bars take at the bottom (the collections' bar sits above it). */
+    bottomInset: androidx.compose.ui.unit.Dp,
+    heading: @Composable () -> Unit,
+) {
+    var typeKey by rememberSaveable { mutableStateOf(ItemType.QURAN.key) }
+    val type = ItemType.fromKey(typeKey)
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var editing by remember { mutableStateOf<LibraryEntry?>(null) }
+    var editingGroup by remember { mutableStateOf<LibraryGroup?>(null) }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    val resources = LocalResources.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val layoutDirection = LocalLayoutDirection.current
+    val groupsTab = tab == GROUPS_TAB
+    val entries = library.ofType(type)
+    val groups = library.groupsOfType(type)
+    val key = ArabicText.searchKey(query)
+    val shownEntries = remember(entries, key) { if (key.isEmpty()) entries else entries.filter { it.matches(key) } }
+    val shownGroups = remember(groups, library, key) {
+        if (key.isEmpty()) groups
+        else groups.filter { group ->
+            ArabicText.searchKey(group.title + " " + group.description).contains(key) ||
+                group.items.any { library.entry(it.entryId)?.matches(key) == true }
+        }
+    }
+    val start = contentPadding.calculateStartPadding(layoutDirection) + 8.dp
+    val end = contentPadding.calculateEndPadding(layoutDirection)
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = start,
+                end = end,
+                top = contentPadding.calculateTopPadding(),
+                // Room under the last card for the collections' bar.
+                bottom = bottomInset + 92.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item(key = "heading") { heading() }
+            item(key = "collection") {
+                CollectionTitle(
+                    type = type,
+                    texts = entries.size,
+                    groups = groups.size,
+                    addLabel = stringResource(if (groupsTab) R.string.add_group else R.string.add_entry),
+                    onAdd = { adding = true },
+                )
+            }
+            item(key = "kind") {
+                // Its single texts, or its groups of texts.
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = !groupsTab,
+                        onClick = { tab = 0 },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    ) { Text(stringResource(R.string.library_tab_singles) + " · " + uiDigits(entries.size), maxLines = 1) }
+                    SegmentedButton(
+                        selected = groupsTab,
+                        onClick = { tab = GROUPS_TAB },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    ) { Text(stringResource(R.string.library_tab_groups) + " · " + uiDigits(groups.size), maxLines = 1) }
+                }
+            }
+            if (entries.isNotEmpty() || groups.isNotEmpty()) {
+                item(key = "search") { SearchField(query, onQueryChange = { query = it }) }
+            }
+            if (type == ItemType.QURAN && !groupsTab) {
+                item(key = "source") { QuranSourceNote() }
+            }
+            if (groupsTab) {
+                if (shownGroups.isEmpty()) {
+                    item(key = "empty") { EmptyText(if (groups.isEmpty()) R.string.groups_empty else R.string.no_results) }
+                }
+                items(shownGroups, key = { "group:" + it.id }) { group ->
+                    GroupEntryCard(
+                        group = group,
+                        library = library,
+                        inProgram = programs.groupUsages(group.id) > 0,
+                        onClick = { editingGroup = group },
+                        favourite = Favourites.group(group.id) in favourites,
+                        onToggleFavourite = { onToggleFavourite(Favourites.group(group.id)) },
+                        onDuplicate = {
+                            library.duplicateGroup(group.id) { resources.getString(R.string.section_copy, it) }?.let { (_, copy) ->
+                                onSaveGroupCopy(copy, group.id)
+                                editingGroup = copy
+                            }
+                        },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            } else {
+                if (shownEntries.isEmpty()) {
+                    item(key = "empty") { EmptyText(if (entries.isEmpty()) R.string.collection_empty else R.string.no_results) }
+                }
+                items(shownEntries, key = { "entry:" + it.id }) { entry ->
+                    EntryCard(
+                        entry = entry,
+                        inProgram = programs.reads(entry.id, library),
+                        onClick = { editing = entry },
+                        favourite = Favourites.entry(entry.id) in favourites,
+                        onToggleFavourite = { onToggleFavourite(Favourites.entry(entry.id)) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            }
+        }
+        CollectionBar(
+            library = library,
+            selected = type,
+            onSelect = { picked ->
+                if (picked != type) {
+                    typeKey = picked.key
+                    query = ""
+                    // Back to the top of the new collection.
+                    scope.launch { listState.scrollToItem(0) }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = start, end = end, bottom = bottomInset + 12.dp),
+        )
+    }
+
+    if (adding) {
+        if (groupsTab) {
+            GroupEditorDialog(
+                type = type,
+                initial = null,
+                library = library,
+                onDismiss = { adding = false },
+                onSave = { onSaveGroup(it); adding = false },
+                onSaveEntry = onSave,
+            )
+        } else {
+            EntryEditorDialog(
+                type = type,
+                initial = null,
+                onDismiss = { adding = false },
+                onSave = { onSave(it); adding = false },
+            )
+        }
+    }
+    editing?.let { entry ->
+        EntryEditorDialog(
+            type = entry.type,
+            initial = entry,
+            usages = programs.usages(entry.id),
+            groups = library.groupsWith(entry.id).size,
+            onDismiss = { editing = null },
+            onSave = { onSave(it); editing = null },
+            onDelete = { onDelete(entry.id); editing = null },
+        )
+    }
+    editingGroup?.let { group ->
+        GroupEditorDialog(
+            type = group.type,
+            initial = group,
+            library = library,
+            usages = programs.groupUsages(group.id),
+            onDismiss = { editingGroup = null },
+            onSave = { onSaveGroup(it); editingGroup = null },
+            onSaveEntry = onSave,
+            onDelete = { onDeleteGroup(group.id); editingGroup = null },
+        )
+    }
+}
+
+/** The collection shown: its icon on its tint, its name in its colour, its counts, and adding to it. */
+@Composable
+private fun CollectionTitle(type: ItemType, texts: Int, groups: Int, addLabel: String, onAdd: () -> Unit) {
+    val accent = type.colors().accent
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(type.icon, null, tint = accent, modifier = Modifier.size(24.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(type.collectionName), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = accent)
+            Text(
+                stringResource(R.string.collection_counts, uiDigits(texts), uiDigits(groups)),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        OutlinedButton(
+            onClick = onAdd,
+            contentPadding = PaddingValues(start = 10.dp, end = 14.dp),
+            border = BorderStroke(1.5.dp, accent),
+        ) {
+            Icon(Icons.Filled.Add, null, Modifier.size(18.dp), tint = accent)
+            Spacer(Modifier.width(4.dp))
+            Text(addLabel, color = accent, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * The four collections, as a bar at the bottom of the library tab: a button each — its icon and name
+ * — the one shown filled in its colour.
+ */
+@Composable
+private fun CollectionBar(library: Library, selected: ItemType, onSelect: (ItemType) -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = scheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.7f)),
+        shadowElevation = 6.dp,
+        modifier = modifier.fillMaxWidth().selectableGroup(),
+    ) {
+        Row(Modifier.height(60.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            ItemType.CONTENT.forEach { type ->
+                val colors = type.colors()
+                val on = type == selected
+                val spoken = stringResource(type.collectionName)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(if (on) colors.accent else Color.Transparent)
+                        .selectable(selected = on, role = Role.Tab) { onSelect(type) }
+                        .semantics(mergeDescendants = true) { contentDescription = spoken },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(type.icon, null, tint = if (on) colors.onAccent else colors.accent, modifier = Modifier.size(20.dp))
+                    Text(
+                        stringResource(type.label),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (on) FontWeight.SemiBold else null,
+                        color = if (on) colors.onAccent else scheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
 }
