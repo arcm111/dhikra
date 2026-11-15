@@ -141,22 +141,27 @@ import androidx.compose.ui.graphics.compositeOver
 import com.example.dhikra.ui.components.CounterBar
 import com.example.dhikra.ui.components.PlayToggle
 import com.example.dhikra.ui.components.PlayButtonSize
-
-/** What the reader can do on its screens; the screens themselves keep no progress of their own. */
-internal class ReaderActions(
-    val onCount: () -> Unit,
-    val onRepetitionRead: (elapsedMs: Long) -> Unit,
-    val onUndo: () -> Unit,
-    val onReset: () -> Unit,
-    val onSetComplete: (Boolean) -> Unit,
-    val onSetGroupComplete: (Boolean) -> Unit,
-    val onTogglePlay: () -> Unit,
-    val onNext: () -> Unit,
-    val onClose: () -> Unit,
-)
-
-/** Lets a page's leftover scroll and fling reach the pager, see [StepReader]. */
-private val PassThroughNestedScroll = object : NestedScrollConnection {}
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalWindowInfo
+import kotlin.math.ceil
 
 /** Test tag of the full-screen reader. */
 const val StepReaderTag = "reader"
@@ -170,16 +175,22 @@ private val CompactHeight = 480.dp
 private val ReaderMaxWidth = 560.dp
 private val SideDialMax = 260.dp
 private val SideGap = 16.dp
-private val TopBarHeight = 56.dp
+private val TopBarHeight = 52.dp
 private val ActionSize = 48.dp
 private val FooterButtonHeight = 52.dp
+/** The bead dial gives up room, down to this, for a counted text to fit on one page. */
+private val MinDial = 180.dp
+/** What a page after the first hides of the top of its first line (spare leading). */
+private val PageTopTrim = 5.dp
 
 /**
- * The full-screen reader of a section: one screen per step (a group step has one per text), on the
- * night background of the counter. Swiping up goes to the next step, down to the previous one, so
- * the section can be read through without going back to the list. [startId] is the step (or text
- * of a group) tapped in the list; closing reports the step being read through [onClose], so the
- * list can scroll to it.
+ * The full-screen reader of a section: one screen per step, under the section's steps as check
+ * boxes and the step's title, on the night background of the counter. Swiping up
+ * goes to the next step, down to the previous one, so the section can be read through without
+ * going back to the list. A group step reads its texts on its one screen, swiped sideways, and a
+ * long text is cut into pages, also swiped sideways. [startId] is the step (or text of a group)
+ * tapped in the list; closing reports the step being read through [onClose], so the list can
+ * scroll to it.
  */
 @Composable
 fun StepReader(
@@ -195,8 +206,8 @@ fun StepReader(
         LaunchedEffect(Unit) { onClose(startId) }
         return
     }
-    val initialPage = remember { pages.pageToOpen(startId, state::isComplete) }
-    // Moving on needs the screen shown done: the pager ends at the first screen not done yet from the
+    val initialPage = remember { pages.pageToOpen(startId) }
+    // Moving on needs the step shown done: the pager ends at the first step not done yet from the
     // one settled on (going back is always possible), and grows as soon as it is done.
     val latestState by rememberUpdatedState(state)
     var settled by remember { mutableIntStateOf(initialPage) }
@@ -209,11 +220,13 @@ fun StepReader(
     }
     val scope = rememberCoroutineScope()
 
-    // Reading along only lasts as long as its screen is shown.
+    // Reading along only lasts as long as its text is shown.
     var playingId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { playingId = null }
     }
+    // The text each screen shows (a group's, as swiped to): reading along stops when it changes.
+    val shownText = remember { mutableStateMapOf<String, Int>() }
 
     val shown = pagerState.currentPage.coerceIn(pages.indices)
     val close = { onClose(pages[shown].step.id) }
@@ -242,131 +255,218 @@ fun StepReader(
     }
 
     val palette = LocalDhikraPalette.current
+    // The counter's night, a little deeper.
+    val nightTop = lerp(palette.nightStart, Color.Black, 0.2f)
+    val nightBottom = lerp(palette.nightEnd, Color.Black, 0.2f)
+    var headerHeight by remember { mutableIntStateOf(0) }
     Box(
         modifier = modifier
             .fillMaxSize()
             .testTag(StepReaderTag)
             .nestedScroll(blocked)
-            .background(Brush.verticalGradient(listOf(palette.nightStart, palette.nightEnd)))
+            .background(Brush.verticalGradient(listOf(nightTop, nightBottom)))
             .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp),
     ) {
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { pages[it].id },
-            // A swipe on a long text that is already at its end turns the page, fling included
-            // (see [EdgeHandOff]). The default connection drops that fling, so a swipe starting
-            // on the text only dragged the page a little and let it fall back.
-            pageNestedScrollConnection = PassThroughNestedScroll,
-            // A page turns only after a deliberate drag, not a brush against the screen.
-            // A page turns once dragged a little way, whether the finger flicks or lets go slowly,
-            // and the same when the drag reaches the pager from a long text at its end.
+            // A page turns once dragged a little way, whether the finger flicks or lets go slowly.
             flingBehavior = deliberateFling(pagerState),
         ) { index ->
             val page = pages[index]
-            val item = page.item
-            ReaderPageContent(
-                page = page,
-                position = pagePosition(section, page),
-                marks = section.trackableItems.map { step ->
-                    val current = step.id == page.step.id
-                    StepMark(
-                        done = state.isComplete(step),
-                        current = current,
-                        groupShare = if (current && step.isGroup && step.target > 0) {
-                            state.doneCount(step).toFloat() / step.target
-                        } else null,
-                    )
-                },
-                done = state.doneCount(item),
-                groupComplete = page.inGroup && state.isComplete(page.step),
-                sectionComplete = state.completedIn(section) >= section.trackableItems.size,
-                isLast = index == pages.lastIndex,
-                textScale = state.textScale,
-                lettersPerSecond = state.speedFor(item),
-                playing = playingId == page.id,
-                actions = ReaderActions(
-                    onCount = { actions.onIncrement(item) },
-                    onRepetitionRead = { elapsed -> actions.onRepetitionRead(item, elapsed) },
-                    onUndo = { actions.onDecrement(item) },
-                    onReset = { actions.onResetItem(item) },
-                    onSetComplete = { actions.onSetComplete(item, it) },
-                    onSetGroupComplete = { actions.onSetComplete(page.step, it) },
-                    onTogglePlay = { playingId = if (playingId == page.id) null else page.id },
+            key(page.texts.size) {
+                ReaderStepScreen(
+                    page = page,
+                    startText = remember { page.textToOpen(if (index == initialPage) startId else "", latestState::isComplete) },
+                    state = state,
+                    actions = actions,
+                    topInset = with(density) { headerHeight.toDp() },
+                    isLast = index == pages.lastIndex,
+                    sectionComplete = state.completedIn(section) >= section.trackableItems.size,
+                    playingId = playingId,
+                    onTogglePlay = { id -> playingId = if (playingId == id) null else id },
+                    onTextShown = { text ->
+                        if (shownText[page.id] != text) playingId = null
+                        shownText[page.id] = text
+                    },
                     onNext = {
                         if (index < pages.lastIndex) scope.launch { pagerState.animateScrollToPage(index + 1) }
                         else close()
                     },
+                    nudge = { if (index == pagerState.currentPage) shake.value else 0f },
+                    modifier = Modifier.graphicsLayer {
+                        // The screens leaving or entering dim and shrink a little, like cards of a stack.
+                        // A page past the pager's end — kept composed a moment after the step shown is
+                        // reset (the pager then ends at it) — is simply out of view: asking its distance
+                        // would throw.
+                        val distance = if (index < pagerState.pageCount) {
+                            pagerState.getOffsetDistanceInPages(index).absoluteValue.coerceIn(0f, 1f)
+                        } else 1f
+                        alpha = 1f - 0.5f * distance
+                        scaleX = 1f - 0.06f * distance
+                        scaleY = scaleX
+                    },
+                )
+            }
+        }
+
+        // Fixed above the screens: the section's steps, and the step's title.
+        val page = pages[shown]
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { headerHeight = it.height }
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(bottom = 8.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = ReaderMaxWidth)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ReaderTopBar(
+                    position = pagePosition(section, page),
+                    marks = section.trackableItems.map { step ->
+                        val current = step.id == page.step.id
+                        StepMark(
+                            done = state.isComplete(step),
+                            current = current,
+                            groupShare = if (current && step.isGroup && step.target > 0) {
+                                state.doneCount(step).toFloat() / step.target
+                            } else null,
+                        )
+                    },
+                    groupComplete = page.step.isGroup && state.isComplete(page.step),
+                    onSetGroupComplete = { actions.onSetComplete(page.step, it) },
                     onClose = close,
-                ),
-                modifier = Modifier.graphicsLayer {
-                    // The screens leaving or entering dim and shrink a little, like cards of a stack.
-                    // A page past the pager's end — kept composed a moment after the step shown is
-                    // reset (the pager then ends at it) — is simply out of view: asking its distance
-                    // would throw.
-                    val distance = if (index < pagerState.pageCount) {
-                        pagerState.getOffsetDistanceInPages(index).absoluteValue.coerceIn(0f, 1f)
-                    } else 1f
-                    alpha = 1f - 0.5f * distance
-                    scaleX = 1f - 0.06f * distance
-                    scaleY = scaleX
-                },
-                nudge = { if (index == pagerState.currentPage) shake.value else 0f },
-            )
+                )
+                StepTitle(page.step)
+            }
         }
     }
 }
 
-/**
- * Where the reader is, as count/total: the step among the section's, «٥/٩», and for a text of a
- * group its place in the group too, «٥/٩ · ٢/٤».
- */
+/** Where the reader is among the section's steps, as count/total: «٥/٩». */
 private fun pagePosition(section: ProgramSection, page: ReaderPage): String {
     val steps = section.trackableItems
-    val step = uiDigits("${steps.indexOfFirst { it.id == page.step.id } + 1}/${steps.size}")
-    if (!page.inGroup) return step
-    return step + "  ·  " + uiDigits("${page.indexInGroup + 1}/${page.step.members.size}")
+    return uiDigits("${steps.indexOfFirst { it.id == page.step.id } + 1}/${steps.size}")
 }
 
-private enum class FooterMode { Counting, MarkDone, Finished }
+/** The step's title under the check boxes, on a darker, translucent pill. */
+@Composable
+private fun StepTitle(step: ProgramItem, modifier: Modifier = Modifier) {
+    if (step.title.isBlank()) return
+    Text(
+        text = step.title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White.copy(alpha = 0.92f),
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .padding(top = 2.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.Black.copy(alpha = 0.22f))
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    )
+}
 
 /**
- * One screen of the reader. A counted step ([ProgramItem.isRepeatable][com.example.dhikra.data.ProgramItem.isRepeatable])
- * shows the bead dial and counts a repetition on every tap anywhere on the screen; any other step
- * is marked done with its button. Once done, the screen invites to swipe up to the next step.
+ * What the footer offers for the text shown: counting it; turning to its next page (every page is
+ * read before it can be done); marking it done — which finishes the step, every text of a group
+ * included — or, in a group with texts still to read, marking it done and going on to the next
+ * text; going on once it is done; and once the step is done, the next step.
+ */
+private enum class FooterMode { Counting, NextPage, MarkDone, MarkAndNext, NextText, Finished }
+
+/**
+ * One screen of the reader: a step, its texts side by side (one for a single step), each cut into
+ * pages, with the dots of the group's texts under them. A counted text shows the bead dial and
+ * counts a repetition on every tap anywhere on the screen; any other text is marked done with its
+ * button, once all its pages are read.
  */
 @Composable
-internal fun ReaderPageContent(
+private fun ReaderStepScreen(
     page: ReaderPage,
-    position: String,
-    marks: List<StepMark>,
-    done: Int,
-    groupComplete: Boolean,
-    sectionComplete: Boolean,
+    startText: Int,
+    state: UiState,
+    actions: HomeActions,
+    topInset: Dp,
     isLast: Boolean,
-    textScale: Float,
-    lettersPerSecond: Float,
-    playing: Boolean,
-    actions: ReaderActions,
-    modifier: Modifier = Modifier,
+    sectionComplete: Boolean,
+    playingId: String?,
+    onTogglePlay: (String) -> Unit,
+    onTextShown: (Int) -> Unit,
+    onNext: () -> Unit,
     /** The sideways shake of what completes the step, when moving on is tried too early (px). */
-    nudge: () -> Float = { 0f },
+    nudge: () -> Float,
+    modifier: Modifier = Modifier,
 ) {
-    val item = page.item
-    val counted = item.isRepeatable
-    val target = item.target
-    val complete = done >= target
+    val step = page.step
+    val texts = page.texts
+    val group = step.isGroup
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
 
-    var cycle by remember { mutableIntStateOf(0) }
-    var cycleStart by remember { mutableLongStateOf(0L) }
-    var awaitingTap by remember { mutableStateOf(false) }
+    val textPager = rememberPagerState(initialPage = startText.coerceIn(texts.indices)) { texts.size }
+    // Each text's pages: how many (once laid out), and the furthest one read.
+    val pageCounts = remember { mutableStateListOf<Int>().apply { repeat(texts.size) { add(1) } } }
+    val readTo = remember { mutableStateListOf<Int>().apply { repeat(texts.size) { add(-1) } } }
+    val pageStates = texts.indices.map { i -> rememberPagerState { pageCounts.getOrElse(i) { 1 } } }
+    LaunchedEffect(textPager) {
+        snapshotFlow { textPager.settledPage.let { it to pageStates[it].settledPage } }
+            .collect { (text, pageRead) -> if (pageRead > readTo[text]) readTo[text] = pageRead }
+    }
+
+    val current = textPager.currentPage.coerceIn(texts.indices)
+    LaunchedEffect(current) { onTextShown(current) }
+    val text = texts[current]
+    val pages = pageStates[current]
+    val pageCount = pageCounts[current]
+    val counted = text.isRepeatable
+    val target = text.target
+    val done = state.doneCount(text)
+    val textDone = state.isComplete(text)
+    val stepDone = state.isComplete(step)
+    val morePages = pages.currentPage < pageCount - 1
+
+    // A text is read once done, or (a text not counted) once its last page has been shown.
+    val isRead = { i: Int ->
+        state.isComplete(texts[i]) || (!texts[i].isRepeatable && readTo[i] >= pageCounts[i] - 1)
+    }
+    val next = nextText(current, texts.size, { state.isComplete(texts[it]) }, isRead)
+    // «Done» on this text finishes the step: a single step; the last text a choice group needs; in a
+    // group, the last text to read — every text of the group is then marked done.
+    val finishes = when {
+        !group -> true
+        step.isChoice -> state.doneCount(step) + 1 >= step.target
+        else -> (1 until texts.size).all { isRead((current + it) % texts.size) }
+    }
+    val mode = when {
+        counted && !textDone -> FooterMode.Counting
+        stepDone -> FooterMode.Finished
+        textDone -> FooterMode.NextText
+        morePages -> FooterMode.NextPage
+        finishes -> FooterMode.MarkDone
+        else -> FooterMode.MarkAndNext
+    }
+
+    var cycle by remember(text.id) { mutableIntStateOf(0) }
+    var cycleStart by remember(text.id) { mutableLongStateOf(0L) }
+    var awaitingTap by remember(text.id) { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
-    var confirmReset by remember { mutableStateOf(false) }
-    val scroll = rememberScrollState()
+    var confirmReset by remember(text.id) { mutableStateOf(false) }
+    // Reading along follows one page: a text of several pages is read without it.
+    val playable = counted && pageCount == 1
+    val playing = playable && playingId == text.id
 
-    LaunchedEffect(complete, playing) {
-        if (complete && playing) actions.onTogglePlay()
+    LaunchedEffect(textDone, playing) {
+        if (textDone && playing) onTogglePlay(text.id)
     }
     LaunchedEffect(confirmReset) {
         if (confirmReset) {
@@ -375,38 +475,51 @@ internal fun ReaderPageContent(
         }
     }
 
+    // The dial's size for each counted text: smaller when the text would not fit on one page.
+    val density = LocalDensity.current
+    val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val fullDial = minOf(330.dp, windowHeight * 0.44f)
+    val dialSizes = remember { mutableStateMapOf<String, Dp>() }
+    val dialSize = dialSizes[text.id] ?: fullDial
+    val fit: (ProgramItem, Int, Int) -> Unit = { fitted, room, needed ->
+        if (fitted.isRepeatable && needed > room) {
+            val size = dialSizes[fitted.id] ?: fullDial
+            dialSizes[fitted.id] = (size - with(density) { (needed - room).toDp() }).coerceAtLeast(MinDial)
+        }
+    }
+
+    val goToText: (Int) -> Unit = { scope.launch { textPager.animateScrollToPage(it) } }
+    val turnPage: () -> Unit = { scope.launch { pages.animateScrollToPage(pages.currentPage + 1) } }
     val count: () -> Unit = {
-        if (!complete) {
+        if (!textDone) {
             haptic.performHapticFeedback(
                 if (done + 1 >= target) HapticFeedbackType.Confirm else HapticFeedbackType.SegmentTick
             )
             if (playing) {
-                actions.onRepetitionRead(SystemClock.uptimeMillis() - cycleStart)
+                actions.onRepetitionRead(text, SystemClock.uptimeMillis() - cycleStart)
                 cycle++
             } else {
-                actions.onCount()
+                actions.onIncrement(text)
             }
+            // A text of several pages starts over on its first page for the next repetition.
+            if (pageCount > 1 && done + 1 < target) scope.launch { pages.animateScrollToPage(0) }
         }
     }
-    val latestCount by rememberUpdatedState(count)
+    // A tap on the screen reads a long counted text through its pages before counting it.
+    val tap: () -> Unit = { if (morePages && !textDone) turnPage() else count() }
+    val latestTap by rememberUpdatedState(tap)
     val undo: () -> Unit = {
         haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-        actions.onUndo()
+        actions.onDecrement(text)
     }
     val reset: () -> Unit = {
         if (confirmReset) {
             confirmReset = false
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            actions.onReset()
+            actions.onResetItem(text)
         } else {
             confirmReset = true
         }
-    }
-
-    val mode = when {
-        complete -> FooterMode.Finished
-        counted -> FooterMode.Counting
-        else -> FooterMode.MarkDone
     }
 
     BoxWithConstraints(
@@ -414,8 +527,7 @@ internal fun ReaderPageContent(
             .fillMaxSize()
             .then(
                 if (counted) {
-                    // Child buttons consume their own touches; a drag taken by the pager or the
-                    // text's scroll cancels the tap.
+                    // Child buttons consume their own touches; a drag taken by a pager cancels the tap.
                     Modifier.pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
@@ -423,12 +535,13 @@ internal fun ReaderPageContent(
                                 tryAwaitRelease()
                                 pressed = false
                             },
-                            onTap = { latestCount() },
+                            onTap = { latestTap() },
                         )
                     }
                 } else Modifier
             )
-            .safeDrawingPadding()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+            .padding(top = topInset)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
@@ -441,60 +554,48 @@ internal fun ReaderPageContent(
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            ReaderTopBar(
-                position = position,
-                marks = marks,
-                groupComplete = groupComplete,
-                onSetGroupComplete = actions.onSetGroupComplete,
-                onClose = actions.onClose,
-            )
             Row(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(SideGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val handOff = remember(scroll) { EdgeHandOff(scroll) }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .then(handOff.modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                  Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // The opening (أعوذ بالله…, بسم الله…) stays put above the text: only the text scrolls.
-                    PageOpening(page.item, textScale, Modifier.padding(top = 8.dp))
-                    Column(
-                        // A text that fits does not scroll, so a swipe on it goes straight to the pager.
-                        // A long text scrolls in its own space, its scroll bar showing; the screen around it
-                        // (title, dial, buttons) stays in place.
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .fillMaxWidth()
-                            .verticalScrollbar(scroll, thumb = Color.White.copy(alpha = 0.35f))
-                            .verticalScroll(scroll, enabled = scroll.canScrollForward || scroll.canScrollBackward)
-                            .padding(vertical = 8.dp)
-                            .padding(end = if (scroll.maxValue > 0) 12.dp else 0.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        PageTexts(
-                            page = page,
-                            textScale = textScale,
-                            lettersPerSecond = lettersPerSecond,
-                            playing = playing,
+                Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    HorizontalPager(
+                        state = textPager,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        key = { texts[it].id },
+                        pageSpacing = 24.dp,
+                        verticalAlignment = Alignment.Top,
+                    ) { i ->
+                        TextSheet(
+                            text = texts[i],
+                            step = step,
+                            pagerState = pageStates[i],
+                            current = i == current,
+                            onPageCount = { pageCounts[i] = it },
+                            onFit = { room, needed -> fit(texts[i], room, needed) },
+                            textScale = state.textScale,
+                            lettersPerSecond = state.speedFor(texts[i]),
+                            playing = playing && i == current,
                             cycle = cycle,
                             onCycleStart = { cycleStart = it },
                             onReachedEnd = { awaitingTap = it },
-                            onProgress = { followHighlight(scroll, it) },
                         )
                     }
-                  }
+                    if (texts.size > 1) {
+                        TextDots(
+                            count = texts.size,
+                            current = current,
+                            isDone = { state.isComplete(texts[it]) },
+                            onSelect = goToText,
+                        )
+                    }
                 }
                 if (sideDial) {
                     CounterDial(
                         done = done,
                         target = target,
-                        complete = complete,
+                        complete = textDone,
                         pressed = pressed,
                         onCount = count,
                         modifier = Modifier.fillMaxHeight().graphicsLayer { translationX = nudge() },
@@ -503,40 +604,194 @@ internal fun ReaderPageContent(
                 }
             }
             if (counted && !compact) {
+                Spacer(Modifier.height(8.dp))
                 CounterDial(
                     done = done,
                     target = target,
-                    complete = complete,
+                    complete = textDone,
                     pressed = pressed,
                     onCount = count,
                     modifier = Modifier.fillMaxWidth().graphicsLayer { translationX = nudge() },
+                    maxDiameter = dialSize,
                 )
                 Spacer(Modifier.height(24.dp))
+            } else {
+                Spacer(Modifier.height(12.dp))
             }
             ReaderFooter(
                 mode = mode,
                 counted = counted,
                 done = done,
                 isLast = isLast,
+                stepDone = stepDone,
                 sectionComplete = sectionComplete,
                 awaitingTap = playing && awaitingTap,
                 confirmReset = confirmReset,
+                playable = playable,
+                playing = playing,
+                onTogglePlay = { onTogglePlay(text.id) },
                 onUndo = undo,
                 onReset = reset,
                 onMarkDone = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    actions.onSetComplete(true)
+                    // The last text of a group to read finishes it: every one of its texts is done.
+                    actions.onSetComplete(if (group && !step.isChoice) step else text, true)
+                },
+                onMarkAndNext = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    actions.onSetComplete(text, true)
+                    next?.let(goToText)
                 },
                 onUnmarkDone = {
                     haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
-                    actions.onSetComplete(false)
+                    // A text passed by in a finished choice group: undoing undoes the group.
+                    actions.onSetComplete(if (textDone) text else step, false)
                 },
-                onNext = actions.onNext,
-                playing = playing,
-                onTogglePlay = actions.onTogglePlay,
+                onNextPage = turnPage,
+                onNextText = { next?.let(goToText) ?: onNext() },
+                onNext = onNext,
                 nudge = nudge,
                 modifier = Modifier.widthIn(max = ReaderMaxWidth),
             )
+        }
+    }
+}
+
+/**
+ * A text of the step (its own, or one of its group's), cut into pages that fit the screen, turned
+ * sideways, with «١ / ٣» under them: its opening stays above the pages, its source and notes come
+ * after its last line.
+ */
+@Composable
+private fun TextSheet(
+    text: ProgramItem,
+    step: ProgramItem,
+    pagerState: PagerState,
+    /** Whether this is the text shown: only it reports how much room it needs. */
+    current: Boolean,
+    onPageCount: (Int) -> Unit,
+    /** The room the text has and the room it needs (px), so a counted text can be given more. */
+    onFit: (room: Int, needed: Int) -> Unit,
+    textScale: Float,
+    lettersPerSecond: Float,
+    playing: Boolean,
+    cycle: Int,
+    onCycleStart: (Long) -> Unit,
+    onReachedEnd: (Boolean) -> Unit,
+) {
+    // Where the text's lines (and the source and notes under it) lie, once laid out.
+    var spans by remember(text.id, textScale) { mutableStateOf<List<Span>?>(null) }
+    val latestPageCount by rememberUpdatedState(onPageCount)
+    val latestFit by rememberUpdatedState(onFit)
+    val density = LocalDensity.current
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // The opening (أعوذ بالله…, بسم الله…) stays put above the text: only the text has pages.
+        PageOpening(text, textScale, Modifier.padding(top = 8.dp))
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
+            val height = constraints.maxHeight
+            val cuts = remember(spans, height) { spans?.let { cutIntoPages(it, height) } }
+            LaunchedEffect(cuts?.size) { cuts?.let { latestPageCount(it.size) } }
+            LaunchedEffect(spans, height, current) {
+                val needed = spans?.maxOfOrNull { it.bottom } ?: return@LaunchedEffect
+                if (current) latestFit(height, needed)
+            }
+            val single = (cuts?.size ?: 1) <= 1
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                pageSpacing = 24.dp,
+                verticalAlignment = Alignment.Top,
+            ) { index ->
+                val cut = cuts?.getOrNull(index)
+                // A page after the first hides the top of its first line's leading, where the marks
+                // under the line before it (on the page before) reach.
+                val trim = if (index > 0) with(density) { PageTopTrim.roundToPx() } else 0
+                val top = (cut?.top ?: 0) + trim
+                val window = (cut?.let { it.bottom - top } ?: height).coerceIn(0, height)
+                // A text that fits is centred; the pages of a long one start at the top.
+                Box(Modifier.fillMaxSize(), contentAlignment = if (single) Alignment.Center else Alignment.TopCenter) {
+                    Box(
+                        Modifier
+                            .padding(top = with(density) { trim.toDp() })
+                            .fillMaxWidth()
+                            .height(with(density) { window.toDp() })
+                            .clipToBounds()
+                            // Hidden until laid out, so it does not flash unpaged.
+                            .graphicsLayer { alpha = if (cuts == null) 0f else 1f },
+                    ) {
+                        PageTexts(
+                            item = text,
+                            step = step,
+                            textScale = textScale,
+                            lettersPerSecond = lettersPerSecond,
+                            playing = playing && index == pagerState.currentPage,
+                            cycle = cycle,
+                            onCycleStart = onCycleStart,
+                            onReachedEnd = onReachedEnd,
+                            onSpans = { spans = it },
+                            modifier = Modifier
+                                .wrapContentHeight(Alignment.Top, unbounded = true)
+                                .offset { IntOffset(0, -top) },
+                        )
+                    }
+                }
+            }
+        }
+        if (pagerState.pageCount > 1) PageNumber(pagerState.currentPage, pagerState.pageCount)
+    }
+}
+
+/** «٢ / ٣»: the page shown of a text's pages. */
+@Composable
+private fun PageNumber(page: Int, count: Int) {
+    val spoken = stringResource(R.string.reader_page_position, uiDigits(page + 1), uiDigits(count))
+    Text(
+        text = uiDigits("${page + 1} / $count"),
+        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+        color = Color.White.copy(alpha = 0.75f),
+        modifier = Modifier
+            .clearAndSetSemantics { contentDescription = spoken }
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 3.dp),
+    )
+}
+
+/**
+ * The dots of a group's texts, in order: the one shown wider, the done ones gold. A tap on one
+ * goes to its text.
+ */
+@Composable
+private fun TextDots(count: Int, current: Int, isDone: (Int) -> Boolean, onSelect: (Int) -> Unit) {
+    val spoken = stringResource(R.string.reader_text_position, uiDigits(current + 1), uiDigits(count))
+    Row(
+        modifier = Modifier
+            .padding(top = 6.dp)
+            .clearAndSetSemantics { contentDescription = spoken },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { i ->
+            val selected = i == current
+            val width by animateDpAsState(if (selected) 22.dp else 8.dp, label = "textDot")
+            Box(
+                modifier = Modifier
+                    .size(width = width + 8.dp, height = 24.dp)
+                    .clickable(interactionSource = null, indication = null) { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .size(width = width, height = 8.dp)
+                        .background(
+                            when {
+                                isDone(i) -> MustardLight
+                                selected -> Color.White
+                                else -> Color.White.copy(alpha = 0.28f)
+                            },
+                            CircleShape,
+                        )
+                )
+            }
         }
     }
 }
@@ -607,36 +862,6 @@ private class BlockedSwipe(
         fired = false
         return Velocity.Zero
     }
-}
-
-/**
- * Between a long text's scroll and the pager: what is left of a swipe on the text (its drag and its
- * fling) goes on to the pager only when the text was already at its end in that direction when the
- * finger went down. A fling through the text stops at its edge; a new swipe from there turns the page.
- */
-private class EdgeHandOff(private val scroll: ScrollState) : NestedScrollConnection {
-    private var startedAtTop = true
-    private var startedAtEnd = true
-
-    // Up the screen (negative) moves on to the next page; down goes back.
-    private fun passes(dy: Float) = if (dy < 0) startedAtEnd else startedAtTop
-
-    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
-        if (available.y == 0f || passes(available.y)) Offset.Zero else available
-
-    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
-        if (available.y == 0f || passes(available.y)) Velocity.Zero else available
-
-    val modifier: Modifier = Modifier
-        .pointerInput(Unit) {
-            // Notes where the text stands when the finger goes down, without taking the touch.
-            awaitEachGesture {
-                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                startedAtTop = !scroll.canScrollBackward
-                startedAtEnd = !scroll.canScrollForward
-            }
-        }
-        .nestedScroll(this)
 }
 
 /**
@@ -823,26 +1048,42 @@ private fun PageOpening(item: ProgramItem, textScale: Float, modifier: Modifier 
     )
 }
 
-/** The step's text, source and note (its opening is above, out of the scroll). */
+/**
+ * The text's words, then its source and notes. Reports where its lines and the block under them
+ * lie ([onSpans]), so it can be cut into pages.
+ */
 @Composable
 private fun PageTexts(
-    page: ReaderPage,
+    item: ProgramItem,
+    step: ProgramItem,
     textScale: Float,
     lettersPerSecond: Float,
     playing: Boolean,
     cycle: Int,
     onCycleStart: (Long) -> Unit,
     onReachedEnd: (Boolean) -> Unit,
-    onProgress: (Float) -> Unit,
+    onSpans: (List<Span>) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val item = page.item
+    val inGroup = step.isGroup
     val quran = item.type == ItemType.QURAN
     val text = remember(item.text, quran) { if (quran) ArabicText.withAyahMarkers(item.text) else item.text }
     // A text of a group also shows what its group says.
-    val sources = listOf(item.source, if (page.inGroup) page.step.source else "").filter { it.isNotBlank() }
-    val notes = listOf(item.note, if (page.inGroup) page.step.note else "").filter { it.isNotBlank() }
+    val sources = listOf(item.source, if (inGroup) step.source else "").filter { it.isNotBlank() }
+    val notes = listOf(item.note, if (inGroup) step.note else "").filter { it.isNotBlank() }
 
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+    // The block under the text (source, notes) starts where the text ends: sizes only, no
+    // coordinates, which a page the pager has just recycled no longer has.
+    var lines by remember { mutableStateOf<List<Span>>(emptyList()) }
+    var textHeight by remember { mutableIntStateOf(0) }
+    var afterHeight by remember { mutableIntStateOf(0) }
+    val latestSpans by rememberUpdatedState(onSpans)
+    LaunchedEffect(lines, textHeight, afterHeight) {
+        val after = if (afterHeight > 0) Span(textHeight, textHeight + afterHeight) else null
+        if (lines.isNotEmpty() || after != null) latestSpans(lines + listOfNotNull(after))
+    }
+
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         if (text.isNotBlank()) {
             val style = when (item.type) {
                 ItemType.QURAN -> ReadingStyles.quran(textScale)
@@ -860,38 +1101,51 @@ private fun PageTexts(
                 ornamentalAyahMarkers = quran,
                 onCycleStart = onCycleStart,
                 onReachedEnd = onReachedEnd,
-                onProgress = onProgress,
-                modifier = Modifier.fillMaxWidth(),
+                onTextLayout = { layout ->
+                    lines = (0 until layout.lineCount).map {
+                        Span(layout.getLineTop(it).toInt(), ceil(layout.getLineBottom(it)).toInt())
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().onSizeChanged { textHeight = it.height },
             )
         }
-        sources.forEach { source ->
-            Text(
-                text = source,
-                style = ReadingStyles.hadithMeta(textScale).copy(textAlign = TextAlign.Center),
-                color = Color.White.copy(alpha = 0.75f),
+        if (sources.isNotEmpty() || notes.isNotEmpty()) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 14.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(Color.White.copy(alpha = 0.07f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
-        notes.forEach { note ->
-            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = NoteIcon,
-                    contentDescription = stringResource(R.string.note_label),
-                    tint = MustardLight.copy(alpha = 0.8f),
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.75f),
-                    modifier = Modifier.weight(1f, fill = false),
-                )
+                    .onSizeChanged { afterHeight = it.height },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                sources.forEach { source ->
+                    Text(
+                        text = source,
+                        style = ReadingStyles.hadithMeta(textScale).copy(textAlign = TextAlign.Center),
+                        color = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(Color.White.copy(alpha = 0.07f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+                notes.forEach { note ->
+                    Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = NoteIcon,
+                            contentDescription = stringResource(R.string.note_label),
+                            tint = MustardLight.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                }
             }
         }
     }
@@ -907,16 +1161,21 @@ private fun ReaderFooter(
     counted: Boolean,
     done: Int,
     isLast: Boolean,
+    stepDone: Boolean,
     sectionComplete: Boolean,
     awaitingTap: Boolean,
     confirmReset: Boolean,
+    playable: Boolean,
+    playing: Boolean,
+    onTogglePlay: () -> Unit,
     onUndo: () -> Unit,
     onReset: () -> Unit,
     onMarkDone: () -> Unit,
+    onMarkAndNext: () -> Unit,
     onUnmarkDone: () -> Unit,
+    onNextPage: () -> Unit,
+    onNextText: () -> Unit,
     onNext: () -> Unit,
-    playing: Boolean,
-    onTogglePlay: () -> Unit,
     nudge: () -> Float,
     modifier: Modifier = Modifier,
 ) {
@@ -931,10 +1190,13 @@ private fun ReaderFooter(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.heightIn(min = 22.dp), contentAlignment = Alignment.Center) {
                 when (current) {
-                    FooterMode.Counting -> Hint(
-                        stringResource(if (awaitingTap) R.string.reader_waiting else R.string.counter_screen_hint)
-                    )
+                    FooterMode.Counting -> when {
+                        stepDone && !isLast -> SwipeHint(stringResource(R.string.reader_swipe_hint))
+                        else -> Hint(stringResource(if (awaitingTap) R.string.reader_waiting else R.string.counter_screen_hint))
+                    }
+                    FooterMode.NextPage -> Hint(stringResource(R.string.reader_pages_hint))
                     FooterMode.MarkDone -> Hint(stringResource(R.string.reader_done_hint))
+                    FooterMode.MarkAndNext, FooterMode.NextText -> Hint(stringResource(R.string.reader_group_hint))
                     FooterMode.Finished -> when {
                         !isLast -> SwipeHint(stringResource(R.string.reader_swipe_hint))
                         sectionComplete -> Hint(stringResource(R.string.section_complete), MustardLight)
@@ -947,31 +1209,54 @@ private fun ReaderFooter(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 val side = Modifier.weight(1f).fillMaxHeight()
+                // What completes the text shakes "no" when the next step is swiped to too early.
+                val shaken = side.graphicsLayer { translationX = nudge() }
                 when (current) {
                     FooterMode.Counting -> CountingBar(
                         done = done,
                         confirmReset = confirmReset,
+                        playable = playable,
                         playing = playing,
                         onUndo = onUndo,
                         onReset = onReset,
                         onTogglePlay = onTogglePlay,
                     )
+                    FooterMode.NextPage -> GoldButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        label = stringResource(R.string.reader_next_page),
+                        onClick = onNextPage,
+                        modifier = shaken,
+                    )
                     FooterMode.MarkDone -> GoldButton(
                         icon = Icons.Filled.Check,
                         label = stringResource(R.string.mark_done),
                         onClick = onMarkDone,
-                        // Shakes "no" when the next step is swiped to before this one is done.
-                        modifier = side.graphicsLayer { translationX = nudge() },
+                        modifier = shaken,
                     )
-                    FooterMode.Finished -> {
+                    FooterMode.MarkAndNext -> GoldButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        label = stringResource(R.string.reader_next_text),
+                        onClick = onMarkAndNext,
+                        modifier = shaken,
+                    )
+                    FooterMode.NextText, FooterMode.Finished -> {
                         if (counted) ResetButton(confirmReset, onReset, side, enabled = true)
                         else NightButton(UndoIcon, stringResource(R.string.undo_done), onUnmarkDone, side)
-                        GoldButton(
-                            icon = if (isLast) Icons.Filled.Close else Icons.Filled.KeyboardArrowUp,
-                            label = stringResource(if (isLast) R.string.reader_back_to_list else R.string.reader_next_step),
-                            onClick = onNext,
-                            modifier = side,
-                        )
+                        if (current == FooterMode.NextText) {
+                            GoldButton(
+                                icon = Icons.AutoMirrored.Filled.ArrowForward,
+                                label = stringResource(R.string.reader_next_text),
+                                onClick = onNextText,
+                                modifier = shaken,
+                            )
+                        } else {
+                            GoldButton(
+                                icon = if (isLast) Icons.Filled.Close else Icons.Filled.KeyboardArrowUp,
+                                label = stringResource(if (isLast) R.string.reader_back_to_list else R.string.reader_next_step),
+                                onClick = onNext,
+                                modifier = side,
+                            )
+                        }
                     }
                 }
             }
@@ -980,13 +1265,15 @@ private fun ReaderFooter(
 }
 
 /**
- * A counted step's controls: the counters' bar, undo on one side and reset on the other, with
- * reading along — play, or pause while playing — as a quiet gold button in its middle.
+ * A counted text's controls: the counters' bar, undo on one side and reset on the other, with
+ * reading along — play, or pause while playing — as a quiet gold button in its middle when the
+ * text is [playable] (it fits on one page).
  */
 @Composable
 private fun RowScope.CountingBar(
     done: Int,
     confirmReset: Boolean,
+    playable: Boolean,
     playing: Boolean,
     onUndo: () -> Unit,
     onReset: () -> Unit,
@@ -1000,9 +1287,10 @@ private fun RowScope.CountingBar(
         onReset = onReset,
         centerSize = PlayButtonSize,
         modifier = Modifier.weight(1f).fillMaxHeight(),
-    ) {
-        PlayToggle(playing = playing, onToggle = onTogglePlay, size = PlayButtonSize)
-    }
+        center = if (playable) {
+            { PlayToggle(playing = playing, onToggle = onTogglePlay, size = PlayButtonSize) }
+        } else null,
+    )
 }
 
 @Composable

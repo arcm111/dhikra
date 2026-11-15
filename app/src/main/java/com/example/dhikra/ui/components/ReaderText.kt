@@ -76,6 +76,7 @@ private const val JUSTIFY_SAFETY_PX = 1f
  * @param onReachedEnd called with true when the highlight reached the last word of the cycle.
  * @param onProgress called on every frame of a cycle with how far the highlight is through the
  * text (0 to 1), so a scrolling container can follow it.
+ * @param onTextLayout receives the text's layout, so its lines can be cut into pages.
  */
 @Composable
 fun ReaderText(
@@ -90,6 +91,7 @@ fun ReaderText(
     onCycleStart: (Long) -> Unit = {},
     onReachedEnd: (Boolean) -> Unit = {},
     onProgress: (Float) -> Unit = {},
+    onTextLayout: (TextLayoutResult) -> Unit = {},
 ) {
     val tokens = remember(text) { tokenize(text) }
     var current by remember(text) { mutableIntStateOf(-1) }
@@ -147,7 +149,7 @@ fun ReaderText(
         val annotated = remember(tokens, current, colors, markers) {
             buildReaderText(tokens, current, colors, markers, inlineContent, justification = null).text
         }
-        Text(text = annotated, style = textStyle, inlineContent = inlineContent, modifier = modifier)
+        Text(text = annotated, style = textStyle, inlineContent = inlineContent, modifier = modifier, onTextLayout = onTextLayout)
         return
     }
 
@@ -174,7 +176,7 @@ fun ReaderText(
         val annotated = remember(tokens, current, colors, markers, justification) {
             buildReaderText(tokens, current, colors, markers, inlineContent, justification).text
         }
-        Text(text = annotated, style = startAligned, inlineContent = inlineContent)
+        Text(text = annotated, style = startAligned, inlineContent = inlineContent, onTextLayout = onTextLayout)
     }
 }
 

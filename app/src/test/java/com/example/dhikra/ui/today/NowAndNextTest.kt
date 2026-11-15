@@ -37,9 +37,18 @@ class NowAndNextTest {
     }
 
     @Test
-    fun nothingAheadBeforeTheNextPrayer() {
-        // 16:15: Maghrib's own section (16:20) belongs to the next prayer time.
-        assertEquals(listOf("late") to emptyList<String>(), ids(nowAndNext(day, asr, maghrib, 16 * 60 + 15)))
+    fun nextGoesOnIntoTheNextPrayerTime() {
+        // 16:15: nothing left in Asr's time; Maghrib's own section (16:20) is next all the same.
+        assertEquals(listOf("late") to listOf("maghrib"), ids(nowAndNext(day, asr, maghrib, 16 * 60 + 15)))
+    }
+
+    @Test
+    fun afterTheDaysLastSectionNextIsTomorrowsFirst() {
+        // 23:00 in Isha's time: Isha's section is due; tomorrow's Dhuhr section comes next.
+        val isha = 17 * 60 + 46
+        val fajr = 5 * 60 + 24
+        val evening = listOf(section("dhuhr", 11 * 60 + 58), section("isha", 18 * 60))
+        assertEquals(listOf("isha") to listOf("dhuhr"), ids(nowAndNext(evening, isha, fajr, 23 * 60)))
     }
 
     @Test

@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -255,7 +256,7 @@ class StepReaderTest {
     }
 
     @Test
-    fun groups_unfoldInTheList_andHaveOneScreenPerText() {
+    fun groups_unfoldInTheList_andReadTheirTextsSideBySideOnOneScreen() {
         show(section = "protection")
         assertFalse("folded, a group only shows its title", isShown(falaq))
 
@@ -267,7 +268,9 @@ class StepReaderTest {
         assertTrue(isShown(falaqText))
         assertFalse(isShown(nasText))
 
-        swipeUpInReader()
+        // Right to left, the next text comes in from the left.
+        reader.performTouchInput { swipeRight(startX = width * 0.15f, endX = width * 0.85f, durationMillis = 250) }
+        rule.waitForIdle()
         assertTrue(isShown(nasText))
         assertFalse(isShown(falaqText))
     }

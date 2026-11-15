@@ -35,6 +35,12 @@
     <string name="reader_position">الخطوة %1$s من %2$s</string>
     <string name="reader_group_position">%1$s • %2$s من %3$s</string>
     <string name="reader_done_hint">بعد القراءة اضغط «تمّ»</string>
+    <string name="reader_next_page">الصفحة التالية</string>
+    <string name="reader_next_text">النص التالي</string>
+    <string name="reader_pages_hint">اقرأ الصفحات كلها ثم اضغط «تمّ»</string>
+    <string name="reader_group_hint">اقرأ نصوص المجموعة كلها ثم اضغط «تمّ»</string>
+    <string name="reader_page_position">الصفحة %1$s من %2$s</string>
+    <string name="reader_text_position">النص %1$s من %2$s</string>
     <string name="mark_done">تمّ</string>
     <string name="undo_done">تراجع</string>
     <string name="note_label">ملاحظة</string>
@@ -514,4 +520,12 @@
     <string name="notice_kind_label">نوع الرسالة</string>
     <string name="add_step_above">إضافة خطوة فوقها</string>
     <string name="move_to_top">نقل إلى الأعلى</string>
+    <string name="move_out_above">إخراج من المجموعة إلى أعلاها</string>
+    <string name="move_out_below">إخراج من المجموعة إلى أسفلها</string>
+    <string name="text_actions">خيارات النص</string>
+    <string name="select_to_group">تجميع مع خطوات أخرى</string>
+    <string name="group_select_hint">اختر خطوتين أو أكثر من النوع نفسه لتجميعها</string>
+    <string name="group_selected">تجميع (%1$s)</string>
+    <string name="new_group_title">اسم المجموعة الجديدة</string>
+    <string name="new_group_create">إنشاء المجموعة</string>
 </resources>

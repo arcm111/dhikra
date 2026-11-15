@@ -40,6 +40,27 @@ internal fun rememberMinuteOfDay(timeZone: String? = null): Int {
     return minute
 }
 
+/**
+ * The second of the day in [timeZone], kept current: every second while [everySecond], else on
+ * each new minute (a countdown in minutes needs no more).
+ */
+@Composable
+internal fun rememberSecondOfDay(timeZone: String? = null, everySecond: Boolean = true): Int {
+    var second by remember(timeZone) { mutableIntStateOf(secondOfDay(timeZone)) }
+    LaunchedEffect(timeZone, everySecond) {
+        while (true) {
+            second = secondOfDay(timeZone)
+            val now = System.currentTimeMillis()
+            delay(if (everySecond) 1000 - now % 1000 else 60_000 - now % 60_000)
+        }
+    }
+    return second
+}
+
+internal fun secondOfDay(timeZone: String? = null): Int =
+    (if (timeZone != null) Calendar.getInstance(TimeZone.getTimeZone(timeZone)) else Calendar.getInstance())
+        .let { it.get(Calendar.HOUR_OF_DAY) * 3600 + it.get(Calendar.MINUTE) * 60 + it.get(Calendar.SECOND) }
+
 internal fun minuteOfDay(timeZone: String? = null): Int =
     (if (timeZone != null) Calendar.getInstance(TimeZone.getTimeZone(timeZone)) else Calendar.getInstance())
         .let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
