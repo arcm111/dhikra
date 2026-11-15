@@ -1,5 +1,8 @@
 package com.example.dhikra.ui.today
 
+import com.example.dhikra.ui.components.Slice
+import com.example.dhikra.ui.components.slice
+import com.example.dhikra.ui.components.panelSlice
 import com.example.dhikra.ui.editor.tintedHeader
 import com.example.dhikra.ui.editor.sectionHeaderColor
 import com.example.dhikra.ui.editor.sectionTone
@@ -466,13 +469,6 @@ private fun DayView(
                     listState = listStates.getValue(DayTab.Library),
                     contentPadding = contentPadding,
                     bottomInset = padding.calculateBottomPadding(),
-                    heading = {
-                        TabHeading(
-                            title = stringResource(R.string.library),
-                            description = stringResource(R.string.library_hint),
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    },
                 )
                 // The day's list starts under the header (and its rounded lower edge) rather than
                 // behind it: its prayer bands pin to the list's top, which must be in view.
@@ -1773,16 +1769,6 @@ private sealed interface ScheduleItem {
     }
 }
 
-/** A row's piece of its panel: the top (rounded above), a middle, the bottom (rounded below), or all of it. */
-private enum class Slice { Top, Middle, Bottom, Single }
-
-private fun slice(top: Boolean, bottom: Boolean) = when {
-    top && bottom -> Slice.Single
-    top -> Slice.Top
-    bottom -> Slice.Bottom
-    else -> Slice.Middle
-}
-
 /**
  * The schedule's rows: each prayer period one panel — its band as the header, its sections (and
  * the current time, if it falls there) as the rows under it — then the sections with no time in a
@@ -1881,51 +1867,6 @@ private fun panelBorder(current: Boolean): Color =
     MaterialTheme.colorScheme.primary.copy(alpha = if (current) 0.85f else 0.55f)
 
 private fun panelBorderWidth(current: Boolean): Dp = if (current) 2.dp else 1.5.dp
-
-/** The section tiles' corners. */
-private val PanelRadius = 12.dp
-
-/**
- * Draws a row's [slice] of a panel: its [fill], rounded at the panel's top or bottom, and the
- * panel's outline — only the sides of a middle slice, so the slices join into one panel.
- */
-private fun Modifier.panelSlice(slice: Slice, fill: Color, border: Color, borderWidth: Dp): Modifier = drawBehind {
-    val r = PanelRadius.toPx()
-    val stroke = borderWidth.toPx()
-    val top = slice == Slice.Top || slice == Slice.Single
-    val bottom = slice == Slice.Bottom || slice == Slice.Single
-    fun shape(extendTop: Float, extendBottom: Float) = Path().apply {
-        addRoundRect(
-            RoundRect(
-                rect = Rect(0f, -extendTop, size.width, size.height + extendBottom),
-                topLeft = CornerRadius(if (top) r else 0f),
-                topRight = CornerRadius(if (top) r else 0f),
-                bottomRight = CornerRadius(if (bottom) r else 0f),
-                bottomLeft = CornerRadius(if (bottom) r else 0f),
-            )
-        )
-    }
-    drawPath(shape(0f, 0f), fill)
-    // The outline, inset by half its width; an open edge is pushed out of the row and clipped off.
-    val inset = stroke / 2f
-    clipRect {
-        drawPath(
-            Path().apply {
-                addRoundRect(
-                    RoundRect(
-                        rect = Rect(inset, if (top) inset else -stroke * 2, size.width - inset, if (bottom) size.height - inset else size.height + stroke * 2),
-                        topLeft = CornerRadius(if (top) r else 0f),
-                        topRight = CornerRadius(if (top) r else 0f),
-                        bottomRight = CornerRadius(if (bottom) r else 0f),
-                        bottomLeft = CornerRadius(if (bottom) r else 0f),
-                    )
-                )
-            },
-            border,
-            style = Stroke(stroke),
-        )
-    }
-}
 
 /** A row of a period panel (a section, or the current time): white, outlined, a line above it when [divider]. */
 @Composable

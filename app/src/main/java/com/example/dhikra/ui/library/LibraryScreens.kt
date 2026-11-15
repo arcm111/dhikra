@@ -1,5 +1,9 @@
 package com.example.dhikra.ui.library
 
+import androidx.compose.foundation.clickable
+import com.example.dhikra.ui.components.slice
+import com.example.dhikra.ui.components.panelSlice
+import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import com.example.dhikra.ui.home.label
@@ -1842,9 +1846,9 @@ private fun <T> List<T>.moved(index: Int, delta: Int): List<T> {
 // ------------------------------------------------------------------------------ Library tab
 
 /**
- * The library tab of the day view: one collection at a time, its texts or its groups listed right
- * there to read, search and edit — the collections switched in a bar at the bottom (as the program
- * tab switches prayer times). [heading] goes first (the tab's title).
+ * The library tab of the day view, compact: one toolbar row (the collection, its texts or groups,
+ * search behind an icon, adding), then its texts as slim rows in one framed panel — as the day's
+ * prayer panels — and the collections switched in a bar at the bottom.
  */
 @Composable
 fun LibraryTab(
@@ -1861,12 +1865,12 @@ fun LibraryTab(
     contentPadding: PaddingValues,
     /** The room the system bars take at the bottom (the collections' bar sits above it). */
     bottomInset: androidx.compose.ui.unit.Dp,
-    heading: @Composable () -> Unit,
 ) {
     var typeKey by rememberSaveable { mutableStateOf(ItemType.QURAN.key) }
     val type = ItemType.fromKey(typeKey)
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<LibraryEntry?>(null) }
     var editingGroup by remember { mutableStateOf<LibraryGroup?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -1887,6 +1891,7 @@ fun LibraryTab(
     }
     val start = contentPadding.calculateStartPadding(layoutDirection) + 8.dp
     val end = contentPadding.calculateEndPadding(layoutDirection)
+    fun toTop() = scope.launch { listState.scrollToItem(0) }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
@@ -1895,54 +1900,46 @@ fun LibraryTab(
                 start = start,
                 end = end,
                 top = contentPadding.calculateTopPadding(),
-                // Room under the last card for the collections' bar.
-                bottom = bottomInset + 92.dp,
+                // Room under the last row for the collections' bar.
+                bottom = bottomInset + 84.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item(key = "heading") { heading() }
-            item(key = "collection") {
-                CollectionTitle(
+            item(key = "toolbar") {
+                LibraryToolbar(
                     type = type,
                     texts = entries.size,
                     groups = groups.size,
-                    addLabel = stringResource(if (groupsTab) R.string.add_group else R.string.add_entry),
+                    groupsTab = groupsTab,
+                    onTab = { tab = it; toTop() },
+                    searching = searching || query.isNotEmpty(),
+                    onSearch = { searching = !searching; if (!searching) query = "" },
                     onAdd = { adding = true },
+                    modifier = Modifier.padding(bottom = 10.dp),
                 )
             }
-            item(key = "kind") {
-                // Its single texts, or its groups of texts.
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = !groupsTab,
-                        onClick = { tab = 0 },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    ) { Text(stringResource(R.string.library_tab_singles) + " · " + uiDigits(entries.size), maxLines = 1) }
-                    SegmentedButton(
-                        selected = groupsTab,
-                        onClick = { tab = GROUPS_TAB },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    ) { Text(stringResource(R.string.library_tab_groups) + " · " + uiDigits(groups.size), maxLines = 1) }
+            if (searching || query.isNotEmpty()) {
+                item(key = "search") {
+                    LibrarySearch(
+                        query = query,
+                        onQuery = { query = it },
+                        onClose = { query = ""; searching = false },
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
                 }
-            }
-            if (entries.isNotEmpty() || groups.isNotEmpty()) {
-                item(key = "search") { SearchField(query, onQueryChange = { query = it }) }
-            }
-            if (type == ItemType.QURAN && !groupsTab) {
-                item(key = "source") { QuranSourceNote() }
             }
             if (groupsTab) {
                 if (shownGroups.isEmpty()) {
                     item(key = "empty") { EmptyText(if (groups.isEmpty()) R.string.groups_empty else R.string.no_results) }
                 }
-                items(shownGroups, key = { "group:" + it.id }) { group ->
-                    GroupEntryCard(
+                itemsIndexed(shownGroups, key = { _, it -> "group:" + it.id }) { index, group ->
+                    GroupRow(
                         group = group,
                         library = library,
+                        slice = slice(top = index == 0, bottom = index == shownGroups.lastIndex),
                         inProgram = programs.groupUsages(group.id) > 0,
-                        onClick = { editingGroup = group },
                         favourite = Favourites.group(group.id) in favourites,
                         onToggleFavourite = { onToggleFavourite(Favourites.group(group.id)) },
+                        onClick = { editingGroup = group },
                         onDuplicate = {
                             library.duplicateGroup(group.id) { resources.getString(R.string.section_copy, it) }?.let { (_, copy) ->
                                 onSaveGroupCopy(copy, group.id)
@@ -1956,15 +1953,20 @@ fun LibraryTab(
                 if (shownEntries.isEmpty()) {
                     item(key = "empty") { EmptyText(if (entries.isEmpty()) R.string.collection_empty else R.string.no_results) }
                 }
-                items(shownEntries, key = { "entry:" + it.id }) { entry ->
-                    EntryCard(
+                itemsIndexed(shownEntries, key = { _, it -> "entry:" + it.id }) { index, entry ->
+                    EntryRow(
                         entry = entry,
+                        slice = slice(top = index == 0, bottom = index == shownEntries.lastIndex),
                         inProgram = programs.reads(entry.id, library),
-                        onClick = { editing = entry },
                         favourite = Favourites.entry(entry.id) in favourites,
                         onToggleFavourite = { onToggleFavourite(Favourites.entry(entry.id)) },
+                        onClick = { editing = entry },
                         modifier = Modifier.animateItem(),
                     )
+                }
+                // Where the Quran's text comes from, after its passages.
+                if (type == ItemType.QURAN && shownEntries.isNotEmpty()) {
+                    item(key = "source") { QuranSourceNote(Modifier.padding(top = 10.dp)) }
                 }
             }
         }
@@ -1975,8 +1977,8 @@ fun LibraryTab(
                 if (picked != type) {
                     typeKey = picked.key
                     query = ""
-                    // Back to the top of the new collection.
-                    scope.launch { listState.scrollToItem(0) }
+                    searching = false
+                    toTop()
                 }
             },
             modifier = Modifier
@@ -2029,32 +2031,240 @@ fun LibraryTab(
     }
 }
 
-/** The collection shown: its icon on its tint, its name in its colour, its counts, and adding to it. */
+/**
+ * The library tab's one toolbar row: the collection (its icon, name and size), its texts or its
+ * groups as two small chips, search (an icon, the field opening under the row) and adding.
+ */
 @Composable
-private fun CollectionTitle(type: ItemType, texts: Int, groups: Int, addLabel: String, onAdd: () -> Unit) {
-    val accent = type.colors().accent
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun LibraryToolbar(
+    type: ItemType,
+    texts: Int,
+    groups: Int,
+    groupsTab: Boolean,
+    onTab: (Int) -> Unit,
+    searching: Boolean,
+    onSearch: () -> Unit,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = type.colors()
+    val accent = colors.accent
+    Row(modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
+            Modifier.size(32.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
-        ) { Icon(type.icon, null, tint = accent, modifier = Modifier.size(24.dp)) }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(type.collectionName), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = accent)
-            Text(
-                stringResource(R.string.collection_counts, uiDigits(texts), uiDigits(groups)),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ) { Icon(type.icon, null, tint = accent, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            stringResource(type.collectionName),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = accent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(Modifier.weight(1f))
+        Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            KindChip(stringResource(R.string.library_tab_singles), texts, selected = !groupsTab, accent = accent, onAccent = colors.onAccent) { onTab(0) }
+            KindChip(stringResource(R.string.library_tab_groups), groups, selected = groupsTab, accent = accent, onAccent = colors.onAccent) { onTab(GROUPS_TAB) }
+        }
+        IconButton(onClick = onSearch, modifier = Modifier.size(40.dp)) {
+            Icon(
+                if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                stringResource(R.string.search),
+                tint = if (searching) accent else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        OutlinedButton(
+        Surface(
             onClick = onAdd,
-            contentPadding = PaddingValues(start = 10.dp, end = 14.dp),
-            border = BorderStroke(1.5.dp, accent),
+            shape = CircleShape,
+            color = accent.copy(alpha = 0.14f),
+            contentColor = accent,
+            border = BorderStroke(1.5.dp, accent.copy(alpha = 0.7f)),
+            modifier = Modifier.size(36.dp),
         ) {
-            Icon(Icons.Filled.Add, null, Modifier.size(18.dp), tint = accent)
-            Spacer(Modifier.width(4.dp))
-            Text(addLabel, color = accent, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, stringResource(if (groupsTab) R.string.add_group else R.string.add_entry), modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+/** One of the toolbar's two kinds (texts, groups): its name and count, filled in the collection's colour when shown. */
+@Composable
+private fun KindChip(label: String, count: Int, selected: Boolean, accent: Color, onAccent: Color, onClick: () -> Unit) {
+    Surface(
+        shape = CircleShape,
+        color = if (selected) accent else Color.Transparent,
+        contentColor = if (selected) onAccent else accent,
+        border = if (selected) null else BorderStroke(1.dp, accent.copy(alpha = 0.5f)),
+        modifier = Modifier.selectable(selected = selected, role = Role.Tab, onClick = onClick),
+    ) {
+        Text(
+            "$label ${uiDigits(count)}",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else null,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+    }
+}
+
+/** The search field, opened from the toolbar: focused at once; its ✕ empties and closes it. */
+@Composable
+private fun LibrarySearch(query: String, onQuery: (String) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    CompactTextField(
+        value = query,
+        onValueChange = onQuery,
+        placeholder = { Text(stringResource(R.string.search)) },
+        leadingIcon = { Icon(Icons.Filled.Search, null) },
+        trailingIcon = {
+            IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Close, stringResource(R.string.clear_text), modifier = Modifier.size(18.dp))
+            }
+        },
+        singleLine = true,
+        shape = CircleShape,
+        modifier = modifier.fillMaxWidth().focusRequester(focus),
+    )
+}
+
+/** The frame of the library's panel: the program's section tiles' green. */
+@Composable
+private fun libraryPanel(slice: com.example.dhikra.ui.components.Slice): Modifier =
+    Modifier.panelSlice(
+        slice,
+        fill = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+        borderWidth = 1.5.dp,
+    )
+
+/** A thin line between two rows of the panel. */
+@Composable
+private fun RowDivider(slice: com.example.dhikra.ui.components.Slice) {
+    if (slice == com.example.dhikra.ui.components.Slice.Middle || slice == com.example.dhikra.ui.components.Slice.Bottom) {
+        HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+    }
+}
+
+/** A dot in the collection's colour: the text (or group) is read by a program. */
+@Composable
+private fun InProgramDot(accent: Color) {
+    val label = stringResource(R.string.entry_in_program)
+    Box(
+        Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(accent)
+            .semantics { contentDescription = label },
+    )
+}
+
+/** A text of the library as a slim row of the panel: its title, its opening words, the marks and the heart. */
+@Composable
+private fun EntryRow(
+    entry: LibraryEntry,
+    slice: com.example.dhikra.ui.components.Slice,
+    inProgram: Boolean,
+    favourite: Boolean,
+    onToggleFavourite: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = entry.type.colors()
+    val scheme = MaterialTheme.colorScheme
+    Column(modifier.fillMaxWidth().then(libraryPanel(slice))) {
+        RowDivider(slice)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        entry.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (entry.type == ItemType.QURAN) colors.accent else scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (inProgram) {
+                        Spacer(Modifier.width(6.dp))
+                        InProgramDot(colors.accent)
+                    }
+                }
+                Text(
+                    listOf(entry.description, entry.previewText).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FavouriteButton(favourite, colors.accent, onToggleFavourite)
+        }
+    }
+}
+
+/** A group of the library as a slim row of the panel: its badge, title, texts, the marks, heart and menu. */
+@Composable
+private fun GroupRow(
+    group: LibraryGroup,
+    library: Library,
+    slice: com.example.dhikra.ui.components.Slice,
+    inProgram: Boolean,
+    favourite: Boolean,
+    onToggleFavourite: () -> Unit,
+    onClick: () -> Unit,
+    onDuplicate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val accent = group.type.colors().accent
+    val scheme = MaterialTheme.colorScheme
+    val titles = group.items.mapNotNull { library.entry(it.entryId)?.title }
+    Column(modifier.fillMaxWidth().then(libraryPanel(slice))) {
+        RowDivider(slice)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 14.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GroupBadge(group.type, group.items.size, size = 30.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        group.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (inProgram) {
+                        Spacer(Modifier.width(6.dp))
+                        InProgramDot(accent)
+                    }
+                }
+                Text(
+                    titles.joinToString(stringResource(R.string.list_separator)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FavouriteButton(favourite, accent, onToggleFavourite)
+            GroupCardMenu(onEdit = onClick, onDuplicate = onDuplicate)
         }
     }
 }
@@ -2073,7 +2283,7 @@ private fun CollectionBar(library: Library, selected: ItemType, onSelect: (ItemT
         shadowElevation = 6.dp,
         modifier = modifier.fillMaxWidth().selectableGroup(),
     ) {
-        Row(Modifier.height(60.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.height(56.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             ItemType.CONTENT.forEach { type ->
                 val colors = type.colors()
                 val on = type == selected
