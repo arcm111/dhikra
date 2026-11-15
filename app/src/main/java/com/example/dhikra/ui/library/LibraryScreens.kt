@@ -2055,8 +2055,9 @@ private fun LibraryToolbar(
             contentAlignment = Alignment.Center,
         ) { Icon(type.icon, null, tint = accent, modifier = Modifier.size(18.dp)) }
         Spacer(Modifier.width(8.dp))
+        // The short name (as in the bar below): the long one («القرآن الكريم») would not fit beside the chips.
         Text(
-            stringResource(type.collectionName),
+            stringResource(type.label),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = accent,
