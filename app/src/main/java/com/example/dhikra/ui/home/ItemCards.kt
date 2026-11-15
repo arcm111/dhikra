@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -290,7 +291,10 @@ private fun TaskItem(
 ) {
     val colors = taskColors()
     val haptic = LocalHapticFeedback.current
-    StepSurface(colors, complete, current, modifier, doneTint = false) {
+    // Done, the task's blue card turns white with a light gold tint, like the other finished steps.
+    val doneFill = LocalDhikraPalette.current.done.copy(alpha = 0.09f).compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
+    val fill by animateColorAsState(if (complete) doneFill else colors.container, tween(400), label = "taskFill")
+    StepSurface(colors.copy(container = fill), complete, current, modifier, doneTint = false) {
         Row(
             modifier = Modifier
                 .combinedClickable(
@@ -335,7 +339,31 @@ private fun TaskItem(
                 if (item.note.isNotBlank()) NoteLine(item.note, colors)
             }
             Spacer(Modifier.width(12.dp))
-            CheckMark(checked = complete)
+            TaskCheck(checked = complete, tone = colors.accent)
+        }
+    }
+}
+
+/**
+ * A task's check box: a rounded square — apart from the timeline's round checks — outlined in the
+ * task's blue while to do, filled gold with a dark tick once done.
+ */
+@Composable
+private fun TaskCheck(checked: Boolean, tone: Color, modifier: Modifier = Modifier) {
+    val palette = LocalDhikraPalette.current
+    val shape = RoundedCornerShape(7.dp)
+    val fill by animateColorAsState(if (checked) palette.done else Color.Transparent, label = "taskCheckFill")
+    val edge by animateColorAsState(if (checked) palette.done else tone, label = "taskCheckEdge")
+    Box(
+        modifier = modifier
+            .size(26.dp)
+            .clip(shape)
+            .background(fill)
+            .border(2.dp, edge, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        AnimatedVisibility(visible = checked, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+            Icon(Icons.Filled.Check, null, tint = GoldInk, modifier = Modifier.size(18.dp))
         }
     }
 }

@@ -43,6 +43,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.materialIcon
+import androidx.compose.material.icons.materialPath
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -333,6 +338,16 @@ private fun DayView(
         val palette = LocalDhikraPalette.current
         val scheme = MaterialTheme.colorScheme
         val rows = remember(timeline) { scheduleRows(timeline) }
+        // The calendar opens on the time going on: each time it is shown, its list scrolls so the
+        // current time's line is just under the current prayer's band (pinned at the top).
+        val latestRows by rememberUpdatedState(rows)
+        val calendarList = listStates.getValue(DayTab.Calendar)
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.settledPage }.collect { page ->
+                if (DayTab.entries[page] != DayTab.Calendar) return@collect
+                calendarRowToShow(latestRows)?.let { calendarList.animateScrollToItem(it + CalendarRowsBefore) }
+            }
+        }
 
         // The rail's colour along each period: blue, strongest for the current one and faded once
         // over; neutral when there are no prayer times.
@@ -529,7 +544,7 @@ private fun DayView(
                                     gap = 0.dp,
                                     modifier = Modifier.animateItem(),
                                 ) {
-                                    PanelSlice(row.slice, current = row.period.current, divider = row.divider) {
+                                    PanelSlice(row.slice, current = row.period.current, divider = row.divider, finished = isFinished(entry.section, state)) {
                                         NowSectionRow(entry.section, state, onClick = { onOpenSection(entry.section.id) })
                                     }
                                 }
@@ -537,7 +552,7 @@ private fun DayView(
                         }
                         ScheduleItem.AllDayLabel -> AllDayDivider(Modifier.padding(top = 18.dp, bottom = 8.dp))
                         is ScheduleItem.AllDay -> ScheduleRow(gap = 0.dp, modifier = Modifier.animateItem()) {
-                            PanelSlice(row.slice, current = false, divider = row.divider) {
+                            PanelSlice(row.slice, current = false, divider = row.divider, finished = isFinished(row.section, state)) {
                                 NowSectionRow(row.section, state, onClick = { onOpenSection(row.section.id) })
                             }
                         }
@@ -554,6 +569,19 @@ private fun DayView(
             }
         }
     }
+}
+
+/** The calendar's items before its rows: the heading. */
+private const val CalendarRowsBefore = 1
+
+/**
+ * The row the calendar opens on: the one before the current time's line (its band pins over it,
+ * the line right under), else the current prayer's band; null when neither is there.
+ */
+private fun calendarRowToShow(rows: List<ScheduleItem>): Int? {
+    val now = rows.indexOfFirst { it is ScheduleItem.Entry && it.entry is PeriodEntry.Now }
+    if (now >= 0) return (now - 1).coerceAtLeast(0)
+    return rows.indexOfFirst { it is ScheduleItem.PrayerBand && it.period.current }.takeIf { it >= 0 }
 }
 
 /** The day view's tabs, in order: their icon, and their name for accessibility. */
@@ -1330,8 +1358,9 @@ private fun PanelNote(text: String) {
 }
 
 /**
- * A section in the day's schedule: its icon, title and time, and the steps done of all («٣/٩») — the
- * icon and a check turn gold once it is finished. The row opens the section.
+ * A section in the day's schedule: the gold segments of its steps done on its side, its icon on a
+ * box, its title and time, and what a tap does — start it (play), go on with it (resume), or open
+ * it once finished (an arrow). A finished section's row is a light gold, its icon box gold.
  */
 @Composable
 private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -> Unit) {
@@ -1339,7 +1368,7 @@ private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -
     val done = state.completedIn(section)
     val finished = total > 0 && done >= total
     val scheme = MaterialTheme.colorScheme
-    val accent = if (finished) LocalDhikraPalette.current.doneText else scheme.primary
+    val palette = LocalDhikraPalette.current
     // As on the section's tile in the program tab: its icon, and the colour of how its time is set.
     val tone = sectionTone(section)
     val steps = stringResource(R.string.steps_done, uiDigits(done), uiDigits(total))
@@ -1348,51 +1377,107 @@ private fun NowSectionRow(section: ProgramSection, state: UiState, onClick: () -
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) { if (total > 0) stateDescription = steps }
-            .padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        StepSegments(done = done, total = total, modifier = Modifier.height(40.dp))
+        Spacer(Modifier.width(10.dp))
         Box(
-            modifier = Modifier.size(38.dp).clip(CircleShape).background(sectionHeaderColor(section)),
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (finished) palette.done.copy(alpha = 0.28f) else sectionHeaderColor(section)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(sectionIcon(section.icon), null, tint = if (finished) accent else tone, modifier = Modifier.size(20.dp))
+            Icon(sectionIcon(section.icon), null, tint = if (finished) palette.doneText else tone, modifier = Modifier.size(21.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = section.title,
                 style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface.copy(alpha = if (finished) 0.75f else 1f),
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            section.reminderMinutes?.let {
+            val time = section.reminderMinutes?.let(::formatClock)
+            val label = listOfNotNull(time, stringResource(R.string.section_finished).takeIf { finished }).joinToString("  ·  ")
+            if (label.isNotEmpty()) {
                 Text(
-                    formatClock(it),
+                    label,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (finished) scheme.onSurfaceVariant else tone,
+                    color = if (finished) palette.doneText else tone,
                 )
             }
         }
-        if (finished) {
-            Icon(Icons.Filled.Check, stringResource(R.string.section_finished), tint = accent, modifier = Modifier.size(22.dp))
-        } else if (total > 0) {
-            Surface(
-                shape = CircleShape,
-                color = accent.copy(alpha = 0.1f),
-                contentColor = accent,
-                modifier = Modifier.clearAndSetSemantics {},
-            ) {
-                Text(
-                    text = uiDigits("$done/$total"),
-                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                )
-            }
+        if (total > 0) SectionAction(started = done > 0, finished = finished)
+    }
+}
+
+/**
+ * A section's steps as gold segments stacked on its side, filled from the bottom as they are done:
+ * one per step, or (more than [MaxSegments] steps) each a share of them.
+ */
+@Composable
+private fun StepSegments(done: Int, total: Int, modifier: Modifier = Modifier) {
+    if (total <= 0) {
+        Spacer(modifier.width(4.dp))
+        return
+    }
+    val gold = LocalDhikraPalette.current.done
+    val count = minOf(total, MaxSegments)
+    // Some done shows at least one segment, not all done leaves at least one empty.
+    val filled = when {
+        done >= total -> count
+        done <= 0 -> 0
+        else -> (done * count / total).coerceIn(1, count - 1)
+    }
+    Column(modifier.width(5.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        repeat(count) { i ->
+            // Top to bottom: the last [filled] are done.
+            val on = i >= count - filled
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (on) gold else gold.copy(alpha = 0.2f))
+            )
         }
+    }
+}
+
+private const val MaxSegments = 8
+
+/** What a tap on a section does: start it (play), go on with it (resume), or open it once finished (an arrow). */
+@Composable
+private fun SectionAction(started: Boolean, finished: Boolean) {
+    val palette = LocalDhikraPalette.current
+    val green = MaterialTheme.colorScheme.primary
+    val (icon, tint) = when {
+        finished -> Icons.AutoMirrored.Filled.KeyboardArrowRight to palette.doneText
+        started -> ResumeIcon to palette.doneText
+        else -> Icons.Filled.PlayArrow to green
+    }
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (finished || started) palette.done.copy(alpha = 0.2f) else green.copy(alpha = 0.12f))
+            .clearAndSetSemantics {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** Resume: a bar, then the play triangle. */
+private val ResumeIcon: ImageVector = materialIcon("DhikraResume") {
+    materialPath {
+        moveTo(6f, 6f); lineTo(8.5f, 6f); lineTo(8.5f, 18f); lineTo(6f, 18f); close()
+        moveTo(10.5f, 6f); lineTo(19f, 12f); lineTo(10.5f, 18f); close()
     }
 }
 
@@ -1868,13 +1953,24 @@ private fun panelBorder(current: Boolean): Color =
 
 private fun panelBorderWidth(current: Boolean): Dp = if (current) 2.dp else 1.5.dp
 
-/** A row of a period panel (a section, or the current time): white, outlined, a line above it when [divider]. */
+/** Whether every step of [section] is done today. */
+private fun isFinished(section: ProgramSection, state: UiState): Boolean {
+    val total = section.trackableItems.size
+    return total > 0 && state.completedIn(section) >= total
+}
+
+/**
+ * A row of a period panel (a section, or the current time): white — a light gold for a [finished]
+ * section — outlined, a line above it when [divider].
+ */
 @Composable
-private fun PanelSlice(slice: Slice, current: Boolean, divider: Boolean = false, content: @Composable () -> Unit) {
+private fun PanelSlice(slice: Slice, current: Boolean, divider: Boolean = false, finished: Boolean = false, content: @Composable () -> Unit) {
+    val white = MaterialTheme.colorScheme.surfaceContainerLowest
+    val fill = if (finished) LocalDhikraPalette.current.done.copy(alpha = 0.12f).compositeOver(white) else white
     Column(
         Modifier
             .fillMaxWidth()
-            .panelSlice(slice, fill = MaterialTheme.colorScheme.surfaceContainerLowest, border = panelBorder(current), borderWidth = panelBorderWidth(current))
+            .panelSlice(slice, fill = fill, border = panelBorder(current), borderWidth = panelBorderWidth(current))
             .padding(bottom = if (slice == Slice.Bottom || slice == Slice.Single) 2.dp else 0.dp)
     ) {
         if (divider) {
@@ -1922,7 +2018,7 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier, slice: 
     // The current prayer is a deeper shade of the bands' blue: that is what marks it as going on.
     val blue = LocalDhikraPalette.current.slate
     // The tinted header of the program's section tiles, in the blue of time; deeper while going on.
-    val tint = tintedHeader(blue.accent, strength = if (period.current) 0.5f else 0.3f)
+    val tint = tintedHeader(blue.accent, strength = if (period.current) 0.6f else 0.4f)
     val accent = blue.accent
     val ink = blue.ink
     val surface = MaterialTheme.colorScheme.surfaceContainerLowest
@@ -1938,14 +2034,14 @@ private fun PrayerBand(period: DayPeriod, modifier: Modifier = Modifier, slice: 
                     Modifier.clip(MaterialTheme.shapes.medium).background(tint)
                 }
             )
-            .alpha(if (period.passed) 0.6f else 1f)
+            .alpha(if (period.passed) 0.8f else 1f)
             .padding(horizontal = 12.dp, vertical = 3.dp)
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // As on a section tile: the icon on a pale disc.
+        // The icon on a pale box, like the sections' under it.
         Box(
-            Modifier.size(28.dp).clip(CircleShape).background(surface.copy(alpha = 0.75f)),
+            Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(surface.copy(alpha = 0.85f)),
             contentAlignment = Alignment.Center,
         ) { Icon(prayer.icon, null, tint = accent, modifier = Modifier.size(17.dp)) }
         Spacer(Modifier.width(10.dp))

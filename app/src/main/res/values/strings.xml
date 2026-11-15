@@ -520,4 +520,12 @@
     <string name="notice_kind_label">نوع الرسالة</string>
     <string name="add_step_above">إضافة خطوة فوقها</string>
     <string name="move_to_top">نقل إلى الأعلى</string>
+    <string name="move_out_above">إخراج من المجموعة إلى أعلاها</string>
+    <string name="move_out_below">إخراج من المجموعة إلى أسفلها</string>
+    <string name="text_actions">خيارات النص</string>
+    <string name="select_to_group">تجميع مع خطوات أخرى</string>
+    <string name="group_select_hint">اختر خطوتين أو أكثر من النوع نفسه لتجميعها</string>
+    <string name="group_selected">تجميع (%1$s)</string>
+    <string name="new_group_title">اسم المجموعة الجديدة</string>
+    <string name="new_group_create">إنشاء المجموعة</string>
 </resources>

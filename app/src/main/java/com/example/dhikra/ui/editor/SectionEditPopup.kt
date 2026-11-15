@@ -1,5 +1,14 @@
 package com.example.dhikra.ui.editor
 
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.Role
+import com.example.dhikra.data.isGroupable
+import com.example.dhikra.data.moveOutOfGroup
+import com.example.dhikra.data.groupSteps
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
@@ -155,6 +164,20 @@ private class SectionDraft(val start: ProgramSection, val base: Library) {
         }
     }
 
+    /** Takes the text [entryId] out of the group step [stepId], as a step right above or below it. */
+    fun moveOutOfGroup(stepId: String, entryId: String, below: Boolean) {
+        val result = section.items.moveOutOfGroup(stepId, entryId, below, library) ?: return
+        result.group?.let(::putGroup)
+        items { result.items }
+    }
+
+    /** Groups the steps [stepIds] (single texts of one collection) into a new group titled [title]. */
+    fun groupSteps(stepIds: Set<String>, title: String) {
+        val result = section.items.groupSteps(stepIds, title) ?: return
+        result.group?.let(::putGroup)
+        items { result.items }
+    }
+
     fun moveStep(itemId: String, delta: Int) = items { list ->
         val from = list.indexOfFirst { it.id == itemId }
         val to = from + delta
@@ -187,7 +210,12 @@ private sealed interface SubEditor {
     data object Time : SubEditor
     data object Delete : SubEditor
     data class Shared(val impact: SharedImpact) : SubEditor
+    /** The name of the new group the steps [stepIds] are gathered in. */
+    data class NameGroup(val stepIds: Set<String>) : SubEditor
 }
+
+/** A step while steps are picked to be grouped: whether it can be picked, and whether it is. */
+private class StepPick(val selectable: Boolean, val selected: Boolean, val onToggle: () -> Unit)
 
 private const val STEP_KEY = "step/"
 
@@ -216,6 +244,8 @@ internal fun SectionEditPopup(
     val readers = remember(programs, library, initial.id) { LibraryReaders(programs, library, initial.id) }
     var sub by remember { mutableStateOf<SubEditor?>(null) }
     var titleError by remember { mutableStateOf(false) }
+    // The steps picked to be grouped, while picking; null otherwise.
+    var picked by remember { mutableStateOf<Set<String>?>(null) }
     val resources = LocalResources.current
     val section = draft.section
     val done = stringResource(R.string.done)
@@ -276,6 +306,20 @@ internal fun SectionEditPopup(
         // Adding a step, at hand at the bottom whatever the scroll.
         footerStart = {
             val green = MaterialTheme.colorScheme.primary
+            val picking = picked
+            if (picking != null) {
+                IconButton(onClick = { picked = null }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) }
+                Button(
+                    onClick = { sub = SubEditor.NameGroup(picking) },
+                    enabled = picking.size >= 2,
+                    contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+                ) {
+                    Icon(GroupIcon, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.group_selected, uiDigits(picking.size)), fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+                return@EditorPopup
+            }
             OutlinedButton(
                 onClick = { sub = SubEditor.Step(null) },
                 contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
@@ -302,7 +346,7 @@ internal fun SectionEditPopup(
                     PopupLabel(text = stringResource(R.string.steps_title, uiDigits(section.items.size)))
                     if (section.items.size > 1) {
                         Text(
-                            stringResource(R.string.reorder_hint),
+                            stringResource(if (picked != null) R.string.group_select_hint else R.string.reorder_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         )
@@ -328,6 +372,16 @@ internal fun SectionEditPopup(
             items(section.items, key = { STEP_KEY + it.id }) { item ->
                 val key = STEP_KEY + item.id
                 val index = section.items.indexOf(item)
+                val picking = picked
+                // While picking: the single texts of the collection picked first can be picked.
+                val pickType = picking?.firstOrNull()?.let { id -> section.items.firstOrNull { it.id == id }?.type }
+                val pick = picking?.let { chosen ->
+                    StepPick(
+                        selectable = item.isGroupable && (pickType == null || item.type == pickType),
+                        selected = item.id in chosen,
+                        onToggle = { picked = if (item.id in chosen) chosen - item.id else chosen + item.id },
+                    )
+                }
                 StepCard(
                     item = item,
                     resolved = item.resolvedWith(draft.library),
@@ -348,13 +402,18 @@ internal fun SectionEditPopup(
                         }
                     },
                     onDelete = { draft.items { list -> list.filterNot { it.id == item.id } } },
+                    pick = pick,
+                    onPickToGroup = if (item.isGroupable) ({ picked = setOf(item.id) }) else null,
+                    onMoveOut = { entryId, below -> draft.moveOutOfGroup(item.id, entryId, below) },
                     modifier = Modifier
                         .animateItem(
                             placementSpec = if (reorder.isDragging(key)) null
                             else spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold),
                         )
                         // Moved only after a long press: a scroll or a tap never moves it by mistake.
-                        .reorderable(reorder, key) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        // Not while picking steps to group, when the steps that cannot be picked fade.
+                        .then(if (pick == null) Modifier.reorderable(reorder, key) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) } else Modifier)
+                        .alpha(if (pick != null && !pick.selectable) 0.4f else 1f),
                 )
             }
         }
@@ -412,6 +471,14 @@ internal fun SectionEditPopup(
                 }
             },
             dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.cancel)) } },
+        )
+        is SubEditor.NameGroup -> NewGroupDialog(
+            onDismiss = close,
+            onCreate = { title ->
+                draft.groupSteps(open.stepIds, title)
+                picked = null
+                close()
+            },
         )
         is SubEditor.Shared -> SharedSaveDialog(
             impact = open.impact,
@@ -662,6 +729,12 @@ private fun StepCard(
     /** A new step right above this one; this step to the top of the section. */
     onAddAbove: () -> Unit,
     onMoveToTop: () -> Unit,
+    /** While steps are picked to be grouped: this one's pick; null otherwise. */
+    pick: StepPick?,
+    /** Starts picking steps to group, with this one; null when it cannot be grouped. */
+    onPickToGroup: (() -> Unit)?,
+    /** Takes a text of this group step out of it, as a step above it or ([below]) under it. */
+    onMoveOut: (entryId: String, below: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -684,16 +757,29 @@ private fun StepCard(
     ) {
         Column {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(top = 7.dp, bottom = 7.dp, end = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        when {
+                            pick == null -> Modifier.clickable(onClick = onEdit)
+                            pick.selectable -> Modifier.toggleable(value = pick.selected, role = Role.Checkbox, onValueChange = { pick.onToggle() })
+                            else -> Modifier
+                        }
+                    )
+                    .padding(top = 7.dp, bottom = 7.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(width = 34.dp, height = 40.dp), contentAlignment = Alignment.Center) {
-                    Icon(
-                        painterResource(R.drawable.ic_drag_handle),
-                        stringResource(R.string.reorder_handle),
-                        tint = scheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
-                    )
+                    if (pick != null && pick.selectable) {
+                        Checkbox(checked = pick.selected, onCheckedChange = null)
+                    } else {
+                        Icon(
+                            painterResource(R.drawable.ic_drag_handle),
+                            stringResource(R.string.reorder_handle),
+                            tint = scheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
                 Box(
                     Modifier.size(32.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.16f).compositeOver(scheme.surfaceContainerLowest)),
@@ -741,7 +827,7 @@ private fun StepCard(
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
                 }
-                StepMenu(
+                if (pick == null) StepMenu(
                     contentLabel = when {
                         resolved == null || !item.type.isContent -> null
                         item.isGroup -> R.string.edit_group
@@ -756,10 +842,18 @@ private fun StepCard(
                     onDelete = onDelete,
                     onAddAbove = onAddAbove,
                     onMoveToTop = onMoveToTop,
-                )
+                    onPickToGroup = onPickToGroup,
+                ) else Spacer(Modifier.width(8.dp))
             }
             if (resolved != null && item.type.isContent) {
-                ContentPanel(item = resolved, draft = draft, readers = readers, onEditEntry = onEditEntry, onEditGroup = onEditGroup)
+                ContentPanel(
+                    item = resolved,
+                    draft = draft,
+                    readers = readers,
+                    onEditEntry = onEditEntry,
+                    onEditGroup = onEditGroup,
+                    onMoveOut = onMoveOut.takeIf { pick == null },
+                )
             }
         }
     }
@@ -911,6 +1005,8 @@ private fun ContentPanel(
     readers: LibraryReaders,
     onEditEntry: (String) -> Unit,
     onEditGroup: () -> Unit,
+    /** Takes a text out of the group, above it or ([below]) under it; null when not offered. */
+    onMoveOut: ((entryId: String, below: Boolean) -> Unit)?,
 ) {
     val colors = item.type.colors()
     val scheme = MaterialTheme.colorScheme
@@ -951,6 +1047,7 @@ private fun ContentPanel(
                         edited = draft.entryEdited(member.entryId),
                         shared = 0,
                         onClick = { onEditEntry(member.entryId) },
+                        onMoveOut = onMoveOut?.let { move -> { below -> move(member.entryId, below) } },
                     )
                 }
             } else {
@@ -990,9 +1087,11 @@ private fun ContentLine(
     edited: Boolean,
     shared: Int,
     onClick: () -> Unit,
+    /** For a text of a group: takes it out, above the group or ([below]) under it. */
+    onMoveOut: ((below: Boolean) -> Unit)? = null,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 14.dp, end = if (onMoveOut != null) 0.dp else 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (number != null) {
@@ -1019,6 +1118,56 @@ private fun ContentLine(
             Text(stringResource(R.string.times_count, uiDigits(count)), style = MaterialTheme.typography.labelMedium, color = accent, modifier = Modifier.padding(horizontal = 4.dp))
         }
         Icon(Icons.Filled.Edit, stringResource(R.string.edit_entry), tint = accent.copy(alpha = 0.75f), modifier = Modifier.size(15.dp))
+        if (onMoveOut != null) TextMenu(accent, onMoveOut)
+    }
+}
+
+/** A group's text's menu: taking it out of the group, as a step above the group or under it. */
+@Composable
+private fun TextMenu(accent: Color, onMoveOut: (below: Boolean) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Filled.MoreVert, stringResource(R.string.text_actions), tint = accent, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MenuRow(R.string.move_out_above, Icons.Filled.KeyboardArrowUp) { open = false; onMoveOut(false) }
+            MenuRow(R.string.move_out_below, Icons.Filled.KeyboardArrowDown) { open = false; onMoveOut(true) }
+        }
+    }
+}
+
+/** Asks the name of the new group the picked steps are gathered in. */
+@Composable
+private fun NewGroupDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(GroupIcon, null) },
+        title = { Text(stringResource(R.string.new_group_title)) },
+        text = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onCreate(title) }, enabled = title.isNotBlank()) {
+                Text(stringResource(R.string.new_group_create))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Stacked sheets: several texts gathered as one. */
+private val GroupIcon: ImageVector = materialIcon("DhikraGroup") {
+    materialPath {
+        moveTo(4f, 6f); lineTo(2f, 6f); lineTo(2f, 20f); curveTo(2f, 21.1f, 2.9f, 22f, 4f, 22f); lineTo(18f, 22f); lineTo(18f, 20f); lineTo(4f, 20f); close()
+        moveTo(20f, 2f); lineTo(8f, 2f); curveTo(6.9f, 2f, 6f, 2.9f, 6f, 4f); lineTo(6f, 16f); curveTo(6f, 17.1f, 6.9f, 18f, 8f, 18f); lineTo(20f, 18f)
+        curveTo(21.1f, 18f, 22f, 17.1f, 22f, 16f); lineTo(22f, 4f); curveTo(22f, 2.9f, 21.1f, 2f, 20f, 2f); close()
     }
 }
 
@@ -1059,6 +1208,8 @@ private fun StepMenu(
     /** A new step right above this one; this step to the top of the section. */
     onAddAbove: () -> Unit,
     onMoveToTop: () -> Unit,
+    /** Starts picking steps to group with this one; null when it cannot be grouped. */
+    onPickToGroup: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -1074,6 +1225,7 @@ private fun StepMenu(
             if (canMoveUp) MenuRow(R.string.move_up, Icons.Filled.KeyboardArrowUp, pick { onMove(-1) })
             if (canMoveDown) MenuRow(R.string.move_down, Icons.Filled.KeyboardArrowDown, pick { onMove(1) })
             MenuRow(R.string.duplicate, Icons.Filled.Add, pick(onDuplicate))
+            if (onPickToGroup != null) MenuRow(R.string.select_to_group, GroupIcon, pick(onPickToGroup))
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) },
