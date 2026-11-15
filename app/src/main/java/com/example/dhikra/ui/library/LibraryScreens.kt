@@ -2063,9 +2063,10 @@ private fun LibraryToolbar(
             color = accent,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            // All the room the chips leave: shared with a spacer, «Quran» was cut short in English.
+            modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
         Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             KindChip(stringResource(R.string.library_tab_singles), texts, selected = !groupsTab, accent = accent, onAccent = colors.onAccent) { onTab(0) }
             KindChip(stringResource(R.string.library_tab_groups), groups, selected = groupsTab, accent = accent, onAccent = colors.onAccent) { onTab(GROUPS_TAB) }
