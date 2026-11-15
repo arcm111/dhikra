@@ -1443,7 +1443,7 @@ private fun StepSegments(done: Int, total: Int, modifier: Modifier = Modifier) {
                     .weight(1f)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(2.dp))
-                    .background(if (on) gold else gold.copy(alpha = 0.2f))
+                    .background(if (on) gold else gold.copy(alpha = 0.38f))
             )
         }
     }
