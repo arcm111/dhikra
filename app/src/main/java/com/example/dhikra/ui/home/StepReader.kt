@@ -161,7 +161,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalWindowInfo
-import com.example.dhikra.ui.components.DhikraHeader
 import kotlin.math.ceil
 
 /** Test tag of the full-screen reader. */
@@ -185,8 +184,8 @@ private val MinDial = 180.dp
 private val PageTopTrim = 5.dp
 
 /**
- * The full-screen reader of a section: one screen per step, under the app's green header (the
- * section's steps as check boxes, and the step's title), on a deep night background. Swiping up
+ * The full-screen reader of a section: one screen per step, under the section's steps as check
+ * boxes and the step's title, on the night background of the counter. Swiping up
  * goes to the next step, down to the previous one, so the section can be read through without
  * going back to the list. A group step reads its texts on its one screen, swiped sideways, and a
  * long text is cut into pages, also swiped sideways. [startId] is the step (or text of a group)
@@ -226,7 +225,7 @@ fun StepReader(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { playingId = null }
     }
-    // The text each screen shows (a group's, as swiped to), for the header's title.
+    // The text each screen shows (a group's, as swiped to): reading along stops when it changes.
     val shownText = remember { mutableStateMapOf<String, Int>() }
 
     val shown = pagerState.currentPage.coerceIn(pages.indices)
@@ -256,9 +255,9 @@ fun StepReader(
     }
 
     val palette = LocalDhikraPalette.current
-    // The counter's night, deepened, so the app's green header stands out above it.
-    val nightTop = lerp(palette.nightStart, Color.Black, 0.4f)
-    val nightBottom = lerp(palette.nightEnd, Color.Black, 0.4f)
+    // The counter's night, a little deeper.
+    val nightTop = lerp(palette.nightStart, Color.Black, 0.2f)
+    val nightBottom = lerp(palette.nightEnd, Color.Black, 0.2f)
     var headerHeight by remember { mutableIntStateOf(0) }
     Box(
         modifier = modifier
@@ -266,7 +265,7 @@ fun StepReader(
             .testTag(StepReaderTag)
             .nestedScroll(blocked)
             .background(Brush.verticalGradient(listOf(nightTop, nightBottom)))
-            .starLattice(Color.White.copy(alpha = 0.03f), spacing = 58.dp, starRadius = 15.dp),
+            .starLattice(Color.White.copy(alpha = 0.035f), spacing = 58.dp, starRadius = 15.dp),
     ) {
         VerticalPager(
             state = pagerState,
@@ -312,15 +311,18 @@ fun StepReader(
             }
         }
 
-        // The app's header, fixed above the screens: the section's steps, and the step's title.
+        // Fixed above the screens: the section's steps, and the step's title.
         val page = pages[shown]
-        DhikraHeader(
-            modifier = Modifier.onSizeChanged { headerHeight = it.height },
-            bottomPadding = 12.dp,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { headerHeight = it.height }
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(bottom = 8.dp),
+            contentAlignment = Alignment.TopCenter,
         ) {
             Column(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
                     .widthIn(max = ReaderMaxWidth)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
@@ -342,10 +344,7 @@ fun StepReader(
                     onSetGroupComplete = { actions.onSetComplete(page.step, it) },
                     onClose = close,
                 )
-                StepTitle(
-                    step = page.step,
-                    text = if (page.step.isGroup) page.texts.getOrNull(shownText[page.id] ?: 0) else null,
-                )
+                StepTitle(page.step)
             }
         }
     }
@@ -357,44 +356,24 @@ private fun pagePosition(section: ProgramSection, page: ReaderPage): String {
     return uiDigits("${steps.indexOfFirst { it.id == page.step.id } + 1}/${steps.size}")
 }
 
-/**
- * The step's title under the header's check boxes, on a darker, translucent pill; for a group, the
- * title of the text shown under it.
- */
+/** The step's title under the check boxes, on a darker, translucent pill. */
 @Composable
-private fun StepTitle(step: ProgramItem, text: ProgramItem?, modifier: Modifier = Modifier) {
-    val title = step.title.ifBlank { text?.title.orEmpty() }
-    if (title.isBlank()) return
-    val sub = text?.title?.takeIf { it.isNotBlank() && it != title }
-    Column(
+private fun StepTitle(step: ProgramItem, modifier: Modifier = Modifier) {
+    if (step.title.isBlank()) return
+    Text(
+        text = step.title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White.copy(alpha = 0.92f),
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .padding(top = 2.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(Color.Black.copy(alpha = 0.22f))
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .animateContentSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.92f),
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (sub != null) {
-            Text(
-                text = sub,
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    )
 }
 
 /**
