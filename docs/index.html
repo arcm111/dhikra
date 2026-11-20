@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dhikra · ذكرى</title>
+<meta name="description" content="A daily program of dhikr, Quran and du'a, organised around the prayer times. Works fully offline, no ads, no tracking.">
+<link rel="icon" href="icon.webp">
+<style>
+  :root { --bg: #fbfaf6; --fg: #1f2328; --muted: #5d636b; --accent: #8a6a1f; --brand: #1e5a3c; --rule: #e4e0d4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12161c; --fg: #e6e6e6; --muted: #a2a8b0; --accent: #d9b45a; --brand: #2f7a55; --rule: #2a3038; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 16px 64px; }
+  header { text-align: center; }
+  header img { width: 112px; height: 112px; border-radius: 24px; }
+  h1 { font-size: 2rem; margin: 12px 0 4px; }
+  h2 { font-size: 1.25rem; color: var(--accent); margin: 40px 0 12px; }
+  .tagline { margin: 0; }
+  .muted { color: var(--muted); }
+  .badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+  .badges li { border: 1px solid var(--rule); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .shots figure { margin: 0; text-align: center; }
+  .shots img { width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--rule); }
+  .shots figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
+  ul.features { padding-inline-start: 22px; }
+  a { color: var(--accent); }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted);
+           display: flex; flex-wrap: wrap; gap: 8px 20px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <img src="icon.webp" alt="Dhikra icon">
+  <h1>Dhikra · ذكرى</h1>
+  <p class="tagline">A daily program of dhikr, Quran and du'a, organised around the prayer times.</p>
+  <p class="tagline muted" dir="rtl" lang="ar">برنامجك اليومي من الأذكار والقرآن والدعاء، مرتّبًا حول مواقيت الصلاة.</p>
+  <ul class="badges">
+    <li>Android 7.0+</li><li>Arabic &amp; English</li><li>Fully offline</li><li>No ads, no tracking</li><li>Free &amp; open source</li>
+  </ul>
+</header>
+
+<h2>Screenshots</h2>
+<div class="shots">
+  <figure><img src="screenshots/en/01-home.png" alt="Home screen" loading="lazy"><figcaption>Home</figcaption></figure>
+  <figure><img src="screenshots/en/02-calendar.png" alt="Today's timeline" loading="lazy"><figcaption>Today's timeline</figcaption></figure>
+  <figure><img src="screenshots/en/09-reader-pages.png" alt="Quran reader" loading="lazy"><figcaption>Quran reader</figcaption></figure>
+  <figure><img src="screenshots/en/11-reader-counter.png" alt="Tap counter" loading="lazy"><figcaption>Tap anywhere to count</figcaption></figure>
+  <figure><img src="screenshots/en/13-overlay.png" alt="Floating counter" loading="lazy"><figcaption>Floating counter</figcaption></figure>
+  <figure><img src="screenshots/en/26-prayer-times.png" alt="Prayer times" loading="lazy"><figcaption>Prayer times</figcaption></figure>
+</div>
+
+<h2>Features</h2>
+<ul class="features">
+  <li><strong>A daily program</strong> of sections tied to prayer times or fixed times, with progress and a timeline.</li>
+  <li><strong>Step reader</strong> with the Quran in page layout and a tap-anywhere counter.</li>
+  <li><strong>Floating counter</strong> that stays on top of other apps.</li>
+  <li><strong>Library</strong> of Quran, hadith, du'a and dhikr, with search and favourites.</li>
+  <li><strong>Editor</strong> to build and reorder your own sections, steps and groups.</li>
+  <li><strong>Prayer times</strong> calculated on the device for the city you choose, with alerts and home-screen widgets.</li>
+  <li><strong>Several programs</strong> you can share, export and import.</li>
+</ul>
+
+<footer>
+  <a href="privacy-policy.html">Privacy policy</a>
+  <a href="https://github.com/arcm111/dhikra">Source code (GPL-3.0)</a>
+  <a href="https://github.com/arcm111/dhikra/issues">Contact &amp; feedback</a>
+</footer>
+
+</main>
+</body>
+</html>
