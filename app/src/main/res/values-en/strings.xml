@@ -270,6 +270,10 @@
     <string name="exact_alarm_allow">Allow</string>
     <string name="azan_source">Azan recording</string>
     <string name="azan_source_details">“Beautiful adhan” from Wikimedia Commons, public domain (CC0)</string>
+    <string name="about_app">Dhikra %1$s</string>
+    <string name="about_app_details">Free software under the GPL-3.0 • source code on GitHub</string>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_policy_details">The app collects no data; everything you create stays on your device</string>
 
     <!-- Play button of a task -->
     <string name="start_now_section">Start %1$s</string>

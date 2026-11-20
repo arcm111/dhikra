@@ -91,6 +91,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
 import io.github.arcm111.dhikra.data.ReminderSound
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -425,7 +426,28 @@ fun SettingsScreen(
                 // Tanzil's terms: the source of the Quran text is named, with a link to tanzil.net.
                 val uriHandler = LocalUriHandler.current
                 val url = stringResource(R.string.quran_source_url)
+                val context = LocalContext.current
+                val version = remember {
+                    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+                }
                 SettingsGroup {
+                    // The app itself: its version, licence (GPL-3.0) and source code, and its privacy policy.
+                    val sourceUrl = stringResource(R.string.about_source_url)
+                    SettingsRow(
+                        title = stringResource(R.string.about_app, version),
+                        subtitle = stringResource(R.string.about_app_details),
+                        leading = { RowIcon(Icons.Outlined.Info) },
+                        onClick = { uriHandler.openUri(sourceUrl) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val privacyUrl = stringResource(R.string.privacy_policy_url)
+                    SettingsRow(
+                        title = stringResource(R.string.privacy_policy),
+                        subtitle = stringResource(R.string.privacy_policy_details),
+                        leading = { RowIcon(Icons.Outlined.Lock) },
+                        onClick = { uriHandler.openUri(privacyUrl) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SettingsRow(
                         title = stringResource(R.string.quran_source),
                         subtitle = stringResource(R.string.quran_source_details),

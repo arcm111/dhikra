@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Kept local only: release builds and the personal program backup
+/app/release/
+/backup/

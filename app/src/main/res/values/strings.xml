@@ -285,6 +285,12 @@
     <string name="azan_source">تسجيل الأذان</string>
     <string name="azan_source_details">«Beautiful adhan» من ويكيميديا كومنز، ملكية عامة (CC0)</string>
     <string name="azan_source_url" translatable="false">https://commons.wikimedia.org/wiki/File:Beautiful_adhan.ogg</string>
+    <string name="about_app">ذكرى %1$s</string>
+    <string name="about_app_details">برنامج حر بترخيص GPL-3.0 • الشيفرة المصدرية على GitHub</string>
+    <string name="about_source_url" translatable="false">https://github.com/arcm111/dhikra</string>
+    <string name="privacy_policy">سياسة الخصوصية</string>
+    <string name="privacy_policy_details">لا يجمع التطبيق أي بيانات، وكل ما تنشئه يبقى على جهازك</string>
+    <string name="privacy_policy_url" translatable="false">https://arcm111.github.io/dhikra/privacy-policy.html</string>
 
     <!-- Play button of a task: visible label, then its spoken description -->
     <string name="start_now_section">ابدأ %1$s</string>
