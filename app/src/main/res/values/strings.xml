@@ -144,6 +144,9 @@
     <string name="quran_source">نص المصحف: مشروع تنزيل</string>
     <string name="quran_source_details" translatable="false">Tanzil Quran Text (Uthmani, Version 1.1) • tanzil.net</string>
     <string name="quran_source_url" translatable="false">https://tanzil.net</string>
+    <string name="adhkar_source">نصوص أذكار الصباح والمساء</string>
+    <string name="adhkar_source_details">Morning-And-Evening-Adhkar-DB، ‏© 2024 Seen Arabic، بترخيص MIT</string>
+    <string name="adhkar_source_url" translatable="false">https://github.com/Seen-Arabic/Morning-And-Evening-Adhkar-DB</string>
     <string name="delete_entry_message">حذف «%1$s» من المكتبة؟</string>
     <string name="delete_entry_used_message">حذف «%1$s» من المكتبة؟ سيُحذف أيضاً من برنامجك (العدد: %2$s).</string>
     <string name="entry_in_program">في البرنامج</string>
@@ -338,14 +341,6 @@
     <string name="section_copy">%1$s (نسخة)</string>
     <string name="progress_all_done">أتممت برنامج اليوم ✓</string>
     <string name="counter_tap_hint">اضغط للعدّ</string>
-    <plurals name="section_count">
-        <item quantity="zero">لا أقسام</item>
-        <item quantity="one">قسم واحد</item>
-        <item quantity="two">قسمان</item>
-        <item quantity="few">%1$s أقسام</item>
-        <item quantity="many">%1$s قسمًا</item>
-        <item quantity="other">%1$s قسم</item>
-    </plurals>
     <plurals name="progress_left_before">
         <item quantity="zero">لا أقسام متبقية قبل %2$s</item>
         <item quantity="one">بقي %1$s قسم قبل %2$s</item>
@@ -382,12 +377,6 @@
     <string name="section_zone_local_equivalent">يوافق %1$s بتوقيتك</string>
     <string name="section_zone_madinah_short">المدينة %1$s</string>
     <string name="counter_share">مشاركة صورة العدّ</string>
-    <string name="widget_today_name">تقدّم اليوم</string>
-    <string name="widget_today_description">تقدّمك اليوم وأقسام الوقت الحالي</string>
-    <string name="widget_counters_name">العدّاد اليومي</string>
-    <string name="widget_counters_description">أذكار العدّاد اليومي، وعدّ مباشر من الشاشة الرئيسية</string>
-    <string name="widget_counters_empty">أضف ذكرًا إلى العدّاد من التطبيق</string>
-    <string name="widget_now">الآن</string>
     <string name="first_city_title">مرحبًا بك، اختر مدينتك</string>
     <string name="first_city_text">تُحسب مواقيت الصلاة لمدينتك على جهازك دون اتصال، ويُرتَّب جدول برنامجك اليومي حسبها.</string>
     <string name="first_city_pick">اختيار المدينة</string>
@@ -528,4 +517,53 @@
     <string name="group_selected">تجميع (%1$s)</string>
     <string name="new_group_title">اسم المجموعة الجديدة</string>
     <string name="new_group_create">إنشاء المجموعة</string>
+    <string name="reader_choice_title">اختر %1$s من %2$s</string>
+    <string name="reader_choice_progress">تمّ %1$s من %2$s</string>
+    <string name="reader_choice_hint">اختر نصًا لتقرأه</string>
+    <string name="reader_choice_more_hint">اختر نصًا آخر إن شئت</string>
+    <string name="reader_back_to_options">الخيارات</string>
+    <string name="cal_no_sections">لا أقسام في هذا الوقت</string>
+    <string name="cal_period_done">%1$s من %2$s مكتمل</string>
+    <string name="cal_steps">%1$s من %2$s خطوة</string>
+    <string name="cal_due_now">حان وقته</string>
+    <string name="cal_continue">متابعة</string>
+    <string name="cal_start">ابدأ</string>
+    <string name="cal_expand">إظهار الأقسام</string>
+    <string name="cal_collapse">إخفاء الأقسام</string>
+    <string name="prayer_alerts_sound_all">صوت التنبيه لكل الصلوات</string>
+    <string name="prayer_alerts_sound_title">صوت تنبيه الصلوات</string>
+    <string name="task_instructions">التعليمات (اختياري)</string>
+    <string name="task_instruction_hint">تعليمة</string>
+    <string name="task_instruction_add">إضافة تعليمة</string>
+    <string name="task_instruction_remove">حذف التعليمة</string>
+    <string name="block_make">تحويل إلى قسم فرعي</string>
+    <string name="block_insert">إدراج قسم فرعي فوقها</string>
+    <string name="block_detach">فصل عن القسم الفرعي</string>
+    <string name="block_summary">قسم فرعي · %1$s خطوات</string>
+    <string name="block_editor_title">القسم الفرعي</string>
+    <string name="block_title">العنوان</string>
+    <string name="block_shared_notice">تقرؤه %1$s أقسام: تعديله يغيّرها كلها.</string>
+    <string name="block_pick">اختر قسمًا فرعيًا</string>
+    <string name="task_check_label">أتممت هذه المهمة</string>
+    <string name="task_checked">تمّت المهمة</string>
+    <string name="task_check_hint">ضع علامة في المربع بعد إتمام المهمة لتنتقل إلى الخطوة التالية</string>
+    <string name="inspiration_channel">تذكيرات ملهمة</string>
+    <string name="inspiration_channel_desc">نصوص تختارها من المكتبة، في أوقات عشوائية من اليوم</string>
+    <string name="inspiration_title">تذكير</string>
+    <string name="inspiration_settings">تذكيرات عشوائية</string>
+    <string name="inspiration_per_day">عدد التذكيرات في اليوم</string>
+    <string name="inspiration_from">من الساعة</string>
+    <string name="inspiration_to">إلى الساعة</string>
+    <string name="inspiration_picked">النصوص المختارة: %1$s</string>
+    <string name="inspiration_pick_hint">اضغط الجرس بجانب أي نص في المكتبة لإضافته</string>
+    <string name="inspiration_preview">عرض تذكير الآن</string>
+    <string name="inspiration_toggle_on">إضافة إلى التذكيرات العشوائية</string>
+    <string name="inspiration_toggle_off">إزالة من التذكيرات العشوائية</string>
+    <string name="reminder_due">حان الآن وقت وردك</string>
+    <string name="reminder_start">ابدأ</string>
+    <string name="widget_prayer_name">وقت الصلاة</string>
+    <string name="widget_prayer_description">الوقت المتبقي حتى الصلاة القادمة وصلوات اليوم</string>
+    <string name="widget_hijri_name">التقويم الهجري</string>
+    <string name="widget_hijri_description">الشهر الهجري مع التاريخ الميلادي لكل يوم</string>
+    <string name="widget_prayer_left">الوقت المتبقي حتى %1$s</string>
 </resources>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «وقت الصلاة»: the header's prayer card — the time left to the next prayer on a draining ring in a
+     pane of glass, then the prayer going on, the city and the day's prayers on a 24-hour line. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/prayer_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_night" android:layoutDirection="ltr">
+    <LinearLayout android:id="@+id/prayer_content" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <LinearLayout android:layout_width="84dp" android:layout_height="match_parent" android:layout_margin="6dp"
+            android:orientation="vertical" android:gravity="center" android:background="@drawable/widget_glass"
+            android:paddingTop="8dp" android:paddingBottom="8dp">
+            <TextView android:id="@+id/prayer_next_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:singleLine="true" android:textColor="#FFE6CF86" android:textSize="12sp" android:fontFamily="sans-serif-medium"
+                android:text="المغرب" />
+            <FrameLayout android:layout_width="60dp" android:layout_height="60dp" android:layout_marginTop="4dp" android:layout_marginBottom="4dp">
+                <ImageView android:id="@+id/prayer_ring" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <TextView android:id="@+id/prayer_countdown" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_gravity="center" android:singleLine="true" android:textColor="#FFFFFFFF" android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium" android:text="١١:١٩" />
+            </FrameLayout>
+            <TextView android:id="@+id/prayer_next_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:singleLine="true" android:textColor="#99FFFFFF" android:textSize="11sp" android:text="١٦:١٢" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView android:id="@+id/prayer_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:singleLine="true" android:ellipsize="end" android:textColor="#EBFFFFFF" android:textSize="16sp"
+                    android:fontFamily="sans-serif-medium" android:text="وقت العصر" />
+                <ImageView android:layout_width="13dp" android:layout_height="13dp" android:src="@drawable/widget_pin"
+                    android:importantForAccessibility="no" />
+                <TextView android:id="@+id/prayer_city" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp" android:maxWidth="110dp" android:singleLine="true" android:ellipsize="end"
+                    android:textColor="#99FFFFFF" android:textSize="12sp" android:text="مانشستر" />
+            </LinearLayout>
+            <ImageView android:id="@+id/prayer_strip" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:adjustViewBounds="true" android:scaleType="fitCenter"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/prayer_empty" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:gravity="center" android:padding="16dp" android:textColor="#EBFFFFFF" android:textSize="14sp" android:visibility="gone" />
+</FrameLayout>

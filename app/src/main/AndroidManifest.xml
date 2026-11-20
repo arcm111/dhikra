@@ -74,34 +74,30 @@
             </intent-filter>
         </receiver>
 
-        <!-- Home-screen widgets: today's progress and sections, and the daily counters. -->
+        <!-- Home-screen widgets: the prayer time (as on the header) and the Hijri month. -->
         <receiver
-            android:name=".widget.TodayWidget"
+            android:name=".widget.PrayerWidget"
             android:exported="true"
-            android:label="@string/widget_today_name">
+            android:label="@string/widget_prayer_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_today_info" />
+                android:resource="@xml/widget_prayer_info" />
         </receiver>
 
         <receiver
-            android:name=".widget.CountersWidget"
+            android:name=".widget.HijriWidget"
             android:exported="true"
-            android:label="@string/widget_counters_name">
+            android:label="@string/widget_hijri_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_counters_info" />
+                android:resource="@xml/widget_hijri_info" />
         </receiver>
-
-        <receiver
-            android:name=".widget.WidgetActionReceiver"
-            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

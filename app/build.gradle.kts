@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dhikra"
+    namespace = "io.github.arcm111.dhikra"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.dhikra"
+        applicationId = "io.github.arcm111.dhikra"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
